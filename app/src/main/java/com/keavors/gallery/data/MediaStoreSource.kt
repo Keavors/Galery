@@ -7,12 +7,15 @@ import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** The content Uri that opens this item. */
-fun MediaItem.contentUri(): Uri = ContentUris.withAppendedId(
+/** The content Uri that opens an item with this id. */
+fun mediaContentUri(id: Long, isVideo: Boolean): Uri = ContentUris.withAppendedId(
     if (isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI
     else MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
     id,
 )
+
+/** The content Uri that opens this item. */
+fun MediaItem.contentUri(): Uri = mediaContentUri(id, isVideo)
 
 /**
  * Reads the whole library out of MediaStore in one pass.

@@ -34,4 +34,13 @@
     <string name="manage_granted">Granted. Deleting and favouriting work without extra confirmations.</string>
     <string name="manage_missing">Not granted. Every delete and every heart will ask the system for confirmation.</string>
     <string name="manage_request">Grant</string>
+
+    <string name="date_today">Today</string>
+    <string name="date_yesterday">Yesterday</string>
+    <string name="scroll_to_top">Back to top</string>
+
+    <string name="settings_access">Access</string>
+    <string name="access_state_full">Full access to the library</string>
+    <string name="access_state_partial">Only selected photos</string>
+    <string name="access_state_none">No access granted</string>
 </resources>

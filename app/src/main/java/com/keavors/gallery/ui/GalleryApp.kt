@@ -41,6 +41,7 @@ import com.keavors.gallery.data.mediaPermissions
 import com.keavors.gallery.ui.common.PlaceholderScreen
 import com.keavors.gallery.ui.permission.MediaGate
 import com.keavors.gallery.ui.photos.PhotosScreen
+import com.keavors.gallery.ui.settings.SettingsScreen
 
 /** Duration of the cross-fade between tabs, ms. Kept short: tabs are cheap. */
 private const val TAB_FADE_IN = 220
@@ -123,17 +124,20 @@ fun GalleryApp(repository: MediaRepository) {
                     onRequest = { permissionLauncher.launch(mediaPermissions) },
                     onOpenSettings = { context.startActivity(appSettingsIntent(context.packageName)) },
                 ) {
-                    PhotosScreen(
-                        state = library,
-                        canManageMedia = manageMedia,
-                        onRequestManageMedia = {
-                            context.startActivity(manageMediaIntent(context.packageName))
-                        },
-                    )
+                    PhotosScreen(state = library)
                 }
 
                 // Settings never sits behind the gate: it is where a person goes
                 // to understand why the rest of the app is asking for anything.
+                Tab.SETTINGS -> SettingsScreen(
+                    access = access,
+                    canManageMedia = manageMedia,
+                    onOpenSettings = { context.startActivity(appSettingsIntent(context.packageName)) },
+                    onRequestManageMedia = {
+                        context.startActivity(manageMediaIntent(context.packageName))
+                    },
+                )
+
                 else -> PlaceholderScreen(current)
             }
         }
