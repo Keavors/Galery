@@ -44,12 +44,14 @@ import com.keavors.gallery.data.LibraryState
 import com.keavors.gallery.data.MediaAccess
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaRepository
+import com.keavors.gallery.data.AlbumSource
 import com.keavors.gallery.data.canManageMedia
-import com.keavors.gallery.data.inFolder
+import com.keavors.gallery.data.inAlbum
 import com.keavors.gallery.data.indexOfId
 import com.keavors.gallery.data.mediaAccess
 import com.keavors.gallery.data.mediaPermissions
 import com.keavors.gallery.ui.album.AlbumScreen
+import com.keavors.gallery.ui.albums.AlbumsScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
 import com.keavors.gallery.ui.permission.MediaGate
 import com.keavors.gallery.ui.photos.PhotosScreen
@@ -120,16 +122,17 @@ fun GalleryApp(
         resolvingExternal = true
 
         val resolved = repository.resolveExternal(open.uri, open.declaredType)
-        folder = resolved.bucketId?.let { bucket ->
+        val source = resolved.bucketId?.let { AlbumSource.Folder(it) }
+        folder = source?.let {
             FolderRoute(
-                bucketId = bucket,
+                source = it,
                 title = resolved.folderName.ifBlank { unknownFolder },
                 fromExternal = true,
             )
         }
         viewer = ViewerRoute(
             itemId = resolved.items.getOrNull(resolved.index)?.id ?: -1,
-            bucketId = resolved.bucketId,
+            source = source,
             thumbBucketPx = DEFAULT_THUMB_BUCKET,
             items = resolved.items,
         )
@@ -138,14 +141,14 @@ fun GalleryApp(
         onExternalHandled()
     }
 
-    val folderItems = folder?.let { libraryItems.inFolder(it.bucketId) }.orEmpty()
+    val folderItems = folder?.let { libraryItems.inAlbum(it.source) }.orEmpty()
 
     val viewerItems = viewer?.let { route ->
         when {
             // The folder straight from the library once it has one; the answer
             // found ahead of it only until then.
-            route.bucketId != null ->
-                libraryItems.inFolder(route.bucketId).ifEmpty { route.items.orEmpty() }
+            route.source != null ->
+                libraryItems.inAlbum(route.source).ifEmpty { route.items.orEmpty() }
             route.items != null -> route.items
             else -> libraryItems
         }
@@ -161,7 +164,7 @@ fun GalleryApp(
         } else {
             viewer = ViewerRoute(
                 itemId = item.id,
-                bucketId = if (folder != null) item.bucketId else null,
+                source = folder?.source,
                 thumbBucketPx = bucket,
             )
         }
@@ -249,6 +252,23 @@ fun GalleryApp(
                             context.startActivity(manageMediaIntent(context.packageName))
                         },
                     )
+
+                    Tab.ALBUMS -> MediaGate(
+                        access = access,
+                        onRequest = { permissionLauncher.launch(mediaPermissions) },
+                        onOpenSettings = {
+                            context.startActivity(appSettingsIntent(context.packageName))
+                        },
+                    ) {
+                        AlbumsScreen(
+                            items = libraryItems,
+                            trashCount = trash.size,
+                            onOpenAlbum = { source, title ->
+                                folder = FolderRoute(source, title, fromExternal = false)
+                            },
+                            onOpenTrash = { selected = Tab.TRASH.ordinal },
+                        )
+                    }
 
                     else -> PlaceholderScreen(current)
                 }

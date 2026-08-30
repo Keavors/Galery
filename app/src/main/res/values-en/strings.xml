@@ -97,4 +97,6 @@
     <string name="trash_selected">%1$d selected</string>
     <string name="section_select">Select everything from this date</string>
     <string name="section_deselect">Deselect this date</string>
+    <string name="album_favourites">Favourites</string>
+    <string name="album_videos">Videos</string>
 </resources>
