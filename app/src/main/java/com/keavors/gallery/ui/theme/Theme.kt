@@ -11,21 +11,24 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-/** How the app picks between the light and dark palettes. */
+/** How the app picks between the light and dark sides of a palette. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /**
- * Wraps the whole app. The three switches here are the ones the settings screen
- * will drive later; for now they take their defaults from the system.
+ * Wraps the whole app.
  *
- * @param amoled turns the dark palette pure black. Ignored in light mode.
- * @param dynamicColor takes the palette from the wallpaper (Material You).
+ * The three knobs are deliberately independent, which is what makes "pure white"
+ * and "pure black" reachable without a separate theme for each combination:
+ * [Palette.MONO] is already white in light mode, and [pureBlack] takes any dark
+ * palette down to #000000.
+ *
+ * The settings screen will drive all three; until it exists they hold defaults.
  */
 @Composable
 fun GalleryTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    amoled: Boolean = false,
-    dynamicColor: Boolean = false,
+    palette: Palette = Palette.COFFEE,
+    pureBlack: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val dark = when (themeMode) {
@@ -35,13 +38,12 @@ fun GalleryTheme(
     }
     val context = LocalContext.current
 
-    val colors = when {
-        dynamicColor && dark -> dynamicDarkColorScheme(context)
-        dynamicColor -> dynamicLightColorScheme(context)
-        dark && amoled -> GalleryAmoledColors
-        dark -> GalleryDarkColors
-        else -> GalleryLightColors
+    val base = when {
+        palette != Palette.DYNAMIC -> staticColorScheme(palette, dark)
+        dark -> dynamicDarkColorScheme(context)
+        else -> dynamicLightColorScheme(context)
     }
+    val colors = if (dark && pureBlack) base.pureBlack() else base
 
     // Status and navigation bar icons have to flip with the palette, otherwise
     // they vanish into the background one theme at a time.

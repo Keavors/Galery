@@ -5,16 +5,25 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-/*
- * A gallery is a frame around someone else's colours, so the palette stays warm
- * and neutral and spends all of its saturation on a single amber accent.
+/**
+ * Which set of colours the app is painted with. Independent of light/dark: every
+ * palette has both.
  */
+enum class Palette {
+    /** Warm neutrals with a single amber accent. The default. */
+    COFFEE,
 
-private val AmberLight = Color(0xFF8A5A12)
-private val AmberDark = Color(0xFFF2B44A)
+    /** Pure white and pure black with grey accents; photos supply all the colour. */
+    MONO,
 
-val GalleryLightColors: ColorScheme = lightColorScheme(
-    primary = AmberLight,
+    /** Taken from the wallpaper (Material You). */
+    DYNAMIC,
+}
+
+// ---------------------------------------------------------------- coffee ----
+
+private val CoffeeLight = lightColorScheme(
+    primary = Color(0xFF8A5A12),
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFFFDDA8),
     onPrimaryContainer = Color(0xFF2C1800),
@@ -38,8 +47,8 @@ val GalleryLightColors: ColorScheme = lightColorScheme(
     onError = Color(0xFFFFFFFF),
 )
 
-val GalleryDarkColors: ColorScheme = darkColorScheme(
-    primary = AmberDark,
+private val CoffeeDark = darkColorScheme(
+    primary = Color(0xFFF2B44A),
     onPrimary = Color(0xFF442B00),
     primaryContainer = Color(0xFF614000),
     onPrimaryContainer = Color(0xFFFFDDA8),
@@ -63,13 +72,78 @@ val GalleryDarkColors: ColorScheme = darkColorScheme(
     onError = Color(0xFF690005),
 )
 
+// ------------------------------------------------------------------ mono ----
+
+private val MonoLight = lightColorScheme(
+    primary = Color(0xFF1F1F1F),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFE4E4E4),
+    onPrimaryContainer = Color(0xFF101010),
+    secondary = Color(0xFF4A4A4A),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFEDEDED),
+    onSecondaryContainer = Color(0xFF1A1A1A),
+    tertiary = Color(0xFF3D3D3D),
+    onTertiary = Color(0xFFFFFFFF),
+    background = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF0A0A0A),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF0A0A0A),
+    surfaceVariant = Color(0xFFEFEFEF),
+    onSurfaceVariant = Color(0xFF464646),
+    surfaceContainer = Color(0xFFF4F4F4),
+    surfaceContainerHigh = Color(0xFFEBEBEB),
+    outline = Color(0xFF8C8C8C),
+    outlineVariant = Color(0xFFD6D6D6),
+    error = Color(0xFFBA1A1A),
+    onError = Color(0xFFFFFFFF),
+)
+
+private val MonoDark = darkColorScheme(
+    primary = Color(0xFFE6E6E6),
+    onPrimary = Color(0xFF1A1A1A),
+    primaryContainer = Color(0xFF303030),
+    onPrimaryContainer = Color(0xFFF2F2F2),
+    secondary = Color(0xFFBDBDBD),
+    onSecondary = Color(0xFF262626),
+    secondaryContainer = Color(0xFF333333),
+    onSecondaryContainer = Color(0xFFEAEAEA),
+    tertiary = Color(0xFFCFCFCF),
+    onTertiary = Color(0xFF242424),
+    background = Color(0xFF0B0B0B),
+    onBackground = Color(0xFFF0F0F0),
+    surface = Color(0xFF0B0B0B),
+    onSurface = Color(0xFFF0F0F0),
+    surfaceVariant = Color(0xFF3A3A3A),
+    onSurfaceVariant = Color(0xFFC6C6C6),
+    surfaceContainer = Color(0xFF1A1A1A),
+    surfaceContainerHigh = Color(0xFF242424),
+    outline = Color(0xFF8F8F8F),
+    outlineVariant = Color(0xFF3A3A3A),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+)
+
+// ----------------------------------------------------------------- pick -----
+
+/** The static palettes. [Palette.DYNAMIC] is resolved from the wallpaper instead. */
+internal fun staticColorScheme(palette: Palette, dark: Boolean): ColorScheme = when {
+    palette == Palette.MONO && dark -> MonoDark
+    palette == Palette.MONO -> MonoLight
+    dark -> CoffeeDark
+    else -> CoffeeLight
+}
+
 /**
- * Pure black variant for OLED panels: unlit pixels save power and make photos
- * look like they float. Only the surfaces change, the accent stays put.
+ * Drops every surface to true black for OLED panels: unlit pixels save power and
+ * make photos look like they float. Only surfaces move, the accent stays put.
  */
-val GalleryAmoledColors: ColorScheme = GalleryDarkColors.copy(
+internal fun ColorScheme.pureBlack(): ColorScheme = copy(
     background = Color(0xFF000000),
     surface = Color(0xFF000000),
-    surfaceContainer = Color(0xFF0C0B09),
-    surfaceContainerHigh = Color(0xFF16140F),
+    surfaceContainerLowest = Color(0xFF000000),
+    surfaceContainerLow = Color(0xFF080808),
+    surfaceContainer = Color(0xFF0E0E0E),
+    surfaceContainerHigh = Color(0xFF161616),
+    surfaceContainerHighest = Color(0xFF1E1E1E),
 )
