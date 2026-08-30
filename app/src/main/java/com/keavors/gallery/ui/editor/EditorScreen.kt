@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalLayoutApi::class)
+
 package com.keavors.gallery.ui.editor
 
 import androidx.activity.compose.BackHandler
@@ -7,13 +9,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -133,7 +140,15 @@ fun EditorScreen(
             // misses everything here must not turn the page underneath.
             .opaqueToTouch()
             .background(Color.Black)
-            .safeDrawingPadding(),
+            // The insets the system bars would have, not the ones they have.
+            // The editor opens over the viewer, which hides those bars on a
+            // timer of its own; with the real insets the toolbar would slide up
+            // under the clock the moment that timer went off. The cutout is
+            // added because in landscape the back button sits exactly where the
+            // camera is.
+            .windowInsetsPadding(
+                WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout)
+            ),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ChromeIconButton(
