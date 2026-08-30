@@ -86,6 +86,9 @@
     <!-- Действия над файлами -->
     <string name="action_favorite">В избранное</string>
     <string name="action_unfavorite">Убрать из избранного</string>
+    <!-- Под иконкой в нижней шторке: слово, а не предложение. -->
+    <string name="bar_favorite">Избранное</string>
+    <string name="bar_edit">Изменить</string>
     <string name="action_delete">Удалить</string>
     <string name="action_restore">Восстановить</string>
     <string name="action_delete_forever">Удалить навсегда</string>

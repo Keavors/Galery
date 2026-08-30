@@ -10,12 +10,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -32,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
@@ -45,6 +43,9 @@ import com.keavors.gallery.data.maxEditablePixels
 import com.keavors.gallery.data.overwriteWith
 import com.keavors.gallery.data.saveEditedCopy
 import com.keavors.gallery.data.writeRequestFor
+import com.keavors.gallery.ui.common.BarAction
+import com.keavors.gallery.ui.common.ChromeIconButton
+import com.keavors.gallery.ui.common.TOUCH_TARGET
 import com.keavors.gallery.ui.common.opaqueToTouch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -126,13 +127,11 @@ fun EditorScreen(
             .safeDrawingPadding(),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_back),
-                    contentDescription = stringResource(R.string.viewer_back),
-                    tint = Color.White,
-                )
-            }
+            ChromeIconButton(
+                icon = R.drawable.ic_back,
+                contentDescription = stringResource(R.string.viewer_back),
+                onClick = onClose,
+            )
             Text(
                 text = stringResource(R.string.editor_title),
                 style = MaterialTheme.typography.titleMedium,
@@ -142,6 +141,10 @@ fun EditorScreen(
             TextButton(
                 onClick = { askingHow = true },
                 enabled = !ops.isIdentity && !working && preview != null,
+                // The one button here that saves over a photograph, and it was
+                // the smallest thing on the bar.
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                modifier = Modifier.heightIn(min = TOUCH_TARGET),
             ) {
                 Text(stringResource(R.string.editor_save), color = Color.White)
             }
@@ -177,17 +180,38 @@ fun EditorScreen(
         }
 
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            // The same cells as the viewer's bottom bar: a quarter of the width
+            // each, the whole of it answering a thumb rather than the icon in
+            // the middle of it.
             Row(
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                ToolButton(R.drawable.ic_rotate, R.string.editor_rotate) { ops = ops.turned() }
-                ToolButton(R.drawable.ic_flip, R.string.editor_flip) { ops = ops.flipped() }
-                ToolButton(R.drawable.ic_crop_reset, R.string.editor_reset_crop) {
-                    ops = ops.cropped(CropRect.Whole)
-                }
-                ToolButton(R.drawable.ic_restore, R.string.editor_reset) { ops = EditOps.None }
+                BarAction(
+                    icon = R.drawable.ic_rotate,
+                    label = stringResource(R.string.editor_rotate),
+                    onClick = { ops = ops.turned() },
+                    modifier = Modifier.weight(1f),
+                )
+                BarAction(
+                    icon = R.drawable.ic_flip,
+                    label = stringResource(R.string.editor_flip),
+                    onClick = { ops = ops.flipped() },
+                    modifier = Modifier.weight(1f),
+                )
+                BarAction(
+                    icon = R.drawable.ic_crop_reset,
+                    label = stringResource(R.string.editor_reset_crop),
+                    onClick = { ops = ops.cropped(CropRect.Whole) },
+                    modifier = Modifier.weight(1f),
+                )
+                BarAction(
+                    icon = R.drawable.ic_restore,
+                    label = stringResource(R.string.editor_reset),
+                    onClick = { ops = EditOps.None },
+                    modifier = Modifier.weight(1f),
+                )
             }
 
             Text(
@@ -228,25 +252,6 @@ fun EditorScreen(
 
 /** Two megapixels is more than any phone screen shows and decodes in a blink. */
 private const val PREVIEW_PIXELS = 2_000_000
-
-@Composable
-private fun ToolButton(icon: Int, label: Int, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        IconButton(onClick = onClick) {
-            Icon(
-                painter = painterResource(icon),
-                contentDescription = stringResource(label),
-                tint = Color.White,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-        Text(
-            text = stringResource(label),
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.8f),
-        )
-    }
-}
 
 /**
  * Decodes the original at the largest size this device can hold, applies the

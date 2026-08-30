@@ -11,13 +11,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +35,8 @@ import com.keavors.gallery.R
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.copyMediaToClipboard
 import com.keavors.gallery.data.shareMedia
+import com.keavors.gallery.ui.common.BarAction
+import com.keavors.gallery.ui.common.ChromeIconButton
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -80,13 +78,11 @@ fun ViewerTopBar(
             .windowInsetsPadding(stableInsets)
             .padding(horizontal = 4.dp, vertical = 4.dp),
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                painter = painterResource(R.drawable.ic_back),
-                contentDescription = stringResource(R.string.viewer_back),
-                tint = Color.White,
-            )
-        }
+        ChromeIconButton(
+            icon = R.drawable.ic_back,
+            contentDescription = stringResource(R.string.viewer_back),
+            onClick = onBack,
+        )
 
         Column(
             modifier = Modifier
@@ -110,13 +106,11 @@ fun ViewerTopBar(
         }
 
         Box {
-            IconButton(onClick = { menuOpen = true }) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_more),
-                    contentDescription = stringResource(R.string.viewer_more),
-                    tint = Color.White,
-                )
-            }
+            ChromeIconButton(
+                icon = R.drawable.ic_more,
+                contentDescription = stringResource(R.string.viewer_more),
+                onClick = { menuOpen = true },
+            )
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.viewer_details)) },
@@ -161,7 +155,11 @@ fun ViewerBottomBar(
     val shareTitle = stringResource(R.string.viewer_share)
 
     Row(
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        // Every action gets the same share of the width — see BarAction. With
+        // the row merely spacing them out, "Убрать из избранного" made its own
+        // button twice the size of the one next to it and pushed the rest off
+        // centre.
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
@@ -169,7 +167,7 @@ fun ViewerBottomBar(
                 Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))
             )
             .windowInsetsPadding(stableInsets)
-            .padding(vertical = 6.dp),
+            .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {
         // A vaulted file has no MediaStore row behind it, so favouriting,
         // sharing and trashing have nothing to act on. Putting it back is the
@@ -179,6 +177,7 @@ fun ViewerBottomBar(
                 icon = R.drawable.ic_restore,
                 label = stringResource(R.string.vault_restore),
                 onClick = onRestore,
+                modifier = Modifier.weight(1f),
             )
             return@Row
         }
@@ -187,56 +186,38 @@ fun ViewerBottomBar(
             // Filled once it is a favourite, outlined until then — the state is
             // the icon, so nothing has to be read to know it.
             icon = if (item.isFavorite) R.drawable.ic_heart else R.drawable.ic_heart_outline,
-            label = stringResource(
+            // The label stays put while the icon changes: a word that swaps
+            // itself under a thumb is how the wrong button gets pressed. What
+            // the tap will actually do is said in full to anyone being read to.
+            label = stringResource(R.string.bar_favorite),
+            description = stringResource(
                 if (item.isFavorite) R.string.action_unfavorite else R.string.action_favorite
             ),
             onClick = onToggleFavorite,
+            modifier = Modifier.weight(1f),
         )
         // Only for stills: the editor turns and crops pixels, and a video is
         // a different job with a different set of tools.
         if (!item.isVideo) {
             BarAction(
                 icon = R.drawable.ic_edit,
-                label = stringResource(R.string.editor_title),
+                label = stringResource(R.string.bar_edit),
+                description = stringResource(R.string.editor_title),
                 onClick = onEdit,
+                modifier = Modifier.weight(1f),
             )
         }
         BarAction(
             icon = R.drawable.ic_share,
             label = stringResource(R.string.viewer_share),
             onClick = { context.shareMedia(item, shareTitle) },
+            modifier = Modifier.weight(1f),
         )
         BarAction(
             icon = R.drawable.ic_tab_trash,
             label = stringResource(R.string.action_delete),
             onClick = onDelete,
-        )
-    }
-}
-
-@Composable
-private fun BarAction(
-    icon: Int,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier,
-    ) {
-        IconButton(onClick = onClick) {
-            Icon(
-                painter = painterResource(icon),
-                contentDescription = label,
-                tint = Color.White,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.85f),
+            modifier = Modifier.weight(1f),
         )
     }
 }

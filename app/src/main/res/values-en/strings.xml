@@ -78,6 +78,8 @@
 
     <string name="action_favorite">Add to favourites</string>
     <string name="action_unfavorite">Remove from favourites</string>
+    <string name="bar_favorite">Favourites</string>
+    <string name="bar_edit">Edit</string>
     <string name="action_delete">Delete</string>
     <string name="action_restore">Restore</string>
     <string name="action_delete_forever">Delete for good</string>

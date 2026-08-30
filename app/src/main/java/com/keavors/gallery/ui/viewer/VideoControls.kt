@@ -4,9 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -23,12 +20,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.keavors.gallery.R
+import com.keavors.gallery.ui.common.ChromeIconButton
 import com.keavors.gallery.ui.photos.formatDuration
 import kotlinx.coroutines.delay
 
@@ -95,7 +92,12 @@ fun VideoControls(player: ExoPlayer, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .padding(horizontal = 8.dp),
     ) {
-        IconButton(
+        ChromeIconButton(
+            icon = if (playing) R.drawable.ic_pause else R.drawable.ic_play,
+            contentDescription = stringResource(
+                if (playing) R.string.video_pause else R.string.video_play
+            ),
+            iconSize = 22.dp,
             onClick = {
                 if (playing) {
                     player.pause()
@@ -108,16 +110,7 @@ fun VideoControls(player: ExoPlayer, modifier: Modifier = Modifier) {
                     player.play()
                 }
             },
-        ) {
-            Icon(
-                painter = painterResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play),
-                contentDescription = stringResource(
-                    if (playing) R.string.video_pause else R.string.video_play
-                ),
-                tint = Color.White,
-                modifier = Modifier.size(22.dp),
-            )
-        }
+        )
 
         Text(
             text = formatDuration(shownMs),
@@ -149,17 +142,13 @@ fun VideoControls(player: ExoPlayer, modifier: Modifier = Modifier) {
             color = Color.White,
         )
 
-        IconButton(onClick = { player.volume = if (muted) 1f else 0f }) {
-            Icon(
-                painter = painterResource(
-                    if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on
-                ),
-                contentDescription = stringResource(
-                    if (muted) R.string.video_sound_on else R.string.video_sound_off
-                ),
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
+        ChromeIconButton(
+            icon = if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on,
+            contentDescription = stringResource(
+                if (muted) R.string.video_sound_on else R.string.video_sound_off
+            ),
+            iconSize = 20.dp,
+            onClick = { player.volume = if (muted) 1f else 0f },
+        )
     }
 }
