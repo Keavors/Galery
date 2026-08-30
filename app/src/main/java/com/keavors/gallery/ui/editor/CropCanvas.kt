@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -59,20 +60,29 @@ fun CropCanvas(
     // the first drag of a session moved the crop against a rectangle of zeroes.
     val frame = letterboxIn(canvas, image.width, image.height)
 
-    // Read through updated state rather than captured: the gesture detector is
-    // created once per picture, and a captured frame or crop would keep the
-    // value it was born with for as long as the editor is open.
+    // Everything the gesture detector needs is read through updated state
+    // rather than captured, because the detector below is started once and
+    // never again: a captured crop, frame or callback would keep the value it
+    // was born with for as long as the editor is open.
     val current by rememberUpdatedState(crop)
     val report by rememberUpdatedState(onCropChange)
     val box by rememberUpdatedState(frame)
+    val reach by rememberUpdatedState(with(LocalDensity.current) { HANDLE_REACH.toPx() })
 
     var grabbed by remember { mutableStateOf(Grab.NONE) }
 
     Canvas(
         modifier = modifier
             .onSizeChanged { canvas = Size(it.width.toFloat(), it.height.toFloat()) }
-            .pointerInput(image) {
-                val reach = HANDLE_REACH.toPx()
+            // Keyed on nothing at all, and that is the fix rather than an
+            // oversight. A key that changes cancels the coroutine underneath and
+            // starts it again, which mid-drag means the drag simply stops; the
+            // key here used to be the picture, and the picture is wrapped afresh
+            // on every recomposition, so every crop reported caused the very
+            // recomposition that killed the gesture reporting it. A frame could
+            // be nudged a few pixels and then went dead until the finger was
+            // lifted and put down again.
+            .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { start -> grabbed = grabFor(start, current, box, reach) },
                     onDragEnd = { grabbed = Grab.NONE },

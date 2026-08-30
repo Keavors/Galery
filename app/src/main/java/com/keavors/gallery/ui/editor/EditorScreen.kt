@@ -109,6 +109,11 @@ fun EditorScreen(
         preview?.let { if (geometry.isIdentity) it else applyOps(it, geometry) }
     }
 
+    // Wrapped once per picture. asImageBitmap builds a new object every time it
+    // is called, so wrapping it where it is used would hand the canvas a
+    // different picture on every frame of a drag.
+    val image = remember(shown) { shown?.asImageBitmap() }
+
     BackHandler { onClose() }
 
     // Both ways of saving go through here, because the two differ by one
@@ -180,12 +185,11 @@ fun EditorScreen(
                 .fillMaxWidth(),
             contentAlignment = Alignment.Center,
         ) {
-            val bitmap = shown
-            if (bitmap == null) {
+            if (image == null) {
                 CircularProgressIndicator(color = Color.White)
             } else {
                 CropCanvas(
-                    image = bitmap.asImageBitmap(),
+                    image = image,
                     crop = ops.crop,
                     onCropChange = { ops = ops.cropped(it) },
                     modifier = Modifier.fillMaxSize(),
