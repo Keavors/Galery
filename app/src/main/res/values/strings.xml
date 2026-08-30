@@ -76,4 +76,9 @@
     <string name="unit_seconds">с</string>
     <string name="unit_mm">мм</string>
     <string name="unit_megapixels">МП</string>
+
+    <string name="video_play">Воспроизвести</string>
+    <string name="video_pause">Пауза</string>
+    <string name="video_sound_on">Включить звук</string>
+    <string name="video_sound_off">Выключить звук</string>
 </resources>

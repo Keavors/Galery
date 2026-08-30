@@ -12,6 +12,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -32,9 +33,15 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.media3.common.MediaItem as Media3Item
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import coil3.request.ImageRequest
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.contentUri
@@ -88,6 +95,38 @@ fun ViewerScreen(
     val close by rememberUpdatedState(onClose)
 
     val current = items.getOrNull(pagerState.currentPage) ?: items.first()
+
+    // One player for the whole viewer, moved from page to page. Each ExoPlayer
+    // holds a hardware decoder, and keeping three alive so the pages either side
+    // are "ready" would tie up a scarce resource for something nobody is watching.
+    val player = remember { ExoPlayer.Builder(context).build() }
+    DisposableEffect(player) { onDispose { player.release() } }
+
+    LaunchedEffect(current.id, current.isVideo) {
+        if (current.isVideo) {
+            player.setMediaItem(Media3Item.fromUri(current.contentUri()))
+            player.repeatMode = Player.REPEAT_MODE_OFF
+            // Both off by default, as agreed: opening a video should not start
+            // making noise in a quiet room.
+            player.volume = 0f
+            player.playWhenReady = false
+            player.prepare()
+        } else {
+            player.pause()
+            player.clearMediaItems()
+        }
+    }
+
+    // A video left running while the phone is locked or the app is switched away
+    // keeps decoding for no one.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) player.pause()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // System bars follow the chrome. Behaviour is set to the transient mode so a
     // swipe from the edge brings them back temporarily without the app deciding
@@ -175,6 +214,18 @@ fun ViewerScreen(
             modifier = Modifier.fillMaxSize(),
         ) { page ->
             val item = items[page]
+
+            if (item.isVideo) {
+                VideoPage(
+                    item = item,
+                    player = player,
+                    isCurrent = page == pagerState.currentPage,
+                    thumbBucketPx = thumbBucketPx,
+                    onClick = { chromeVisible = !chromeVisible },
+                )
+                return@HorizontalPager
+            }
+
             val zoomableState = rememberZoomableState()
             val imageState = rememberZoomableImageState(zoomableState)
 
@@ -228,7 +279,12 @@ fun ViewerScreen(
                 .align(Alignment.BottomCenter)
                 .graphicsLayer { alpha = 1f - dismissProgress },
         ) {
-            ViewerBottomBar(item = current)
+            Column {
+                if (current.isVideo) {
+                    VideoControls(player = player)
+                }
+                ViewerBottomBar(item = current)
+            }
         }
     }
 
