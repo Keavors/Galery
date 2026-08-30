@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.data.CropRect
+import kotlin.math.abs
 import kotlin.math.min
 
 /** How close a finger has to be to a corner to be taken as grabbing it. */
@@ -41,7 +42,8 @@ private val HANDLE_REACH = 36.dp
  * had it applied would leave the frame measuring a photograph that is no longer
  * underneath it.
  *
- * The corners are grabbed; the middle drags the whole frame. Nothing snaps to
+ * The corners, the sides and the middle are all grabbed: a corner moves two
+ * edges at once, a side moves one, the middle moves all four. Nothing snaps to
  * anything: a crop is a judgement, and a frame that jumps to a ratio nobody
  * asked for is fighting it.
  */
@@ -104,8 +106,30 @@ fun CropCanvas(
     }
 }
 
-/** Which part of the frame a finger took hold of. */
-internal enum class Grab { NONE, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, WHOLE }
+/**
+ * Which part of the frame a finger took hold of, and which of its edges that
+ * moves.
+ *
+ * A corner is not a thing of its own: it is two edges moving together, and
+ * saying so here is what keeps eight of them from being eight rules.
+ */
+internal enum class Grab(
+    val movesLeft: Boolean = false,
+    val movesTop: Boolean = false,
+    val movesRight: Boolean = false,
+    val movesBottom: Boolean = false,
+) {
+    NONE,
+    LEFT(movesLeft = true),
+    TOP(movesTop = true),
+    RIGHT(movesRight = true),
+    BOTTOM(movesBottom = true),
+    TOP_LEFT(movesLeft = true, movesTop = true),
+    TOP_RIGHT(movesTop = true, movesRight = true),
+    BOTTOM_LEFT(movesLeft = true, movesBottom = true),
+    BOTTOM_RIGHT(movesRight = true, movesBottom = true),
+    WHOLE,
+}
 
 /**
  * Where a picture of this shape ends up inside a canvas of that shape: as large
@@ -126,9 +150,11 @@ internal fun letterboxIn(canvas: Size, imageWidth: Int, imageHeight: Int): Rect 
 /**
  * What a finger landing here took hold of.
  *
- * The nearest corner wins rather than the first one within reach: on a crop
- * pulled down to a thumbnail every corner is within reach of every touch, and
- * asking them in a fixed order would always answer the top left.
+ * Corners are asked first and sides after, because a corner is where two sides
+ * meet and a finger there means the corner every time. Within each, the nearest
+ * wins rather than the first within reach: on a crop pulled down to a thumbnail
+ * everything is within reach of everything, and asking in a fixed order would
+ * always answer the top left.
  */
 internal fun grabFor(point: Offset, crop: CropRect, frame: Rect, reach: Float): Grab {
     if (frame.width <= 0f || frame.height <= 0f) return Grab.NONE
@@ -146,6 +172,26 @@ internal fun grabFor(point: Offset, crop: CropRect, frame: Rect, reach: Float): 
         if (away <= distance) {
             distance = away
             closest = corner
+        }
+    }
+    if (closest != Grab.NONE) return closest
+
+    // A side is only grabbed alongside it, never off the end of it: level with
+    // the frame for an upright edge, beside it for a flat one. Without that the
+    // reach around a short side would answer for touches far past where the
+    // frame actually is.
+    val alongside = point.y >= on.top && point.y <= on.bottom
+    val beside = point.x >= on.left && point.x <= on.right
+    var edgeAway = reach
+    listOf(
+        Grab.LEFT to if (alongside) abs(point.x - on.left) else Float.MAX_VALUE,
+        Grab.RIGHT to if (alongside) abs(point.x - on.right) else Float.MAX_VALUE,
+        Grab.TOP to if (beside) abs(point.y - on.top) else Float.MAX_VALUE,
+        Grab.BOTTOM to if (beside) abs(point.y - on.bottom) else Float.MAX_VALUE,
+    ).forEach { (edge, away) ->
+        if (away <= edgeAway) {
+            edgeAway = away
+            closest = edge
         }
     }
     if (closest != Grab.NONE) return closest
@@ -170,38 +216,31 @@ internal fun CropRect.on(frame: Rect): Rect = Rect(
 /**
  * The frame after a drag, in fractions of the picture.
  *
- * A corner moves alone and stops before it crosses its opposite; the middle
- * moves the whole frame and stops at the edges of the picture rather than
- * shrinking against them.
+ * An edge being moved stops at the picture on one side and before it crosses
+ * its opposite on the other; an edge not being moved does not move. That one
+ * rule covers the four sides and the four corners, a corner being two sides.
+ * The middle is the exception worth writing out: it moves the whole frame and
+ * stops at the edges of the picture rather than shrinking against them.
  */
 internal fun CropRect.moved(grab: Grab, dx: Float, dy: Float): CropRect = when (grab) {
     Grab.NONE -> this
-
-    Grab.TOP_LEFT -> copy(
-        left = (left + dx).coerceIn(0f, right - CropRect.MIN_SIDE),
-        top = (top + dy).coerceIn(0f, bottom - CropRect.MIN_SIDE),
-    )
-
-    Grab.TOP_RIGHT -> copy(
-        right = (right + dx).coerceIn(left + CropRect.MIN_SIDE, 1f),
-        top = (top + dy).coerceIn(0f, bottom - CropRect.MIN_SIDE),
-    )
-
-    Grab.BOTTOM_LEFT -> copy(
-        left = (left + dx).coerceIn(0f, right - CropRect.MIN_SIDE),
-        bottom = (bottom + dy).coerceIn(top + CropRect.MIN_SIDE, 1f),
-    )
-
-    Grab.BOTTOM_RIGHT -> copy(
-        right = (right + dx).coerceIn(left + CropRect.MIN_SIDE, 1f),
-        bottom = (bottom + dy).coerceIn(top + CropRect.MIN_SIDE, 1f),
-    )
 
     Grab.WHOLE -> {
         val shiftX = dx.coerceIn(-left, 1f - right)
         val shiftY = dy.coerceIn(-top, 1f - bottom)
         CropRect(left + shiftX, top + shiftY, right + shiftX, bottom + shiftY)
     }
+
+    else -> CropRect(
+        left = if (grab.movesLeft) (left + dx).coerceIn(0f, right - CropRect.MIN_SIDE) else left,
+        top = if (grab.movesTop) (top + dy).coerceIn(0f, bottom - CropRect.MIN_SIDE) else top,
+        right = if (grab.movesRight) (right + dx).coerceIn(left + CropRect.MIN_SIDE, 1f) else right,
+        bottom = if (grab.movesBottom) {
+            (bottom + dy).coerceIn(top + CropRect.MIN_SIDE, 1f)
+        } else {
+            bottom
+        },
+    )
 }
 
 /** Dims what is being cut away and draws the frame and its corners. */
@@ -249,5 +288,20 @@ private fun DrawScope.drawCrop(frame: Rect, crop: CropRect) {
         Offset(right, bottom) to listOf(Offset(right - arm, bottom), Offset(right, bottom - arm)),
     ).forEach { (corner, arms) ->
         arms.forEach { drawLine(Color.White, corner, it, strokeWidth = thick) }
+    }
+
+    // A short bar in the middle of each side. The sides can be dragged now, and
+    // nothing about a plain white line says so — the corners have had their
+    // brackets saying it since the first version.
+    val middleX = (left + right) / 2f
+    val middleY = (top + bottom) / 2f
+    val bar = min(26.dp.toPx(), min(right - left, bottom - top) / 3f) / 2f
+    listOf(
+        Offset(middleX - bar, top) to Offset(middleX + bar, top),
+        Offset(middleX - bar, bottom) to Offset(middleX + bar, bottom),
+        Offset(left, middleY - bar) to Offset(left, middleY + bar),
+        Offset(right, middleY - bar) to Offset(right, middleY + bar),
+    ).forEach { (from, to) ->
+        drawLine(Color.White, from, to, strokeWidth = thick)
     }
 }

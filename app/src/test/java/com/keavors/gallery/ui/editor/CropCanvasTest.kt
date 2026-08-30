@@ -110,6 +110,38 @@ class GrabTest {
     }
 
     @Test
+    fun `a finger on a side takes that side`() {
+        val on = middle.on(frame)
+        assertEquals(Grab.LEFT, grabFor(Offset(on.left, on.center.y), middle, frame, reach))
+        assertEquals(Grab.RIGHT, grabFor(Offset(on.right, on.center.y), middle, frame, reach))
+        assertEquals(Grab.TOP, grabFor(Offset(on.center.x, on.top), middle, frame, reach))
+        assertEquals(Grab.BOTTOM, grabFor(Offset(on.center.x, on.bottom), middle, frame, reach))
+    }
+
+    @Test
+    fun `a side is grabbed from just outside it as well as just inside`() {
+        val on = middle.on(frame)
+        assertEquals(Grab.LEFT, grabFor(Offset(on.left - 10f, on.center.y), middle, frame, reach))
+        assertEquals(Grab.LEFT, grabFor(Offset(on.left + 10f, on.center.y), middle, frame, reach))
+    }
+
+    @Test
+    fun `a corner beats the two sides that meet there`() {
+        // A finger on a corner is on both of its sides as well, and moving one
+        // edge when two were meant is the thing that reads as a fight.
+        val on = middle.on(frame)
+        assertEquals(Grab.TOP_LEFT, grabFor(on.topLeft, middle, frame, reach))
+    }
+
+    @Test
+    fun `a side is not grabbed off the end of it`() {
+        // Level with the left edge but well above the frame: the reach around a
+        // side must not stretch up the picture past where the side stops.
+        val on = middle.on(frame)
+        assertEquals(Grab.NONE, grabFor(Offset(on.left, on.top - 120f), middle, frame, reach))
+    }
+
+    @Test
     fun `nothing is grabbed before the picture has been placed`() {
         assertEquals(Grab.NONE, grabFor(Offset(10f, 10f), middle, Rect.Zero, reach))
     }
@@ -152,6 +184,50 @@ class MovedTest {
         assertEquals(0f, pushed.top, 1e-5f)
         assertEquals(crop.width, pushed.width, 1e-5f)
         assertEquals(crop.height, pushed.height, 1e-5f)
+    }
+
+    @Test
+    fun `a side moves alone and leaves the other three where they were`() {
+        val crop = CropRect(0.2f, 0.2f, 0.8f, 0.8f)
+        val pulled = crop.moved(Grab.LEFT, dx = -0.1f, dy = 0.5f)
+        assertEquals(0.1f, pulled.left, 1e-5f)
+        assertEquals(0.2f, pulled.top, 1e-5f)
+        assertEquals(0.8f, pulled.right, 1e-5f)
+        assertEquals(0.8f, pulled.bottom, 1e-5f)
+    }
+
+    @Test
+    fun `a side ignores the drag across it`() {
+        // The bottom edge is dragged sideways as well as up; only the up counts.
+        val crop = CropRect(0.2f, 0.2f, 0.8f, 0.8f)
+        val raised = crop.moved(Grab.BOTTOM, dx = 0.3f, dy = -0.2f)
+        assertEquals(0.6f, raised.bottom, 1e-5f)
+        assertEquals(0.2f, raised.left, 1e-5f)
+        assertEquals(0.8f, raised.right, 1e-5f)
+    }
+
+    @Test
+    fun `a side stops before it crosses the one opposite`() {
+        val crop = CropRect(0.2f, 0.2f, 0.8f, 0.8f)
+        val squashed = crop.moved(Grab.RIGHT, dx = -1f, dy = 0f)
+        assertEquals(0.2f + CropRect.MIN_SIDE, squashed.right, 1e-5f)
+    }
+
+    @Test
+    fun `a side stops at the edge of the picture`() {
+        val crop = CropRect(0.2f, 0.2f, 0.8f, 0.8f)
+        assertEquals(0f, crop.moved(Grab.TOP, dx = 0f, dy = -1f).top, 1e-5f)
+    }
+
+    @Test
+    fun `a corner is the two sides that meet there`() {
+        // Not a separate rule, and this is what says so: dragging a corner has
+        // to land where dragging each of its sides in turn would have.
+        val crop = CropRect(0.2f, 0.2f, 0.8f, 0.8f)
+        val byCorner = crop.moved(Grab.TOP_LEFT, dx = 0.1f, dy = 0.05f)
+        val bySides = crop.moved(Grab.LEFT, dx = 0.1f, dy = 0.05f)
+            .moved(Grab.TOP, dx = 0.1f, dy = 0.05f)
+        assertEquals(bySides, byCorner)
     }
 
     @Test
