@@ -48,4 +48,32 @@
     <string name="access_state_full">Полный доступ к библиотеке</string>
     <string name="access_state_partial">Выбраны отдельные снимки</string>
     <string name="access_state_none">Доступ не выдан</string>
+
+    <!-- Просмотр -->
+    <string name="viewer_back">Назад</string>
+    <string name="viewer_more">Ещё</string>
+    <string name="viewer_details">Сведения</string>
+    <string name="viewer_copy">Копировать в буфер обмена</string>
+    <string name="viewer_share">Поделиться</string>
+
+    <!-- Сведения -->
+    <string name="details_taken">Снято</string>
+    <string name="details_resolution">Разрешение</string>
+    <string name="details_size">Размер</string>
+    <string name="details_duration">Длительность</string>
+    <string name="details_type">Формат</string>
+    <string name="details_folder">Папка</string>
+    <string name="details_camera">Камера</string>
+    <string name="details_lens">Объектив</string>
+    <string name="details_iso">ISO</string>
+    <string name="details_exposure">Выдержка</string>
+    <string name="details_aperture">Диафрагма</string>
+    <string name="details_focal">Фокусное расстояние</string>
+    <string name="details_flash">Вспышка</string>
+    <string name="details_location">Координаты</string>
+    <string name="flash_fired">Сработала</string>
+    <string name="flash_off">Не сработала</string>
+    <string name="unit_seconds">с</string>
+    <string name="unit_mm">мм</string>
+    <string name="unit_megapixels">МП</string>
 </resources>

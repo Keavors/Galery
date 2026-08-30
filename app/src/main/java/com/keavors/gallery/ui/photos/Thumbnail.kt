@@ -1,6 +1,7 @@
 package com.keavors.gallery.ui.photos
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +47,7 @@ fun Thumbnail(
     item: MediaItem,
     tileSize: Dp,
     corner: Dp,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val showBadges = tileSize >= BADGE_MIN_TILE
@@ -74,7 +76,8 @@ fun Thumbnail(
             .then(if (tileSize >= CLIP_MIN_TILE) Modifier.clip(RoundedCornerShape(corner)) else Modifier)
             // A placeholder tone under every tile: scrolling fast through a
             // thousand photos should look like a grid filling in, not like holes.
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onClick),
     ) {
         AsyncImage(
             model = request,

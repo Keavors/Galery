@@ -43,4 +43,30 @@
     <string name="access_state_full">Full access to the library</string>
     <string name="access_state_partial">Only selected photos</string>
     <string name="access_state_none">No access granted</string>
+
+    <string name="viewer_back">Back</string>
+    <string name="viewer_more">More</string>
+    <string name="viewer_details">Details</string>
+    <string name="viewer_copy">Copy to clipboard</string>
+    <string name="viewer_share">Share</string>
+
+    <string name="details_taken">Taken</string>
+    <string name="details_resolution">Resolution</string>
+    <string name="details_size">Size</string>
+    <string name="details_duration">Length</string>
+    <string name="details_type">Format</string>
+    <string name="details_folder">Folder</string>
+    <string name="details_camera">Camera</string>
+    <string name="details_lens">Lens</string>
+    <string name="details_iso">ISO</string>
+    <string name="details_exposure">Shutter</string>
+    <string name="details_aperture">Aperture</string>
+    <string name="details_focal">Focal length</string>
+    <string name="details_flash">Flash</string>
+    <string name="details_location">Coordinates</string>
+    <string name="flash_fired">Fired</string>
+    <string name="flash_off">Did not fire</string>
+    <string name="unit_seconds">s</string>
+    <string name="unit_mm">mm</string>
+    <string name="unit_megapixels">MP</string>
 </resources>

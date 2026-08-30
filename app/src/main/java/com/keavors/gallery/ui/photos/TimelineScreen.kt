@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -43,6 +44,7 @@ import com.keavors.gallery.data.ZoomLevel
 import com.keavors.gallery.data.buildTimeline
 import com.keavors.gallery.data.firstItemFrom
 import com.keavors.gallery.data.rowOf
+import com.keavors.gallery.data.thumbnailBucketPx
 import com.keavors.gallery.data.zoomSteps
 import com.keavors.gallery.ui.common.pinchZoom
 import kotlinx.coroutines.launch
@@ -60,7 +62,11 @@ private const val MAX_LIVE_SCALE = 1.9f
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TimelineScreen(items: List<MediaItem>, modifier: Modifier = Modifier) {
+fun TimelineScreen(
+    items: List<MediaItem>,
+    onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val zone = remember { ZoneId.systemDefault() }
     val locale = Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())
     val today = remember(items) { LocalDate.now(zone) }
@@ -119,6 +125,7 @@ fun TimelineScreen(items: List<MediaItem>, modifier: Modifier = Modifier) {
             ),
     ) {
         val tileSize = (maxWidth - TILE_GAP * (level.columns - 1)) / level.columns
+        val bucket = with(LocalDensity.current) { thumbnailBucketPx(tileSize.roundToPx()) }
 
         LazyColumn(
             state = listState,
@@ -141,7 +148,7 @@ fun TimelineScreen(items: List<MediaItem>, modifier: Modifier = Modifier) {
                     }
 
                     is TimelineRow.Photos -> item(key = row.key, contentType = "photos") {
-                        PhotoRow(row, level.columns, tileSize)
+                        PhotoRow(row, level.columns, tileSize) { onOpen(it, bucket) }
                     }
                 }
             }
@@ -199,6 +206,7 @@ private fun PhotoRow(
     columns: Int,
     tileSize: Dp,
     modifier: Modifier = Modifier,
+    onOpen: (MediaItem) -> Unit,
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
@@ -209,6 +217,7 @@ private fun PhotoRow(
                 item = item,
                 tileSize = tileSize,
                 corner = TILE_CORNER,
+                onClick = { onOpen(item) },
                 modifier = Modifier
                     .weight(1f)
                     .aspectRatio(1f),

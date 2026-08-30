@@ -15,10 +15,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
 import com.keavors.gallery.data.LibraryState
+import com.keavors.gallery.data.MediaItem
 
 /** The Photos tab: the timeline, or an honest reason why there is none yet. */
 @Composable
-fun PhotosScreen(state: LibraryState, modifier: Modifier = Modifier) {
+fun PhotosScreen(
+    state: LibraryState,
+    onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     when (state) {
         LibraryState.Locked, LibraryState.Loading -> Centered(modifier) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -40,7 +45,7 @@ fun PhotosScreen(state: LibraryState, modifier: Modifier = Modifier) {
                 )
             }
         } else {
-            TimelineScreen(items = state.items, modifier = modifier)
+            TimelineScreen(items = state.items, onOpen = onOpen, modifier = modifier)
         }
     }
 }
