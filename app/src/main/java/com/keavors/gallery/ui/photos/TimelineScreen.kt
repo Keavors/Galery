@@ -47,6 +47,7 @@ import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
+import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.TimelineRow
@@ -66,10 +67,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 
-/** Gap between tiles. Becomes a setting later; the timeline reads it from here. */
-private val TILE_GAP = 2.dp
-private val TILE_CORNER = 3.dp
-
 /** Bounds on the live scale during a pinch, so the grid cannot be dragged to nothing. */
 private const val MIN_LIVE_SCALE = 0.55f
 private const val MAX_LIVE_SCALE = 1.9f
@@ -78,6 +75,7 @@ private const val MAX_LIVE_SCALE = 1.9f
 @Composable
 fun TimelineScreen(
     items: List<MediaItem>,
+    settings: GallerySettings,
     writer: MediaWriter,
     albumActions: AlbumActions,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
@@ -89,7 +87,14 @@ fun TimelineScreen(
     val context = LocalContext.current
     val shareTitle = stringResource(R.string.viewer_share)
 
-    var levelOrdinal by rememberSaveable { mutableIntStateOf(ZoomLevel.Default.ordinal) }
+    val tileGap = settings.tileGapDp.dp
+    val tileCorner = settings.tileCornerDp.dp
+
+    // Keyed on the setting so changing the starting zoom takes effect at once
+    // rather than waiting for the app to be restarted.
+    var levelOrdinal by rememberSaveable(settings.defaultZoomColumns) {
+        mutableIntStateOf(settings.defaultZoom.ordinal)
+    }
     val level = ZoomLevel.entries[levelOrdinal]
     val rows = remember(items, level) { buildTimeline(items, level, zone) }
 
@@ -158,9 +163,9 @@ fun TimelineScreen(
             ),
     ) {
         val density = LocalDensity.current
-        val tileSize = (maxWidth - TILE_GAP * (level.columns - 1)) / level.columns
+        val tileSize = (maxWidth - tileGap * (level.columns - 1)) / level.columns
         val bucket = with(density) { thumbnailBucketPx(tileSize.roundToPx()) }
-        val tilePitchPx = with(density) { (tileSize + TILE_GAP).toPx() }
+        val tilePitchPx = with(density) { (tileSize + tileGap).toPx() }
 
         // Which photo is under a finger, worked out from the list's own layout
         // rather than by hit-testing tiles: dragging across a selection has to
@@ -178,7 +183,7 @@ fun TimelineScreen(
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(TILE_GAP),
+            verticalArrangement = Arrangement.spacedBy(tileGap),
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
@@ -213,6 +218,7 @@ fun TimelineScreen(
                             row = row,
                             locale = locale,
                             today = today,
+                            relativeDates = settings.relativeDates,
                             selecting = selected.isNotEmpty(),
                             allSelected = sectionIds.isNotEmpty() && selected.containsAll(sectionIds),
                             onToggleSection = {
@@ -230,6 +236,9 @@ fun TimelineScreen(
                             row = row,
                             columns = level.columns,
                             tileSize = tileSize,
+                            gap = tileGap,
+                            corner = tileCorner,
+                            badges = settings.tileBadges,
                             selectedIds = selected,
                             selecting = selected.isNotEmpty(),
                         ) { item ->
@@ -346,6 +355,7 @@ private fun SectionHeader(
     row: TimelineRow.Header,
     locale: Locale,
     today: LocalDate,
+    relativeDates: Boolean,
     selecting: Boolean,
     allSelected: Boolean,
     onToggleSection: () -> Unit,
@@ -362,7 +372,7 @@ private fun SectionHeader(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = sectionTitle(row.bucket, row.grouping, locale, today),
+                text = sectionTitle(row.bucket, row.grouping, locale, today, relativeDates),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -401,22 +411,26 @@ private fun PhotoRow(
     row: TimelineRow.Photos,
     columns: Int,
     tileSize: Dp,
+    gap: Dp,
+    corner: Dp,
+    badges: Boolean,
     selectedIds: Set<Long>,
     selecting: Boolean,
     modifier: Modifier = Modifier,
     onOpen: (MediaItem) -> Unit,
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
+        horizontalArrangement = Arrangement.spacedBy(gap),
         modifier = modifier.fillMaxWidth(),
     ) {
         row.items.forEach { item ->
             Thumbnail(
                 item = item,
                 tileSize = tileSize,
-                corner = TILE_CORNER,
+                corner = corner,
                 selected = item.id in selectedIds,
                 dimmed = selecting && item.id !in selectedIds,
+                badges = badges,
                 onClick = { onOpen(item) },
                 modifier = Modifier
                     .weight(1f)

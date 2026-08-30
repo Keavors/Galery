@@ -22,6 +22,7 @@ fun sectionTitle(
     grouping: Grouping,
     locale: Locale,
     today: LocalDate,
+    relativeDates: Boolean,
 ): String = when (grouping) {
     Grouping.YEAR -> bucket.year.toString()
 
@@ -36,8 +37,8 @@ fun sectionTitle(
     Grouping.DAY -> {
         val date = LocalDate.of(bucket.year, bucket.month, bucket.day)
         when {
-            date == today -> stringResource(R.string.date_today)
-            date == today.minusDays(1) -> stringResource(R.string.date_yesterday)
+            relativeDates && date == today -> stringResource(R.string.date_today)
+            relativeDates && date == today.minusDays(1) -> stringResource(R.string.date_yesterday)
             else -> {
                 val pattern = if (bucket.year == today.year) "d MMMM, EEEE" else "d MMMM yyyy, EEEE"
                 DateTimeFormatter.ofPattern(pattern, locale).format(date)

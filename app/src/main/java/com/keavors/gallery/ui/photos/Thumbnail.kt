@@ -51,8 +51,9 @@ fun Thumbnail(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     dimmed: Boolean = false,
+    badges: Boolean = true,
 ) {
-    val showBadges = tileSize >= BADGE_MIN_TILE
+    val showBadges = badges && tileSize >= BADGE_MIN_TILE
 
     val context = LocalContext.current
     val density = LocalDensity.current

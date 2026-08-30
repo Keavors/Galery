@@ -10,9 +10,8 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-
-/** How the app picks between the light and dark sides of a palette. */
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
+import com.keavors.gallery.data.Palette
+import com.keavors.gallery.data.ThemeMode
 
 /**
  * Wraps the whole app.

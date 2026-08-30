@@ -4,21 +4,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
-
-/**
- * Which set of colours the app is painted with. Independent of light/dark: every
- * palette has both.
- */
-enum class Palette {
-    /** Warm neutrals with a single amber accent. The default. */
-    COFFEE,
-
-    /** Pure white and pure black with grey accents; photos supply all the colour. */
-    MONO,
-
-    /** Taken from the wallpaper (Material You). */
-    DYNAMIC,
-}
+import com.keavors.gallery.data.Palette
 
 // ---------------------------------------------------------------- coffee ----
 

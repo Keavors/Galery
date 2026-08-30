@@ -45,7 +45,15 @@ import com.keavors.gallery.data.LibraryState
 import com.keavors.gallery.data.MediaAccess
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaRepository
+import com.keavors.gallery.BuildConfig
+import coil3.SingletonImageLoader
 import com.keavors.gallery.data.AlbumPreferences
+import com.keavors.gallery.data.GallerySettings
+import com.keavors.gallery.data.SettingsStore
+import android.widget.Toast
+import com.keavors.gallery.data.filteredFor
+import com.keavors.gallery.data.formatBytes
+import com.keavors.gallery.data.sortedFor
 import com.keavors.gallery.data.AlbumSource
 import com.keavors.gallery.data.AlbumStore
 import com.keavors.gallery.data.canManageMedia
@@ -74,6 +82,8 @@ private const val DEFAULT_THUMB_BUCKET = 384
 
 @Composable
 fun GalleryApp(
+    settings: GallerySettings,
+    settingsStore: SettingsStore,
     repository: MediaRepository,
     albumStore: AlbumStore,
     launchMode: LaunchMode,
@@ -99,7 +109,13 @@ fun GalleryApp(
     val writer = rememberMediaWriter(managesMedia = manageMedia)
     val albumPrefs by albumStore.preferences.collectAsStateWithLifecycle(AlbumPreferences())
     val scope = rememberCoroutineScope()
-    val libraryItems = (library as? LibraryState.Ready)?.items.orEmpty()
+    // Sorting and filtering happen here, once, so every screen downstream —
+    // timeline, albums, viewer — is looking at the same library in the same
+    // order, and paging never disagrees with the grid it was opened from.
+    val rawItems = (library as? LibraryState.Ready)?.items.orEmpty()
+    val libraryItems = remember(rawItems, settings.sortBy, settings.sortOrder, settings.showVideos) {
+        rawItems.filteredFor(settings).sortedFor(settings.sortBy, settings.sortOrder)
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -121,6 +137,39 @@ fun GalleryApp(
     }
 
     val unknownFolder = stringResource(R.string.album_unknown)
+    var cacheSummary by remember { mutableStateOf("") }
+
+    val importFailed = stringResource(R.string.settings_import_failed)
+    val savedNote = stringResource(R.string.settings_saved)
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = readSettingsFrom(context, settingsStore, uri)
+            Toast.makeText(context, if (ok) savedNote else importFailed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            writeSettingsTo(context, settingsStore, uri)
+            Toast.makeText(context, savedNote, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // The cache is only measured while the settings tab is being looked at;
+    // asking on every launch would read the disk for a line nobody has opened.
+    LaunchedEffect(selected, cacheSummary) {
+        if (selected == Tab.SETTINGS.ordinal && cacheSummary.isEmpty()) {
+            val bytes = SingletonImageLoader.get(context).diskCache?.size ?: 0L
+            cacheSummary = formatBytes(bytes)
+        }
+    }
 
     // A photo arriving from another app. It no longer waits for the library:
     // the file and its folder are looked up directly, which takes a few tens of
@@ -249,7 +298,9 @@ fun GalleryApp(
                         },
                     ) {
                         PhotosScreen(
-                            state = library,
+                            items = libraryItems,
+                            loading = library !is LibraryState.Ready,
+                            settings = settings,
                             writer = writer,
                             albumActions = albumActions(removableFrom = null),
                             onOpen = openItem,
@@ -270,14 +321,26 @@ fun GalleryApp(
                     // goes to understand why the rest of the app is asking for
                     // anything.
                     Tab.SETTINGS -> SettingsScreen(
+                        settings = settings,
+                        onChange = { updated -> scope.launch { settingsStore.update { updated } } },
                         access = access,
                         canManageMedia = manageMedia,
-                        onOpenSettings = {
+                        versionName = BuildConfig.VERSION_NAME,
+                        cacheSummary = cacheSummary,
+                        onOpenSystemSettings = {
                             context.startActivity(appSettingsIntent(context.packageName))
                         },
                         onRequestManageMedia = {
                             context.startActivity(manageMediaIntent(context.packageName))
                         },
+                        onClearCache = {
+                            SingletonImageLoader.get(context).memoryCache?.clear()
+                            SingletonImageLoader.get(context).diskCache?.clear()
+                            cacheSummary = ""
+                        },
+                        onExport = { exportLauncher.launch("gallery-settings.json") },
+                        onImport = { importLauncher.launch(arrayOf("application/json", "text/*")) },
+                        onReset = { scope.launch { settingsStore.reset() } },
                     )
 
                     Tab.ALBUMS -> MediaGate(
@@ -318,6 +381,7 @@ fun GalleryApp(
             AlbumScreen(
                 title = route.title,
                 items = folderItems,
+                settings = settings,
                 writer = writer,
                 albumActions = albumActions(removableFrom = route.source),
                 onBack = {

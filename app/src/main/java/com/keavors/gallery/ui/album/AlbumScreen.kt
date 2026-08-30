@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
+import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.ui.photos.AlbumActions
@@ -35,6 +36,7 @@ import com.keavors.gallery.ui.photos.TimelineScreen
 fun AlbumScreen(
     title: String,
     items: List<MediaItem>,
+    settings: GallerySettings,
     writer: MediaWriter,
     albumActions: AlbumActions,
     onBack: () -> Unit,
@@ -73,6 +75,12 @@ fun AlbumScreen(
             }
         }
 
-        TimelineScreen(items = items, writer = writer, albumActions = albumActions, onOpen = onOpen)
+        TimelineScreen(
+            items = items,
+            settings = settings,
+            writer = writer,
+            albumActions = albumActions,
+            onOpen = onOpen,
+        )
     }
 }

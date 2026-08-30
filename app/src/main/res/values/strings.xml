@@ -124,4 +124,74 @@
     <string name="album_remove_from">Убрать из альбома</string>
     <string name="album_set_cover">Сделать обложкой</string>
     <string name="albums_none_yet">Своих альбомов пока нет.</string>
+
+    <!-- Настройки -->
+    <string name="settings_search">Поиск по настройкам</string>
+    <string name="settings_appearance">Внешний вид</string>
+    <string name="settings_viewer">Просмотр</string>
+    <string name="settings_general">Общие</string>
+    <string name="set_off">Выключено</string>
+
+    <string name="set_theme">Тема</string>
+    <string name="theme_system">Как в системе</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="set_palette">Палитра</string>
+    <string name="palette_coffee">Кофейная</string>
+    <string name="palette_mono">Монохром</string>
+    <string name="palette_dynamic">Из обоев</string>
+    <string name="set_pure_black">Чистый чёрный</string>
+    <string name="set_pure_black_summary">Для OLED-экрана: тёмная тема садится на настоящий чёрный</string>
+    <string name="set_tile_gap">Отступ между плитками</string>
+    <string name="set_tile_corner">Скругление плиток</string>
+    <string name="set_animations">Анимации</string>
+    <string name="set_animations_summary">Переходы между вкладками и появление кнопок</string>
+
+    <string name="set_default_zoom">Колонок при открытии</string>
+    <string name="set_sort_by">Сортировать по</string>
+    <string name="sort_taken">Дате съёмки</string>
+    <string name="sort_modified">Дате изменения</string>
+    <string name="sort_name">Имени</string>
+    <string name="sort_size">Размеру</string>
+    <string name="set_sort_order">Порядок</string>
+    <string name="sort_newest">Сначала новые</string>
+    <string name="sort_oldest">Сначала старые</string>
+    <string name="set_show_videos">Показывать видео</string>
+    <string name="set_tile_badges">Значки на плитках</string>
+    <string name="set_tile_badges_summary">Длительность видео и сердечко избранного</string>
+    <string name="set_relative_dates">Сегодня и вчера словами</string>
+    <string name="set_relative_dates_summary">Вместо полной даты в заголовке</string>
+
+    <string name="set_chrome_on_open">Шторки видны при открытии</string>
+    <string name="set_auto_hide">Скрывать шторки через, с</string>
+    <string name="set_swipe_down">Свайп вниз закрывает</string>
+    <string name="set_swipe_up">Свайп вверх открывает сведения</string>
+    <string name="set_double_tap">Двойной тап увеличивает</string>
+    <string name="set_loop">Зациклить листание</string>
+    <string name="set_loop_summary">После последнего снимка снова первый</string>
+    <string name="set_brightness">Максимальная яркость</string>
+    <string name="set_keep_screen_on">Не гасить экран</string>
+
+    <string name="set_video_autoplay">Запускать сразу</string>
+    <string name="set_video_sound">Со звуком</string>
+    <string name="set_video_repeat">Повторять</string>
+
+    <string name="set_language">Язык</string>
+    <string name="lang_system">Как в системе</string>
+    <string name="lang_ru">Русский</string>
+    <string name="lang_en">English</string>
+    <string name="set_cache">Кэш миниатюр</string>
+    <string name="set_cache_clear">Очистить</string>
+    <string name="set_export">Экспорт настроек</string>
+    <string name="set_export_summary">Сохранить всё, что настроено, в файл</string>
+    <string name="set_export_do">Сохранить</string>
+    <string name="set_import">Импорт настроек</string>
+    <string name="set_import_do">Открыть</string>
+    <string name="set_reset">Сбросить настройки</string>
+    <string name="set_reset_do">Сбросить</string>
+    <string name="set_reset_body">Все настройки вернутся к исходным. Фотографии и альбомы не пострадают.</string>
+    <string name="set_about">О программе</string>
+    <string name="settings_saved">Сохранено</string>
+    <string name="settings_import_failed">Не похоже на файл настроек</string>
+    <string name="settings_cache_cleared">Кэш очищен</string>
 </resources>

@@ -1,6 +1,8 @@
 package com.keavors.gallery
 
+import android.app.LocaleManager
 import android.content.Intent
+import android.os.LocaleList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
@@ -9,7 +11,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.keavors.gallery.data.GallerySettings
 import androidx.core.net.toUri
 import com.keavors.gallery.data.contentUri
 import com.keavors.gallery.ui.ExternalOpen
@@ -50,8 +55,30 @@ class MainActivity : ComponentActivity() {
 
         val app = application as GalleryApplication
         setContent {
-            GalleryTheme {
+            val settings by app.settings.settings.collectAsStateWithLifecycle(GallerySettings())
+
+            // Android 13 keeps a per-app language of its own, which also puts the
+            // gallery in the system language list. Setting it there rather than
+            // swapping resources ourselves means the choice survives a restart
+            // and shows up where people look for it.
+            LaunchedEffect(settings.language) {
+                val manager = getSystemService(LocaleManager::class.java)
+                val wanted = if (settings.language.isBlank()) {
+                    LocaleList.getEmptyLocaleList()
+                } else {
+                    LocaleList.forLanguageTags(settings.language)
+                }
+                if (manager.applicationLocales != wanted) manager.applicationLocales = wanted
+            }
+
+            GalleryTheme(
+                themeMode = settings.themeMode,
+                palette = settings.palette,
+                pureBlack = settings.pureBlack,
+            ) {
                 GalleryApp(
+                    settings = settings,
+                    settingsStore = app.settings,
                     repository = app.media,
                     albumStore = app.albums,
                     launchMode = launchMode,
