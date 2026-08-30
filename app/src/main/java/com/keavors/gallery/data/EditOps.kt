@@ -37,6 +37,26 @@ data class CropRect(
         )
     }
 
+    /**
+     * This crop as whole pixels of a picture that size.
+     *
+     * The rounding lives here and only here. The editor draws this rectangle
+     * and saving cuts this rectangle, and a pixel of disagreement between the
+     * two is a photograph that comes back different from the one that was
+     * approved.
+     */
+    fun pixelsIn(width: Int, height: Int): PixelRect {
+        if (width <= 0 || height <= 0) return PixelRect(0, 0, 0, 0)
+        val x = (width * left).toInt().coerceIn(0, width - 1)
+        val y = (height * top).toInt().coerceIn(0, height - 1)
+        return PixelRect(
+            x = x,
+            y = y,
+            width = (width * this.width).toInt().coerceIn(1, width - x),
+            height = (height * this.height).toInt().coerceIn(1, height - y),
+        )
+    }
+
     companion object {
         val Whole = CropRect()
 
@@ -44,6 +64,9 @@ data class CropRect(
         const val MIN_SIDE = 0.05f
     }
 }
+
+/** A rectangle of actual pixels, once a crop has been measured against a size. */
+data class PixelRect(val x: Int, val y: Int, val width: Int, val height: Int)
 
 /**
  * What the editor has been asked to do to a picture.
@@ -59,9 +82,22 @@ data class EditOps(
     /** Fine rotation for a crooked horizon, in degrees. */
     val straighten: Float = 0f,
     val crop: CropRect = CropRect.Whole,
+    val adjustments: Adjustments = Adjustments.None,
 ) {
     val isIdentity: Boolean
-        get() = quarterTurns == 0 && !flipHorizontal && straighten == 0f && crop.isWhole
+        get() = quarterTurns == 0 && !flipHorizontal && straighten == 0f &&
+            crop.isWhole && adjustments.isNeutral
+
+    /**
+     * The turns and the tilt on their own.
+     *
+     * This is what the editor draws its preview from. The crop is a frame drawn
+     * over that preview and the colours are applied while drawing it, so baking
+     * either one in would be doing the same work twice — and in the crop's case
+     * doing it to the very picture the frame is measured against.
+     */
+    val geometryOnly: EditOps
+        get() = copy(crop = CropRect.Whole, adjustments = Adjustments.None)
 
     /** One more right-angle turn, wrapping rather than growing without bound. */
     fun turned(): EditOps = copy(
@@ -80,6 +116,8 @@ data class EditOps(
         copy(straighten = degrees.coerceIn(-MAX_STRAIGHTEN, MAX_STRAIGHTEN))
 
     fun cropped(rect: CropRect): EditOps = copy(crop = rect.sane())
+
+    fun adjusted(values: Adjustments): EditOps = copy(adjustments = values)
 
     companion object {
         val None = EditOps()

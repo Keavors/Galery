@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.graphics.Paint
@@ -63,9 +64,9 @@ suspend fun Context.decodeForEditing(item: MediaItem, maxPixels: Int): Bitmap? =
 /**
  * Draws a picture with the edits applied.
  *
- * Turns and mirroring first, then the tilt, then the crop — the same order the
- * editor shows them in, which is what lets a crop chosen on screen mean the same
- * thing here.
+ * Turns and mirroring first, then the tilt, then the crop, then the light and
+ * colour — the same order the editor shows them in, which is what lets a crop
+ * chosen on screen mean the same thing here.
  */
 fun applyOps(source: Bitmap, ops: EditOps): Bitmap {
     var current = source
@@ -101,13 +102,28 @@ fun applyOps(source: Bitmap, ops: EditOps): Bitmap {
 
     val crop = ops.crop.sane()
     if (!crop.isWhole) {
-        val x = (current.width * crop.left).toInt().coerceIn(0, current.width - 1)
-        val y = (current.height * crop.top).toInt().coerceIn(0, current.height - 1)
-        val w = (current.width * crop.width).toInt().coerceIn(1, current.width - x)
-        val h = (current.height * crop.height).toInt().coerceIn(1, current.height - y)
-        val cropped = Bitmap.createBitmap(current, x, y, w, h)
+        val cut = crop.pixelsIn(current.width, current.height)
+        val cropped = Bitmap.createBitmap(current, cut.x, cut.y, cut.width, cut.height)
         if (cropped !== current && current !== source) current.recycle()
         current = cropped
+    }
+
+    if (!ops.adjustments.isNeutral) {
+        // The same matrix the sliders were drawn through, applied once to the
+        // full-size picture. Drawn rather than looped over pixel by pixel: this
+        // is a native operation, and a hundred megapixels of Kotlin arithmetic
+        // is not.
+        val corrected = Bitmap.createBitmap(current.width, current.height, Bitmap.Config.ARGB_8888)
+        Canvas(corrected).drawBitmap(
+            current,
+            0f,
+            0f,
+            Paint(Paint.FILTER_BITMAP_FLAG).apply {
+                colorFilter = ColorMatrixColorFilter(colorMatrixFor(ops.adjustments).values)
+            },
+        )
+        if (current !== source) current.recycle()
+        current = corrected
     }
 
     return current

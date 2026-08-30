@@ -6,24 +6,31 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,16 +42,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
+import com.keavors.gallery.data.Adjustments
 import com.keavors.gallery.data.CropRect
 import com.keavors.gallery.data.EditOps
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.applyOps
+import com.keavors.gallery.data.colorMatrixFor
 import com.keavors.gallery.data.decodeForEditing
 import com.keavors.gallery.data.maxEditablePixels
 import com.keavors.gallery.data.overwriteWith
@@ -66,6 +77,9 @@ import kotlinx.coroutines.withContext
  */
 enum class SaveMode { COPY, OVERWRITE }
 
+/** Which set of tools is open. */
+private enum class EditorTab { GEOMETRY, COLOUR }
+
 /**
  * The editor.
  *
@@ -74,8 +88,9 @@ enum class SaveMode { COPY, OVERWRITE }
  * are a short list of intentions, not pixels — when the time comes to save, that
  * same list is applied once to a full-size decode.
  *
- * This first pass is geometry: turns, mirroring, straightening and the crop.
- * Colour and markup follow.
+ * Geometry and colour are separate sets of tools rather than one long strip:
+ * they are used at different moments, and a crop frame has no business being on
+ * screen while a brightness slider is being moved.
  */
 @Composable
 fun EditorScreen(
@@ -93,6 +108,8 @@ fun EditorScreen(
     var preview by remember(item.id) { mutableStateOf<android.graphics.Bitmap?>(null) }
     var working by remember { mutableStateOf(false) }
     var askingHow by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(EditorTab.GEOMETRY) }
+    var correction by remember { mutableStateOf(Correction.entries.first()) }
 
     // The preview is deliberately small: it is only ever shown at screen size,
     // and decoding a hundred megapixels to draw four hundred thousand of them
@@ -101,10 +118,11 @@ fun EditorScreen(
         preview = context.decodeForEditing(item, PREVIEW_PIXELS)
     }
 
-    // Turns and straightening only: the crop is the frame drawn on top of this
-    // picture, and applying it here as well would cut away the very part the
-    // frame is measured against — every drag would then crop the crop.
-    val geometry = ops.copy(crop = CropRect.Whole)
+    // Turns and straightening only. The crop is the frame drawn over this
+    // picture and the colours are a filter it is drawn through, so applying
+    // either here as well would be doing the work twice — and in the crop's
+    // case doing it to the very part the frame is measured against.
+    val geometry = ops.geometryOnly
     val shown = remember(preview, geometry) {
         preview?.let { if (geometry.isIdentity) it else applyOps(it, geometry) }
     }
@@ -113,6 +131,16 @@ fun EditorScreen(
     // is called, so wrapping it where it is used would hand the canvas a
     // different picture on every frame of a drag.
     val image = remember(shown) { shown?.asImageBitmap() }
+
+    // A matrix, not a redrawn bitmap: this is what makes the colour sliders cost
+    // nothing on a photograph of any size.
+    val colours = remember(ops.adjustments) {
+        if (ops.adjustments.isNeutral) {
+            null
+        } else {
+            ColorFilter.colorMatrix(colorMatrixFor(ops.adjustments))
+        }
+    }
 
     BackHandler { onClose() }
 
@@ -188,10 +216,12 @@ fun EditorScreen(
             if (image == null) {
                 CircularProgressIndicator(color = Color.White)
             } else {
-                CropCanvas(
+                EditorCanvas(
                     image = image,
                     crop = ops.crop,
                     onCropChange = { ops = ops.cropped(it) },
+                    colorFilter = colours,
+                    cropVisible = tab == EditorTab.GEOMETRY,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -211,53 +241,36 @@ fun EditorScreen(
             }
         }
 
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            // The same cells as the viewer's bottom bar: a quarter of the width
-            // each, the whole of it answering a thumb rather than the icon in
-            // the middle of it.
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                BarAction(
-                    icon = R.drawable.ic_rotate,
-                    label = stringResource(R.string.editor_rotate),
-                    onClick = { ops = ops.turned() },
-                    modifier = Modifier.weight(1f),
-                )
-                BarAction(
-                    icon = R.drawable.ic_flip,
-                    label = stringResource(R.string.editor_flip),
-                    onClick = { ops = ops.flipped() },
-                    modifier = Modifier.weight(1f),
-                )
-                BarAction(
-                    icon = R.drawable.ic_crop_reset,
-                    label = stringResource(R.string.editor_reset_crop),
-                    onClick = { ops = ops.cropped(CropRect.Whole) },
-                    modifier = Modifier.weight(1f),
-                )
-                BarAction(
-                    icon = R.drawable.ic_restore,
-                    label = stringResource(R.string.editor_reset),
-                    onClick = { ops = EditOps.None },
-                    modifier = Modifier.weight(1f),
-                )
-            }
+        when (tab) {
+            EditorTab.GEOMETRY -> GeometryTools(ops = ops, onChange = { ops = it })
 
-            Text(
-                text = stringResource(
-                    R.string.editor_straighten,
-                    ops.straighten.toInt(),
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.8f),
+            EditorTab.COLOUR -> ColourTools(
+                adjustments = ops.adjustments,
+                chosen = correction,
+                onChoose = { correction = it },
+                onChange = { ops = ops.adjusted(it) },
             )
-            Slider(
-                value = ops.straighten,
-                onValueChange = { ops = ops.straightened(it) },
-                valueRange = -EditOps.MAX_STRAIGHTEN..EditOps.MAX_STRAIGHTEN,
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+        ) {
+            BarAction(
+                icon = R.drawable.ic_crop_rotate,
+                label = stringResource(R.string.editor_tab_geometry),
+                selected = tab == EditorTab.GEOMETRY,
+                onClick = { tab = EditorTab.GEOMETRY },
+                modifier = Modifier.weight(1f),
+            )
+            BarAction(
+                icon = R.drawable.ic_tune,
+                label = stringResource(R.string.editor_tab_colour),
+                selected = tab == EditorTab.COLOUR,
+                onClick = { tab = EditorTab.COLOUR },
+                modifier = Modifier.weight(1f),
             )
         }
     }
@@ -275,6 +288,206 @@ fun EditorScreen(
             onDismiss = { askingHow = false },
         )
     }
+}
+
+/** Turns, mirroring, the crop and the horizon. */
+@Composable
+private fun GeometryTools(ops: EditOps, onChange: (EditOps) -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        // The same cells as the viewer's bottom bar: a quarter of the width
+        // each, the whole of it answering a thumb rather than the icon in the
+        // middle of it.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            BarAction(
+                icon = R.drawable.ic_rotate,
+                label = stringResource(R.string.editor_rotate),
+                onClick = { onChange(ops.turned()) },
+                modifier = Modifier.weight(1f),
+            )
+            BarAction(
+                icon = R.drawable.ic_flip,
+                label = stringResource(R.string.editor_flip),
+                onClick = { onChange(ops.flipped()) },
+                modifier = Modifier.weight(1f),
+            )
+            BarAction(
+                icon = R.drawable.ic_crop_reset,
+                label = stringResource(R.string.editor_reset_crop),
+                onClick = { onChange(ops.cropped(CropRect.Whole)) },
+                modifier = Modifier.weight(1f),
+            )
+            BarAction(
+                icon = R.drawable.ic_restore,
+                label = stringResource(R.string.editor_reset),
+                onClick = { onChange(EditOps.None) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.editor_straighten, ops.straighten.toInt()),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White.copy(alpha = 0.8f),
+        )
+        WhiteSlider(
+            value = ops.straighten,
+            onValueChange = { onChange(ops.straightened(it)) },
+            range = -EditOps.MAX_STRAIGHTEN..EditOps.MAX_STRAIGHTEN,
+        )
+    }
+}
+
+/**
+ * One slider and a row of names, rather than a slider each.
+ *
+ * Six sliders stacked up would leave no photograph to look at, and the
+ * photograph is the one thing the person moving them needs to see.
+ */
+@Composable
+private fun ColourTools(
+    adjustments: Adjustments,
+    chosen: Correction,
+    onChoose: (Correction) -> Unit,
+    onChange: (Adjustments) -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        val value = chosen.read(adjustments)
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(chosen.label),
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                // The sign is kept and zero is dimmed: on a slider whose middle
+                // means "leave this alone", which side of the middle a value is
+                // on matters more than the number itself.
+                text = if (value == 0f) "0" else "%+d".format((value * 100).toInt()),
+                style = MaterialTheme.typography.labelLarge,
+                color = if (value == 0f) Color.White.copy(alpha = 0.5f) else Color.White,
+            )
+        }
+
+        WhiteSlider(
+            value = value,
+            onValueChange = { onChange(chosen.write(adjustments, it)) },
+            range = -1f..1f,
+        )
+
+        // Scrolled rather than shared out evenly: "Насыщенность" is not a word
+        // that fits in a sixth of a phone, and there will be ten of these before
+        // this screen is finished.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            Correction.entries.forEach { entry ->
+                CorrectionChip(
+                    label = stringResource(entry.label),
+                    selected = entry == chosen,
+                    touched = entry.read(adjustments) != 0f,
+                    onClick = { onChoose(entry) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The name of one correction, and the way to choose it.
+ *
+ * The dot marks anything moved away from neutral: with a single slider serving
+ * every correction, nothing else on screen would say which of them have been
+ * touched — and a photograph that looks wrong for a reason nobody can find is
+ * worse than one that looks wrong.
+ */
+@Composable
+private fun CorrectionChip(
+    label: String,
+    selected: Boolean,
+    touched: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .heightIn(min = TOUCH_TARGET)
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (selected) Color.White.copy(alpha = 0.16f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+    ) {
+        if (touched) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) Color.White else Color.White.copy(alpha = 0.7f),
+        )
+    }
+}
+
+/**
+ * The slider used throughout the editor.
+ *
+ * White, because everything here sits on black over a photograph and the
+ * default takes its colours from a theme that knows nothing about that.
+ */
+@Composable
+private fun WhiteSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    range: ClosedFloatingPointRange<Float>,
+) {
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        valueRange = range,
+        colors = SliderDefaults.colors(
+            thumbColor = Color.White,
+            activeTrackColor = Color.White,
+            inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+        ),
+    )
+}
+
+/**
+ * The light and colour corrections, in the order they are shown.
+ *
+ * Each one knows how to read itself out of the settings and how to put itself
+ * back, which is what keeps the panel above from being six copies of the same
+ * slider with different names on them.
+ */
+private enum class Correction(
+    val label: Int,
+    val read: (Adjustments) -> Float,
+    val write: (Adjustments, Float) -> Adjustments,
+) {
+    BRIGHTNESS(R.string.adjust_brightness, { it.brightness }, { a, v -> a.copy(brightness = v) }),
+    EXPOSURE(R.string.adjust_exposure, { it.exposure }, { a, v -> a.copy(exposure = v) }),
+    CONTRAST(R.string.adjust_contrast, { it.contrast }, { a, v -> a.copy(contrast = v) }),
+    SATURATION(R.string.adjust_saturation, { it.saturation }, { a, v -> a.copy(saturation = v) }),
+    TEMPERATURE(
+        R.string.adjust_temperature,
+        { it.temperature },
+        { a, v -> a.copy(temperature = v) },
+    ),
+    TINT(R.string.adjust_tint, { it.tint }, { a, v -> a.copy(tint = v) }),
 }
 
 /** Two megapixels is more than any phone screen shows and decodes in a blink. */

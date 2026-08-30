@@ -13,6 +13,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.data.CropRect
+import com.keavors.gallery.data.PixelRect
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -30,7 +32,7 @@ import kotlin.math.min
 private val HANDLE_REACH = 36.dp
 
 /**
- * The picture with a crop frame over it.
+ * The picture, as the editor is about to change it.
  *
  * Drawn rather than laid out: the frame has to sit exactly on the photograph
  * whatever shape it is, and the photograph is letterboxed inside whatever space
@@ -42,25 +44,43 @@ private val HANDLE_REACH = 36.dp
  * had it applied would leave the frame measuring a photograph that is no longer
  * underneath it.
  *
- * The corners, the sides and the middle are all grabbed: a corner moves two
- * edges at once, a side moves one, the middle moves all four. Nothing snaps to
- * anything: a crop is a judgement, and a frame that jumps to a ratio nobody
- * asked for is fighting it.
+ * The light and colour corrections are a filter the picture is drawn through
+ * rather than pixels rewritten, which is what makes those sliders free: moving
+ * one changes a matrix handed to the graphics chip and nothing else.
+ *
+ * The crop frame is only here while the crop is being worked on. Its corners,
+ * its sides and its middle are all grabbed: a corner moves two edges at once, a
+ * side moves one, the middle moves all four. Nothing snaps to anything: a crop
+ * is a judgement, and a frame that jumps to a ratio nobody asked for is
+ * fighting it.
  */
 @Composable
-fun CropCanvas(
+fun EditorCanvas(
     image: ImageBitmap,
     crop: CropRect,
     onCropChange: (CropRect) -> Unit,
     modifier: Modifier = Modifier,
+    colorFilter: ColorFilter? = null,
+    cropVisible: Boolean = true,
 ) {
     var canvas by remember { mutableStateOf(Size.Zero) }
+
+    // With the frame gone there is nothing to say which part is being kept, so
+    // the picture is shown already cut down to it: away from the crop tool,
+    // what is on screen is what will be saved.
+    val cut = remember(crop, image, cropVisible) {
+        if (cropVisible) {
+            PixelRect(0, 0, image.width, image.height)
+        } else {
+            crop.pixelsIn(image.width, image.height)
+        }
+    }
 
     // Where the photograph sits inside the canvas, worked out from the two
     // sizes rather than measured while drawing. Drawing happens after touches
     // are handled, so a frame written there was always one gesture out of date —
     // the first drag of a session moved the crop against a rectangle of zeroes.
-    val frame = letterboxIn(canvas, image.width, image.height)
+    val frame = letterboxIn(canvas, cut.width, cut.height)
 
     // Everything the gesture detector needs is read through updated state
     // rather than captured, because the detector below is started once and
@@ -76,15 +96,19 @@ fun CropCanvas(
     Canvas(
         modifier = modifier
             .onSizeChanged { canvas = Size(it.width.toFloat(), it.height.toFloat()) }
-            // Keyed on nothing at all, and that is the fix rather than an
-            // oversight. A key that changes cancels the coroutine underneath and
-            // starts it again, which mid-drag means the drag simply stops; the
-            // key here used to be the picture, and the picture is wrapped afresh
-            // on every recomposition, so every crop reported caused the very
-            // recomposition that killed the gesture reporting it. A frame could
-            // be nudged a few pixels and then went dead until the finger was
-            // lifted and put down again.
-            .pointerInput(Unit) {
+            // Keyed on whether there is a frame to drag and on nothing else,
+            // and the nothing else is deliberate. A key that changes cancels the
+            // coroutine underneath and starts it again, which mid-drag means the
+            // drag simply stops; the key here was once the picture, and the
+            // picture is wrapped afresh on every recomposition, so every crop
+            // reported caused the very recomposition that killed the gesture
+            // reporting it. A frame could be nudged a few pixels and then went
+            // dead until the finger was lifted and put down again.
+            .pointerInput(cropVisible) {
+                // Away from the crop there is nothing here to take hold of, and
+                // a stray drag quietly re-cropping the photograph is the sort of
+                // thing found much later, if at all.
+                if (!cropVisible) return@pointerInput
                 detectDragGestures(
                     onDragStart = { start -> grabbed = grabFor(start, current, box, reach) },
                     onDragEnd = { grabbed = Grab.NONE },
@@ -99,10 +123,13 @@ fun CropCanvas(
     ) {
         drawImage(
             image = image,
+            srcOffset = IntOffset(cut.x, cut.y),
+            srcSize = IntSize(cut.width, cut.height),
             dstOffset = IntOffset(frame.left.toInt(), frame.top.toInt()),
             dstSize = IntSize(frame.width.toInt(), frame.height.toInt()),
+            colorFilter = colorFilter,
         )
-        drawCrop(frame, current)
+        if (cropVisible) drawCrop(frame, current)
     }
 }
 

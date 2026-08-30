@@ -219,6 +219,15 @@
     <string name="editor_reset_crop">Whole frame</string>
     <string name="editor_reset">Reset</string>
     <string name="editor_straighten">Straighten: %1$d°</string>
+    <string name="editor_tab_geometry">Geometry</string>
+    <string name="editor_tab_colour">Light and colour</string>
+
+    <string name="adjust_brightness">Brightness</string>
+    <string name="adjust_exposure">Exposure</string>
+    <string name="adjust_contrast">Contrast</string>
+    <string name="adjust_saturation">Saturation</string>
+    <string name="adjust_temperature">Temperature</string>
+    <string name="adjust_tint">Tint</string>
 
     <string name="set_jpeg_quality">JPEG quality when saving</string>
 </resources>

@@ -230,6 +230,16 @@
     <string name="editor_reset_crop">Весь кадр</string>
     <string name="editor_reset">Сбросить</string>
     <string name="editor_straighten">Выравнивание: %1$d°</string>
+    <string name="editor_tab_geometry">Геометрия</string>
+    <string name="editor_tab_colour">Свет и цвет</string>
+
+    <!-- Коррекции. Каждая нейтральна в нуле и тянется в обе стороны. -->
+    <string name="adjust_brightness">Яркость</string>
+    <string name="adjust_exposure">Экспозиция</string>
+    <string name="adjust_contrast">Контраст</string>
+    <string name="adjust_saturation">Насыщенность</string>
+    <string name="adjust_temperature">Температура</string>
+    <string name="adjust_tint">Оттенок</string>
 
     <string name="set_jpeg_quality">Качество JPEG при сохранении</string>
 </resources>

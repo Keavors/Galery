@@ -1,5 +1,6 @@
 package com.keavors.gallery.ui.common
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -84,7 +85,9 @@ fun ChromeIconButton(
  * unrelated distances from each other.
  *
  * [description] is what the action does, for anyone being read to; [label] is
- * only what fits under an icon.
+ * only what fits under an icon. [selected] is for the cells that are also a
+ * choice — a set of tools that is open stays lit rather than being marked
+ * somewhere else on screen.
  */
 @Composable
 fun BarAction(
@@ -93,6 +96,7 @@ fun BarAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     description: String = label,
+    selected: Boolean = false,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -100,6 +104,7 @@ fun BarAction(
         modifier = modifier
             .heightIn(min = LABELLED_HEIGHT)
             .clip(RoundedCornerShape(18.dp))
+            .background(if (selected) Color.White.copy(alpha = 0.16f) else Color.Transparent)
             .clickable(
                 interactionSource = null,
                 // A white ripple: the default takes its colour from the theme,
@@ -123,7 +128,7 @@ fun BarAction(
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.85f),
+            color = Color.White.copy(alpha = if (selected) 1f else 0.85f),
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
