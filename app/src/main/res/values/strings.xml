@@ -212,4 +212,6 @@
     <string name="vault_hide_confirm">Скрыть</string>
     <string name="vault_restore">Вернуть в галерею</string>
     <string name="vault_empty">В скрытом пусто.</string>
+    <string name="vault_restored">Возвращено в галерею</string>
+    <string name="vault_restore_failed">Не удалось вернуть файл</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.keavors.gallery.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -72,5 +73,21 @@ class RestorePathTest {
     @Test
     fun `a hidden folder is not restored into`() {
         assertEquals("Pictures/", restorePathFor(entry(".thumbnails/")))
+    }
+}
+
+class HidingRuleTest {
+
+    @Test
+    fun `an ordinary photo can be hidden`() {
+        assertTrue(canBeHidden(testItem(1)))
+    }
+
+    @Test
+    fun `a file already in the vault cannot be hidden again`() {
+        // The crash this guards: the copy went through, then the delete request
+        // was handed a file MediaStore has never heard of and refused it — with
+        // the copy already recorded, which is where the duplicate came from.
+        assertFalse(canBeHidden(testItem(1, isPrivate = true)))
     }
 }

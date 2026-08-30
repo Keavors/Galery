@@ -33,7 +33,7 @@ fun SelectionBar(
     onDelete: () -> Unit,
     onAddToAlbum: () -> Unit,
     onRemoveFromAlbum: (() -> Unit)?,
-    onHide: () -> Unit,
+    onHide: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -97,12 +97,16 @@ fun SelectionBar(
                     tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
-            IconButton(onClick = onHide) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_lock),
-                    contentDescription = stringResource(R.string.vault_hide),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
+            // Absent inside the vault: there is nowhere further to hide,
+            // and the original that would have to be deleted is this file.
+            onHide?.let { hide ->
+                IconButton(onClick = hide) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lock),
+                        contentDescription = stringResource(R.string.vault_hide),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
             IconButton(onClick = onDelete) {
                 Icon(

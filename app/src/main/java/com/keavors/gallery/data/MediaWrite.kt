@@ -74,7 +74,9 @@ class MediaWriter(
 fun deleteRequestFor(context: Context, items: List<MediaItem>): IntentSenderRequest =
     MediaStore.createDeleteRequest(
         context.contentResolver,
-        items.map { it.contentUri() },
+        // Only files MediaStore knows about. It throws on anything else, and a
+        // private file handed to it would take the app down with it.
+        items.filterNot { it.isPrivate }.map { it.contentUri() },
     ).request()
 
 private fun android.app.PendingIntent.request(): IntentSenderRequest =

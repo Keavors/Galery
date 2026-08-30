@@ -53,6 +53,7 @@ import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.TimelineRow
 import com.keavors.gallery.data.ZoomLevel
 import com.keavors.gallery.data.buildTimeline
+import com.keavors.gallery.data.canBeHidden
 import com.keavors.gallery.data.firstItemFrom
 import com.keavors.gallery.data.rowOf
 import com.keavors.gallery.data.sectionItems
@@ -286,7 +287,7 @@ fun TimelineScreen(
                 },
                 onShare = { context.shareMedia(chosen, shareTitle) },
                 onAddToAlbum = { choosingAlbum = true },
-                onHide = { confirmHide = true },
+                onHide = if (chosen.all { canBeHidden(it) }) ({ confirmHide = true }) else null,
                 onRemoveFromAlbum = albumActions.onRemoveFrom?.let { remove ->
                     {
                         remove(selected)
@@ -294,7 +295,10 @@ fun TimelineScreen(
                     }
                 },
                 onDelete = {
-                    if (writer.needsOwnConfirmation) {
+                    if (chosen.none { canBeHidden(it) }) {
+                        // Nothing to trash: these files are not in the library.
+                        selected = emptySet()
+                    } else if (writer.needsOwnConfirmation) {
                         confirmDelete = true
                     } else {
                         writer.setTrashed(chosen, trashed = true)

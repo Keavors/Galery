@@ -91,3 +91,13 @@ fun restorePathFor(entry: VaultEntry): String {
     val usable = path.isNotEmpty() && !path.startsWith(".") && !entry.relativePath.startsWith("/")
     return if (usable) "$path/" else if (entry.isVideo) "Movies/" else "Pictures/"
 }
+
+/**
+ * Whether a file can be moved into the vault.
+ *
+ * A file already in it cannot: hiding works by copying the file and then asking
+ * the system to delete the original, and a vaulted file has no MediaStore row to
+ * delete. The request refuses it outright — which is how the copy came to be
+ * made and the original left in place, twice over.
+ */
+fun canBeHidden(item: MediaItem): Boolean = !item.isPrivate

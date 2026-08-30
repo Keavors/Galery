@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -78,6 +79,8 @@ class VaultStore(private val context: Context) {
      * Returns the entry, or null if the copy did not come through whole.
      */
     suspend fun take(item: MediaItem): VaultEntry? = withContext(Dispatchers.IO) {
+        if (!canBeHidden(item)) return@withContext null
+
         val id = System.nanoTime()
         val target = File(directory, vaultFileName(id))
 
@@ -124,7 +127,10 @@ class VaultStore(private val context: Context) {
     suspend fun restore(entry: VaultEntry): Boolean = withContext(Dispatchers.IO) {
         val source = File(directory, entry.fileName)
         if (!source.exists()) {
+            // The record outlived its file. Dropping it is the only honest
+            // answer, and leaving it would offer a photo that cannot be opened.
             update { list -> list.filterNot { it.id == entry.id } }
+            Log.w(TAG, "vault file missing: " + entry.displayName)
             return@withContext false
         }
 
@@ -134,19 +140,11 @@ class VaultStore(private val context: Context) {
             MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         }
 
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, entry.displayName)
-            if (entry.mimeType.isNotBlank()) {
-                put(MediaStore.MediaColumns.MIME_TYPE, entry.mimeType)
-            }
-            put(MediaStore.MediaColumns.RELATIVE_PATH, restorePathFor(entry))
-            if (entry.takenAt > 0) {
-                put(MediaStore.MediaColumns.DATE_TAKEN, entry.takenAt)
-            }
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
-
-        val uri = runCatching { context.contentResolver.insert(collection, values) }.getOrNull()
+        // Twice, because the second attempt drops everything optional. Coming
+        // back to the wrong folder with the wrong date beats not coming back:
+        // MediaStore can refuse a path or a column, and the file is the point.
+        val uri = insertRow(collection, entry, full = true)
+            ?: insertRow(collection, entry, full = false)
             ?: return@withContext false
 
         val written = runCatching {
@@ -154,7 +152,7 @@ class VaultStore(private val context: Context) {
                 source.inputStream().use { input -> input.copyTo(output) }
             } ?: return@runCatching false
             true
-        }.getOrElse { false }
+        }.onFailure { Log.w(TAG, "restore write failed", it) }.getOrElse { false }
 
         if (!written) {
             runCatching { context.contentResolver.delete(uri, null, null) }
@@ -168,11 +166,35 @@ class VaultStore(private val context: Context) {
                 null,
                 null,
             )
-        }
+        }.onFailure { Log.w(TAG, "publishing restored file failed", it) }
 
         source.delete()
         update { list -> list.filterNot { it.id == entry.id } }
         true
+    }
+
+    /**
+     * Creates the row the file will be written into.
+     *
+     * [full] adds the remembered folder and date. Without them the file still
+     * comes back, into the standard folder — which is why the caller tries again
+     * without them rather than giving up.
+     */
+    private fun insertRow(collection: Uri, entry: VaultEntry, full: Boolean): Uri? {
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, entry.displayName)
+            if (entry.mimeType.isNotBlank()) {
+                put(MediaStore.MediaColumns.MIME_TYPE, entry.mimeType)
+            }
+            if (full) {
+                put(MediaStore.MediaColumns.RELATIVE_PATH, restorePathFor(entry))
+                if (entry.takenAt > 0) put(MediaStore.MediaColumns.DATE_TAKEN, entry.takenAt)
+            }
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        return runCatching { context.contentResolver.insert(collection, values) }
+            .onFailure { Log.w(TAG, "restore insert failed, full=" + full, it) }
+            .getOrNull()
     }
 
     /** Total bytes held, for telling someone what they would lose. */
@@ -183,5 +205,7 @@ class VaultStore(private val context: Context) {
     companion object {
         /** Not a real MediaStore bucket; nothing in the library can collide with it. */
         const val VAULT_BUCKET = -100L
+
+        private const val TAG = "VaultStore"
     }
 }

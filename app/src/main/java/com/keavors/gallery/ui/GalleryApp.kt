@@ -161,6 +161,8 @@ fun GalleryApp(
     var cacheSummary by remember { mutableStateOf("") }
 
     val importFailed = stringResource(R.string.settings_import_failed)
+    val restoredNote = stringResource(R.string.vault_restored)
+    val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
 
     val importLauncher = rememberLauncherForActivityResult(
@@ -515,8 +517,16 @@ fun GalleryApp(
                 writer = writer,
                 onRestoreFromVault = { item ->
                     scope.launch {
-                        vaultEntries.firstOrNull { -it.id == item.id }
-                            ?.let { vaultStore.restore(it) }
+                        // Saying nothing was the real bug here: an operation
+                        // that can fail has to admit it, or it looks like a
+                        // button that does nothing at all.
+                        val entry = vaultEntries.firstOrNull { -it.id == item.id }
+                        val ok = entry != null && vaultStore.restore(entry)
+                        Toast.makeText(
+                            context,
+                            if (ok) restoredNote else restoreFailedNote,
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     }
                 },
                 // Only offered where there is an album to be the cover of.

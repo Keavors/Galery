@@ -202,4 +202,6 @@
     <string name="vault_hide_confirm">Hide</string>
     <string name="vault_restore">Put back in the gallery</string>
     <string name="vault_empty">Nothing hidden.</string>
+    <string name="vault_restored">Back in the gallery</string>
+    <string name="vault_restore_failed">Could not put the file back</string>
 </resources>
