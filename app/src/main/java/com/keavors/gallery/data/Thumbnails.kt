@@ -38,6 +38,17 @@ fun thumbnailBucketPx(tilePx: Int): Int =
     THUMB_BUCKETS.firstOrNull { it >= tilePx } ?: THUMB_BUCKETS.last()
 
 /**
+ * What a cached thumbnail is called.
+ *
+ * Coil names cache entries through a keyer registered for the data type, and it
+ * has none for [MediaThumb] — so unless the name is supplied by hand nothing is
+ * ever written to the memory cache, and every tile is re-read the moment it
+ * scrolls back into view. The bucket belongs in the name because the same photo
+ * is held at several sizes.
+ */
+fun thumbnailCacheKey(id: Long, bucketPx: Int): String = "thumb-$id-$bucketPx"
+
+/**
  * Loads grid thumbnails through MediaStore instead of decoding the originals.
  *
  * The phone already keeps a thumbnail for every photo and video it knows about,

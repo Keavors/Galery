@@ -29,6 +29,7 @@ import com.keavors.gallery.R
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaThumb
 import com.keavors.gallery.data.thumbnailBucketPx
+import com.keavors.gallery.data.thumbnailCacheKey
 
 /** Below this a tile is too small for a badge to be anything but a smudge. */
 private val BADGE_MIN_TILE = 56.dp
@@ -56,9 +57,15 @@ fun Thumbnail(
     // Rebuilt only when the photo or the zoom bucket changes. Building a request
     // per recomposition would hand Coil a new object on every scroll frame.
     val request = remember(item.id, item.isVideo, bucket) {
+        val key = thumbnailCacheKey(item.id, bucket)
         ImageRequest.Builder(context)
             .data(MediaThumb(item.id, item.isVideo))
             .size(bucket)
+            .memoryCacheKey(key)
+            // Draws the cached bitmap immediately on the way back into view.
+            // Without it a tile that is already in memory still blinks grey for
+            // a frame while the request goes round the loader again.
+            .placeholderMemoryCacheKey(key)
             .build()
     }
 

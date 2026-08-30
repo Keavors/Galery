@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -168,8 +169,11 @@ fun FastScroller(
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(TRACK_WIDTH)
+                    // Measured here rather than inside the gesture handler: that
+                    // block runs before the first layout pass, so it reads a
+                    // height of zero and the thumb never leaves the top.
+                    .onSizeChanged { trackHeightPx = it.height.toFloat() }
                     .pointerInput(rows.size) {
-                        trackHeightPx = size.height.toFloat()
                         detectVerticalDragGestures(
                             onDragStart = { offset ->
                                 dragging = true

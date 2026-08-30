@@ -1,6 +1,7 @@
 package com.keavors.gallery.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -34,5 +35,26 @@ class ThumbnailBucketTest {
         val buckets = ZoomLevel.entries.map { thumbnailBucketPx(screenPx / it.columns) }.toSet()
 
         assertTrue("levels spread over ${buckets.size} buckets", buckets.size <= 4)
+    }
+
+    @Test
+    fun `the same photo at different zoom levels is cached separately`() {
+        val small = thumbnailCacheKey(42, thumbnailBucketPx(43))
+        val large = thumbnailCacheKey(42, thumbnailBucketPx(500))
+        assertNotEquals(small, large)
+    }
+
+    @Test
+    fun `the same photo at the same zoom level is one cache entry`() {
+        // Two tiles a pixel apart in width must not each claim their own copy.
+        assertEquals(
+            thumbnailCacheKey(42, thumbnailBucketPx(120)),
+            thumbnailCacheKey(42, thumbnailBucketPx(160)),
+        )
+    }
+
+    @Test
+    fun `different photos never share a cache entry`() {
+        assertNotEquals(thumbnailCacheKey(1, 96), thumbnailCacheKey(2, 96))
     }
 }
