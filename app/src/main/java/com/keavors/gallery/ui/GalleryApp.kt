@@ -69,6 +69,7 @@ import com.keavors.gallery.data.mediaPermissions
 import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.albums.AlbumsScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
+import com.keavors.gallery.ui.editor.EditorScreen
 import com.keavors.gallery.ui.lock.LockScreen
 import com.keavors.gallery.ui.permission.MediaGate
 import com.keavors.gallery.ui.photos.AlbumActions
@@ -104,6 +105,7 @@ fun GalleryApp(
     var selected by remember { mutableIntStateOf(0) }
     var folder by remember { mutableStateOf<FolderRoute?>(null) }
     var viewer by remember { mutableStateOf<ViewerRoute?>(null) }
+    var editing by remember { mutableStateOf<MediaItem?>(null) }
 
     // True from the very first frame when another app started this one, so the
     // tabs are never drawn on the way to the photo.
@@ -162,6 +164,7 @@ fun GalleryApp(
 
     val importFailed = stringResource(R.string.settings_import_failed)
     val restoredNote = stringResource(R.string.vault_restored)
+    val editorSaved = stringResource(R.string.editor_saved)
     val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
 
@@ -486,6 +489,21 @@ fun GalleryApp(
             )
         }
 
+        // Over the viewer it was opened from, so closing it puts the photo back
+        // on screen rather than dropping out to the grid.
+        editing?.let { subject ->
+            EditorScreen(
+                item = subject,
+                jpegQuality = settings.jpegQuality,
+                onSaved = {
+                    editing = null
+                    Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
+                },
+                onClose = { editing = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
         // In front of everything else, including a photo another app sent over:
         // arriving from outside must not be a way past the lock.
         if (settings.appLock && canLock && !unlocked) {
@@ -515,6 +533,7 @@ fun GalleryApp(
                 thumbBucketPx = viewer?.thumbBucketPx ?: DEFAULT_THUMB_BUCKET,
                 settings = settings,
                 writer = writer,
+                onEdit = { editing = it },
                 onRestoreFromVault = { item ->
                     scope.launch {
                         // Saying nothing was the real bug here: an operation

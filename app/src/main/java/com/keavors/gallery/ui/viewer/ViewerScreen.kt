@@ -90,6 +90,7 @@ fun ViewerScreen(
     settings: GallerySettings,
     writer: MediaWriter,
     onRestoreFromVault: (MediaItem) -> Unit,
+    onEdit: (MediaItem) -> Unit,
     onSetCover: ((itemId: Long) -> Unit)?,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -353,6 +354,7 @@ fun ViewerScreen(
                 ViewerBottomBar(
                     item = current,
                     onToggleFavorite = { writer.setFavorite(listOf(current), !current.isFavorite) },
+                    onEdit = { onEdit(current) },
                     onRestore = {
                         onRestoreFromVault(current)
                         if (items.size <= 1) onClose()

@@ -214,4 +214,19 @@
     <string name="vault_empty">В скрытом пусто.</string>
     <string name="vault_restored">Возвращено в галерею</string>
     <string name="vault_restore_failed">Не удалось вернуть файл</string>
+
+    <string name="editor_title">Редактирование</string>
+    <string name="editor_save">Сохранить</string>
+    <string name="editor_save_body">Сохранить отредактированное фото рядом с оригиналом или заменить оригинал? Замену отменить нельзя.</string>
+    <string name="editor_save_copy">Копией</string>
+    <string name="editor_save_overwrite">Заменить</string>
+    <string name="editor_saved">Сохранено</string>
+    <string name="editor_save_failed">Не удалось сохранить</string>
+    <string name="editor_rotate">Повернуть</string>
+    <string name="editor_flip">Отразить</string>
+    <string name="editor_reset_crop">Весь кадр</string>
+    <string name="editor_reset">Сбросить</string>
+    <string name="editor_straighten">Выравнивание: %1$d°</string>
+
+    <string name="set_jpeg_quality">Качество JPEG при сохранении</string>
 </resources>

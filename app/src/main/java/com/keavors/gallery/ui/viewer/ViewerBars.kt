@@ -154,6 +154,7 @@ fun ViewerBottomBar(
     onToggleFavorite: () -> Unit,
     onDelete: () -> Unit,
     onRestore: () -> Unit,
+    onEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -191,6 +192,15 @@ fun ViewerBottomBar(
             ),
             onClick = onToggleFavorite,
         )
+        // Only for stills: the editor turns and crops pixels, and a video is
+        // a different job with a different set of tools.
+        if (!item.isVideo) {
+            BarAction(
+                icon = R.drawable.ic_edit,
+                label = stringResource(R.string.editor_title),
+                onClick = onEdit,
+            )
+        }
         BarAction(
             icon = R.drawable.ic_share,
             label = stringResource(R.string.viewer_share),

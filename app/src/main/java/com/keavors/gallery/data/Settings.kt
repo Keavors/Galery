@@ -64,6 +64,9 @@ data class GallerySettings(
     val videoSound: Boolean = false,
     val videoRepeat: Boolean = false,
 
+    // Editor
+    val jpegQuality: Int = 95,
+
     // Security
     val appLock: Boolean = false,
     val hideInRecents: Boolean = false,
@@ -110,6 +113,7 @@ fun encodeSettings(s: GallerySettings): String = JSONObject().apply {
     put("videoAutoplay", s.videoAutoplay)
     put("videoSound", s.videoSound)
     put("videoRepeat", s.videoRepeat)
+    put("jpegQuality", s.jpegQuality)
     put("appLock", s.appLock)
     put("hideInRecents", s.hideInRecents)
     put("language", s.language)
@@ -150,6 +154,7 @@ fun decodeSettings(json: String?): GallerySettings {
             videoAutoplay = o.optBoolean("videoAutoplay", d.videoAutoplay),
             videoSound = o.optBoolean("videoSound", d.videoSound),
             videoRepeat = o.optBoolean("videoRepeat", d.videoRepeat),
+            jpegQuality = o.optInt("jpegQuality", d.jpegQuality).coerceIn(60, 100),
             appLock = o.optBoolean("appLock", d.appLock),
             hideInRecents = o.optBoolean("hideInRecents", d.hideInRecents),
             language = o.optString("language", d.language),

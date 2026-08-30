@@ -269,6 +269,18 @@ fun SettingsScreen(
         ),
 
         SettingSection(
+            stringResource(R.string.editor_title),
+            listOf(
+                sliderRow(
+                    title = stringResource(R.string.set_jpeg_quality),
+                    value = settings.jpegQuality,
+                    range = 60..100,
+                    onChange = { onChange(settings.copy(jpegQuality = it)) },
+                ),
+            ),
+        ),
+
+        SettingSection(
             stringResource(R.string.settings_security),
             listOfNotNull(
                 if (canLock) {
