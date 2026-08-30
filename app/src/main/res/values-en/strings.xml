@@ -221,6 +221,18 @@
     <string name="editor_straighten">Straighten: %1$d°</string>
     <string name="editor_tab_geometry">Geometry</string>
     <string name="editor_tab_colour">Light and colour</string>
+    <string name="editor_tab_filters">Filters</string>
+
+    <string name="filter_strength">Strength</string>
+    <string name="filter_none">Original</string>
+    <string name="filter_vivid">Vivid</string>
+    <string name="filter_soft">Soft</string>
+    <string name="filter_warm">Warm</string>
+    <string name="filter_cool">Cool</string>
+    <string name="filter_film">Film</string>
+    <string name="filter_mono">Mono</string>
+    <string name="filter_noir">Noir</string>
+    <string name="filter_faded">Faded</string>
 
     <string name="adjust_brightness">Brightness</string>
     <string name="adjust_exposure">Exposure</string>

@@ -209,3 +209,32 @@ class CropPixelsTest {
         assertEquals(PixelRect(0, 0, 0, 0), CropRect.Whole.pixelsIn(0, 0))
     }
 }
+
+class FilterStrengthTest {
+
+    private val full = Adjustments(
+        brightness = 0.4f,
+        contrast = -0.2f,
+        saturation = 1f,
+        vignette = 0.5f,
+    )
+
+    @Test
+    fun `at full strength a filter is exactly what it says`() {
+        assertEquals(full, full * 1f)
+    }
+
+    @Test
+    fun `at nothing a filter does nothing`() {
+        assertTrue((full * 0f).isNeutral)
+    }
+
+    @Test
+    fun `half way is half of every value, sign and all`() {
+        val half = full * 0.5f
+        assertEquals(0.2f, half.brightness, 1e-5f)
+        assertEquals(-0.1f, half.contrast, 1e-5f)
+        assertEquals(0.5f, half.saturation, 1e-5f)
+        assertEquals(0.25f, half.vignette, 1e-5f)
+    }
+}

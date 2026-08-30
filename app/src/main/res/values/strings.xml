@@ -232,6 +232,19 @@
     <string name="editor_straighten">Выравнивание: %1$d°</string>
     <string name="editor_tab_geometry">Геометрия</string>
     <string name="editor_tab_colour">Свет и цвет</string>
+    <string name="editor_tab_filters">Фильтры</string>
+
+    <!-- Фильтры: те же коррекции, выставленные заранее. -->
+    <string name="filter_strength">Сила</string>
+    <string name="filter_none">Оригинал</string>
+    <string name="filter_vivid">Сочный</string>
+    <string name="filter_soft">Мягкий</string>
+    <string name="filter_warm">Тёплый</string>
+    <string name="filter_cool">Холодный</string>
+    <string name="filter_film">Плёнка</string>
+    <string name="filter_mono">Ч/б</string>
+    <string name="filter_noir">Нуар</string>
+    <string name="filter_faded">Выцветший</string>
 
     <!-- Коррекции. Каждая нейтральна в нуле и тянется в обе стороны. -->
     <string name="adjust_brightness">Яркость</string>

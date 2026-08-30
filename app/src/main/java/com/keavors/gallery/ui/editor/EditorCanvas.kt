@@ -282,7 +282,7 @@ internal fun CropRect.moved(grab: Grab, dx: Float, dy: Float): CropRect = when (
  * rather than the whole photograph: a vignette belongs to the picture that comes
  * out, so it is centred on what the crop has left.
  */
-private fun DrawScope.drawVignette(frame: Rect, strength: Float) {
+internal fun DrawScope.drawVignette(frame: Rect, strength: Float) {
     if (frame.width <= 0f || frame.height <= 0f) return
     val corner = if (Vignette.darkens(strength)) Color.Black else Color.White
     drawRect(

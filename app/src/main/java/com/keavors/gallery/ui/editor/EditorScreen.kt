@@ -36,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -55,6 +56,7 @@ import com.keavors.gallery.data.CropRect
 import com.keavors.gallery.data.EditOps
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.applyOps
+import com.keavors.gallery.data.times
 import com.keavors.gallery.data.colorMatrixFor
 import com.keavors.gallery.data.decodeForEditing
 import com.keavors.gallery.data.maxEditablePixels
@@ -79,7 +81,7 @@ import kotlinx.coroutines.withContext
 enum class SaveMode { COPY, OVERWRITE }
 
 /** Which set of tools is open. */
-private enum class EditorTab { GEOMETRY, COLOUR }
+private enum class EditorTab { GEOMETRY, COLOUR, FILTERS }
 
 /**
  * The editor.
@@ -111,6 +113,12 @@ fun EditorScreen(
     var askingHow by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(EditorTab.GEOMETRY) }
     var correction by remember { mutableStateOf(Correction.entries.first()) }
+    // Which filter is on and how far. Kept beside the corrections rather than
+    // inside them because a filter is only a way of setting them: once it has,
+    // it is the corrections that are the truth, and these two are just what the
+    // strength slider needs to be able to set them again.
+    var filter by remember(item.id) { mutableStateOf(FilterPreset.NONE) }
+    var strength by remember(item.id) { mutableFloatStateOf(1f) }
 
     // The preview is deliberately small: it is only ever shown at screen size,
     // and decoding a hundred megapixels to draw four hundred thousand of them
@@ -270,7 +278,27 @@ fun EditorScreen(
                 adjustments = ops.adjustments,
                 chosen = correction,
                 onChoose = { correction = it },
-                onChange = { ops = ops.adjusted(it) },
+                onChange = {
+                    // Moving a slider by hand is no longer whatever the filter
+                    // said, so the filter stops claiming the credit.
+                    filter = FilterPreset.NONE
+                    ops = ops.adjusted(it)
+                },
+            )
+
+            EditorTab.FILTERS -> FilterTools(
+                image = image,
+                chosen = filter,
+                strength = strength,
+                onChoose = { preset ->
+                    filter = preset
+                    strength = 1f
+                    ops = ops.adjusted(preset.adjustments)
+                },
+                onStrength = {
+                    strength = it
+                    ops = ops.adjusted(filter.adjustments * it)
+                },
             )
         }
 
@@ -292,6 +320,13 @@ fun EditorScreen(
                 label = stringResource(R.string.editor_tab_colour),
                 selected = tab == EditorTab.COLOUR,
                 onClick = { tab = EditorTab.COLOUR },
+                modifier = Modifier.weight(1f),
+            )
+            BarAction(
+                icon = R.drawable.ic_filters,
+                label = stringResource(R.string.editor_tab_filters),
+                selected = tab == EditorTab.FILTERS,
+                onClick = { tab = EditorTab.FILTERS },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -418,6 +453,60 @@ private fun ColourTools(
                     touched = entry.read(adjustments) != 0f,
                     onClick = { onChoose(entry) },
                 )
+            }
+        }
+    }
+}
+
+/**
+ * The filters, and how far the chosen one goes.
+ *
+ * The strength slider only appears once something has been chosen: a slider
+ * that governs "no filter" governs nothing, and there is no reason for it to be
+ * on screen looking as though it might.
+ */
+@Composable
+private fun FilterTools(
+    image: androidx.compose.ui.graphics.ImageBitmap?,
+    chosen: FilterPreset,
+    strength: Float,
+    onChoose: (FilterPreset) -> Unit,
+    onStrength: (Float) -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        if (chosen != FilterPreset.NONE) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.filter_strength),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "%d%%".format((strength * 100).toInt()),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White,
+                )
+            }
+            WhiteSlider(value = strength, onValueChange = onStrength, range = 0f..1f)
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            FilterPreset.entries.forEach { preset ->
+                if (image != null) {
+                    FilterThumbnail(
+                        image = image,
+                        preset = preset,
+                        strength = if (preset == chosen) strength else 1f,
+                        selected = preset == chosen,
+                        onClick = { onChoose(preset) },
+                    )
+                }
             }
         }
     }

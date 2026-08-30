@@ -43,6 +43,26 @@ data class Adjustments(
 }
 
 /**
+ * The same settings, applied more gently or not at all.
+ *
+ * This is what the strength of a filter means: every value moved the same share
+ * of the way back towards neutral. Doing it here rather than in the filters
+ * keeps a filter a plain set of numbers with nothing clever about it.
+ */
+operator fun Adjustments.times(strength: Float): Adjustments = Adjustments(
+    brightness = brightness * strength,
+    contrast = contrast * strength,
+    exposure = exposure * strength,
+    shadows = shadows * strength,
+    highlights = highlights * strength,
+    saturation = saturation * strength,
+    temperature = temperature * strength,
+    tint = tint * strength,
+    sharpness = sharpness * strength,
+    vignette = vignette * strength,
+)
+
+/**
  * How a vignette is drawn, in one place for the two canvases that draw it.
  *
  * It is drawn rather than computed into the pixels, so it costs nothing while
