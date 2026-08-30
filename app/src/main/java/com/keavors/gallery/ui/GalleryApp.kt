@@ -489,43 +489,6 @@ fun GalleryApp(
             )
         }
 
-        // Over the viewer it was opened from, so closing it puts the photo back
-        // on screen rather than dropping out to the grid.
-        editing?.let { subject ->
-            EditorScreen(
-                item = subject,
-                jpegQuality = settings.jpegQuality,
-                onSaved = {
-                    editing = null
-                    Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
-                },
-                onClose = { editing = null },
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-
-        // In front of everything else, including a photo another app sent over:
-        // arriving from outside must not be a way past the lock.
-        if (settings.appLock && canLock && !unlocked) {
-            LockScreen(
-                title = stringResource(R.string.lock_title),
-                subtitle = stringResource(R.string.lock_subtitle),
-                onUnlocked = { unlocked = true },
-                onGiveUp = onFinish,
-            )
-        }
-
-        // The gap between another app handing over a photo and the photo being
-        // ready. Black rather than the timeline: a flash of the gallery on the
-        // way to a picture reads as the wrong app opening.
-        if (resolvingExternal) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-            )
-        }
-
         if (viewerIndex >= 0) {
             ViewerScreen(
                 items = viewerItems,
@@ -553,11 +516,55 @@ fun GalleryApp(
                     { itemId: Long -> scope.launch { albumStore.setCover(source, itemId) } }
                 },
                 onClose = { viewer = null },
+                // Left in composition while the editor is open so that closing
+                // the editor puts the same photo back on the same page, but not
+                // drawn: the editor covers it completely.
+                modifier = Modifier.drawWithContent { if (editing == null) drawContent() },
             )
         } else if (folder == null && selected != 0) {
             // Back from any tab other than the first returns to the timeline
             // before it leaves the app.
             BackHandler { selected = 0 }
+        }
+
+        // After the viewer rather than before it. The editor is opened from a
+        // photo and has to cover it; composed later it is also the one that
+        // hears the back press, so leaving the editor returns to the photo
+        // instead of closing both at once.
+        editing?.let { subject ->
+            EditorScreen(
+                item = subject,
+                jpegQuality = settings.jpegQuality,
+                onSaved = {
+                    editing = null
+                    Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
+                },
+                onClose = { editing = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        // The gap between another app handing over a photo and the photo being
+        // ready. Black rather than the timeline: a flash of the gallery on the
+        // way to a picture reads as the wrong app opening.
+        if (resolvingExternal) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+            )
+        }
+
+        // In front of everything else, including a photo another app sent over:
+        // arriving from outside must not be a way past the lock. Which is why it
+        // is composed last — anything after it would be drawn over it.
+        if (settings.appLock && canLock && !unlocked) {
+            LockScreen(
+                title = stringResource(R.string.lock_title),
+                subtitle = stringResource(R.string.lock_subtitle),
+                onUnlocked = { unlocked = true },
+                onGiveUp = onFinish,
+            )
         }
     }
 }
