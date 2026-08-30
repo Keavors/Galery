@@ -10,6 +10,7 @@ import coil3.size.Precision
 import com.keavors.gallery.data.AlbumStore
 import com.keavors.gallery.data.MediaRepository
 import com.keavors.gallery.data.SettingsStore
+import com.keavors.gallery.data.VaultStore
 import com.keavors.gallery.data.MediaThumbnailFetcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -34,11 +35,16 @@ class GalleryApplication : Application(), SingletonImageLoader.Factory {
     lateinit var settings: SettingsStore
         private set
 
+    /** Files taken out of the library and kept where nothing else can see them. */
+    lateinit var vault: VaultStore
+        private set
+
     override fun onCreate() {
         super.onCreate()
         media = MediaRepository(this, appScope)
         albums = AlbumStore(this)
         settings = SettingsStore(this)
+        vault = VaultStore(this)
     }
 
     /**

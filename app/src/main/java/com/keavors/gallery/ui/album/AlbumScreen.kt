@@ -39,6 +39,7 @@ fun AlbumScreen(
     settings: GallerySettings,
     writer: MediaWriter,
     albumActions: AlbumActions,
+    onHide: (List<MediaItem>) -> Unit,
     onBack: () -> Unit,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -80,6 +81,7 @@ fun AlbumScreen(
             settings = settings,
             writer = writer,
             albumActions = albumActions,
+            onHide = onHide,
             onOpen = onOpen,
         )
     }

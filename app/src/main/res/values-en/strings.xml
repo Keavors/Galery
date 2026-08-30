@@ -194,4 +194,12 @@
     <string name="lock_title">The gallery is locked</string>
     <string name="lock_subtitle">Confirm it is you</string>
     <string name="lock_unlock">Unlock</string>
+
+    <string name="vault_title">Hidden</string>
+    <string name="vault_subtitle">What has been taken out of the gallery lives here</string>
+    <string name="vault_hide">Hide</string>
+    <string name="vault_hide_body">The files move into the app and disappear from the gallery, from file managers and from backups. This becomes the only copy: uninstalling the app takes them with it. They can be put back at any time.</string>
+    <string name="vault_hide_confirm">Hide</string>
+    <string name="vault_restore">Put back in the gallery</string>
+    <string name="vault_empty">Nothing hidden.</string>
 </resources>

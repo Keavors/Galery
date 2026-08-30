@@ -15,6 +15,7 @@ fun testItem(
     bucket: Long = 1,
     favorite: Boolean = false,
     expiresAt: Long = 0,
+    isPrivate: Boolean = false,
 ) = MediaItem(
     id = id,
     uri = "content://media/external/images/media/$id",
@@ -34,4 +35,5 @@ fun testItem(
     isFavorite = favorite,
     orientation = 0,
     expiresAt = expiresAt,
+    isPrivate = isPrivate,
 )

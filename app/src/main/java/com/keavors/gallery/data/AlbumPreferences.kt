@@ -41,6 +41,7 @@ val AlbumSource.key: String
         AlbumSource.Favourites -> "favourites"
         AlbumSource.Videos -> "videos"
         is AlbumSource.User -> "user:$albumId"
+        AlbumSource.Vault -> "vault"
     }
 
 // ------------------------------------------------------------- json ---------

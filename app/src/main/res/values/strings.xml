@@ -204,4 +204,12 @@
     <string name="lock_title">Галерея заблокирована</string>
     <string name="lock_subtitle">Подтвердите, что это вы</string>
     <string name="lock_unlock">Разблокировать</string>
+
+    <string name="vault_title">Скрытое</string>
+    <string name="vault_subtitle">Здесь лежит то, что убрано из галереи</string>
+    <string name="vault_hide">Скрыть</string>
+    <string name="vault_hide_body">Файлы будут перенесены в приложение и исчезнут из галереи, файлового менеджера и резервных копий. Это единственная копия: если удалить приложение, они пропадут. Вернуть их обратно можно в любой момент.</string>
+    <string name="vault_hide_confirm">Скрыть</string>
+    <string name="vault_restore">Вернуть в галерею</string>
+    <string name="vault_empty">В скрытом пусто.</string>
 </resources>

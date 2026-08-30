@@ -65,6 +65,18 @@ class MediaWriter(
     }
 }
 
+/**
+ * A permanent-delete request the caller launches itself.
+ *
+ * Used where the outcome matters: moving a file into the vault has to know
+ * whether the original really went, so it can put the copy back if it did not.
+ */
+fun deleteRequestFor(context: Context, items: List<MediaItem>): IntentSenderRequest =
+    MediaStore.createDeleteRequest(
+        context.contentResolver,
+        items.map { it.contentUri() },
+    ).request()
+
 private fun android.app.PendingIntent.request(): IntentSenderRequest =
     IntentSenderRequest.Builder(intentSender).build()
 

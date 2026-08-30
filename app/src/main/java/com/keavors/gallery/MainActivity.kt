@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
                     settingsStore = app.settings,
                     repository = app.media,
                     albumStore = app.albums,
+                    vaultStore = app.vault,
                     launchMode = launchMode,
                     pendingOpen = pendingOpen,
                     onExternalHandled = { pendingOpen = null },

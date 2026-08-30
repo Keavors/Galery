@@ -36,6 +36,14 @@ data class MediaItem(
      * that is not in the trash. Android sets it, and nothing here can move it.
      */
     val expiresAt: Long,
+    /**
+     * True for a file living in the app's own storage rather than the library.
+     *
+     * Those cannot be shared, favourited or deleted the ordinary way — there is
+     * no MediaStore row behind them — so the screens that offer those actions
+     * check this rather than guessing from the uri.
+     */
+    val isPrivate: Boolean = false,
 )
 
 /**

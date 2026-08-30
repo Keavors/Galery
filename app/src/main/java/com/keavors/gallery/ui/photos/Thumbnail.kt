@@ -29,6 +29,7 @@ import coil3.request.ImageRequest
 import com.keavors.gallery.R
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaThumb
+import com.keavors.gallery.data.contentUri
 import com.keavors.gallery.data.thumbnailBucketPx
 import com.keavors.gallery.data.thumbnailCacheKey
 
@@ -61,10 +62,12 @@ fun Thumbnail(
 
     // Rebuilt only when the photo or the zoom bucket changes. Building a request
     // per recomposition would hand Coil a new object on every scroll frame.
-    val request = remember(item.id, item.isVideo, bucket) {
+    val request = remember(item.id, item.isVideo, item.isPrivate, bucket) {
         val key = thumbnailCacheKey(item.id, bucket)
         ImageRequest.Builder(context)
-            .data(MediaThumb(item.id, item.isVideo))
+            // A vaulted file has no MediaStore row and so no system thumbnail;
+            // it is decoded from the file, downsampled to the tile.
+            .data(if (item.isPrivate) item.contentUri() else MediaThumb(item.id, item.isVideo))
             .size(bucket)
             .memoryCacheKey(key)
             // Draws the cached bitmap immediately on the way back into view.

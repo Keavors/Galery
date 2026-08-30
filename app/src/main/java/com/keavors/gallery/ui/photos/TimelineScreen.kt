@@ -78,6 +78,7 @@ fun TimelineScreen(
     settings: GallerySettings,
     writer: MediaWriter,
     albumActions: AlbumActions,
+    onHide: (List<MediaItem>) -> Unit,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -113,6 +114,7 @@ fun TimelineScreen(
     var selected by remember { mutableStateOf(emptySet<Long>()) }
     var confirmDelete by remember { mutableStateOf(false) }
     var choosingAlbum by remember { mutableStateOf(false) }
+    var confirmHide by remember { mutableStateOf(false) }
     var namingAlbum by remember { mutableStateOf(false) }
 
     // Files can vanish from under a selection — deleted here, or by another app
@@ -284,6 +286,7 @@ fun TimelineScreen(
                 },
                 onShare = { context.shareMedia(chosen, shareTitle) },
                 onAddToAlbum = { choosingAlbum = true },
+                onHide = { confirmHide = true },
                 onRemoveFromAlbum = albumActions.onRemoveFrom?.let { remove ->
                     {
                         remove(selected)
@@ -330,6 +333,20 @@ fun TimelineScreen(
                 selected = emptySet()
             },
             onDismiss = { namingAlbum = false },
+        )
+    }
+
+    if (confirmHide) {
+        ConfirmDialog(
+            title = stringResource(R.string.vault_hide),
+            body = stringResource(R.string.vault_hide_body),
+            confirm = stringResource(R.string.vault_hide_confirm),
+            onConfirm = {
+                confirmHide = false
+                onHide(chosen)
+                selected = emptySet()
+            },
+            onDismiss = { confirmHide = false },
         )
     }
 

@@ -14,6 +14,9 @@ sealed interface AlbumSource {
 
     /** One somebody made. Its contents live in [AlbumPreferences], not on disk. */
     data class User(val albumId: Long) : AlbumSource
+
+    /** Files taken out of the library entirely. Nothing here comes from it. */
+    data object Vault : AlbumSource
 }
 
 /**
@@ -33,6 +36,8 @@ fun List<MediaItem>.inAlbum(
         val members = userAlbums.firstOrNull { it.id == source.albumId }?.memberIds.orEmpty()
         filter { it.id in members }
     }
+    // The library cannot answer for the vault: that is the whole point of it.
+    AlbumSource.Vault -> emptyList()
 }
 
 /**

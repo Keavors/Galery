@@ -86,9 +86,11 @@ private data class AlbumCardModel(
 fun AlbumsScreen(
     items: List<MediaItem>,
     trashCount: Int,
+    vaultCount: Int,
     prefs: AlbumPreferences,
     onOpenAlbum: (source: AlbumSource, title: String) -> Unit,
     onOpenTrash: () -> Unit,
+    onOpenVault: () -> Unit,
     onTogglePin: (AlbumSource) -> Unit,
     onSetHidden: (AlbumSource, Boolean) -> Unit,
     onCreateAlbum: (String) -> Unit,
@@ -208,6 +210,26 @@ fun AlbumsScreen(
                     onDelete = {
                         (card.source as? AlbumSource.User)?.let { onDeleteAlbum(it.albumId) }
                     },
+                )
+            }
+
+            item(key = "vault") {
+                AlbumCard(
+                    card = AlbumCardModel(
+                        source = AlbumSource.Vault,
+                        title = stringResource(R.string.vault_title),
+                        count = vaultCount,
+                        cover = null,
+                        fallbackIcon = R.drawable.ic_lock,
+                    ),
+                    pinned = false,
+                    hidden = false,
+                    menuEnabled = false,
+                    onOpen = onOpenVault,
+                    onTogglePin = {},
+                    onToggleHidden = {},
+                    onRename = {},
+                    onDelete = {},
                 )
             }
 

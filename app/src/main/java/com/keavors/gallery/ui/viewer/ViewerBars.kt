@@ -66,6 +66,7 @@ fun ViewerTopBar(
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
     val locale = Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())
+    val canCopy = !item.isPrivate
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -133,13 +134,15 @@ fun ViewerTopBar(
                         },
                     )
                 }
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.viewer_copy)) },
-                    onClick = {
-                        menuOpen = false
-                        context.copyMediaToClipboard(item, item.name)
-                    },
-                )
+                if (canCopy) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.viewer_copy)) },
+                        onClick = {
+                            menuOpen = false
+                            context.copyMediaToClipboard(item, item.name)
+                        },
+                    )
+                }
             }
         }
     }
@@ -150,6 +153,7 @@ fun ViewerBottomBar(
     item: MediaItem,
     onToggleFavorite: () -> Unit,
     onDelete: () -> Unit,
+    onRestore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -166,6 +170,18 @@ fun ViewerBottomBar(
             .windowInsetsPadding(stableInsets)
             .padding(vertical = 6.dp),
     ) {
+        // A vaulted file has no MediaStore row behind it, so favouriting,
+        // sharing and trashing have nothing to act on. Putting it back is the
+        // one thing that makes sense, and it is the way out to everything else.
+        if (item.isPrivate) {
+            BarAction(
+                icon = R.drawable.ic_restore,
+                label = stringResource(R.string.vault_restore),
+                onClick = onRestore,
+            )
+            return@Row
+        }
+
         BarAction(
             // Filled once it is a favourite, outlined until then — the state is
             // the icon, so nothing has to be read to know it.

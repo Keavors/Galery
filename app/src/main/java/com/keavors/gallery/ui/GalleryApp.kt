@@ -57,7 +57,10 @@ import com.keavors.gallery.data.formatBytes
 import com.keavors.gallery.data.sortedFor
 import com.keavors.gallery.data.AlbumSource
 import com.keavors.gallery.data.AlbumStore
+import android.app.Activity
+import com.keavors.gallery.data.VaultStore
 import com.keavors.gallery.data.canAuthenticate
+import com.keavors.gallery.data.deleteRequestFor
 import com.keavors.gallery.data.canManageMedia
 import com.keavors.gallery.data.inAlbum
 import com.keavors.gallery.data.indexOfId
@@ -89,6 +92,7 @@ fun GalleryApp(
     settingsStore: SettingsStore,
     repository: MediaRepository,
     albumStore: AlbumStore,
+    vaultStore: VaultStore,
     launchMode: LaunchMode,
     pendingOpen: ExternalOpen?,
     onExternalHandled: () -> Unit,
@@ -121,6 +125,9 @@ fun GalleryApp(
     val trash by repository.trash.collectAsStateWithLifecycle()
     val writer = rememberMediaWriter(managesMedia = manageMedia)
     val albumPrefs by albumStore.preferences.collectAsStateWithLifecycle(AlbumPreferences())
+    val vaultEntries by vaultStore.entries.collectAsStateWithLifecycle(emptyList())
+    val vaultItems = remember(vaultEntries) { vaultEntries.map { vaultStore.asMediaItem(it) } }
+    var vaultUnlocked by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     // Sorting and filtering happen here, once, so every screen downstream —
     // timeline, albums, viewer — is looking at the same library in the same
@@ -150,6 +157,7 @@ fun GalleryApp(
     }
 
     val unknownFolder = stringResource(R.string.album_unknown)
+    val vaultTitle = stringResource(R.string.vault_title)
     var cacheSummary by remember { mutableStateOf("") }
 
     val importFailed = stringResource(R.string.settings_import_failed)
@@ -211,13 +219,17 @@ fun GalleryApp(
         onExternalHandled()
     }
 
-    val folderItems = folder?.let { libraryItems.inAlbum(it.source, albumPrefs.userAlbums) }
-        .orEmpty()
+    val folderItems = when (folder?.source) {
+        null -> emptyList()
+        AlbumSource.Vault -> vaultItems
+        else -> libraryItems.inAlbum(folder!!.source, albumPrefs.userAlbums)
+    }
 
     val viewerItems = viewer?.let { route ->
         when {
             // The folder straight from the library once it has one; the answer
             // found ahead of it only until then.
+            route.source == AlbumSource.Vault -> vaultItems
             route.source != null ->
                 libraryItems.inAlbum(route.source, albumPrefs.userAlbums)
                     .ifEmpty { route.items.orEmpty() }
@@ -241,6 +253,32 @@ fun GalleryApp(
             { ids: Set<Long> -> scope.launch { albumStore.removeFromUserAlbum(album.albumId, ids) } }
         },
     )
+
+    // Copies waiting on the system to confirm that the originals may go. If it
+    // refuses, they are thrown away again: a copy kept alongside an original
+    // that never left is a duplicate nobody asked for.
+    var pendingVault by remember { mutableStateOf<List<com.keavors.gallery.data.VaultEntry>>(emptyList()) }
+    val vaultDeleteLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val awaiting = pendingVault
+        pendingVault = emptyList()
+        if (result.resultCode != Activity.RESULT_OK) {
+            scope.launch { awaiting.forEach { vaultStore.discard(it) } }
+        }
+    }
+
+    val hideItems: (List<MediaItem>) -> Unit = { chosen ->
+        scope.launch {
+            // Copy first, record second, delete last. Any other order risks the
+            // one outcome that cannot be undone.
+            val taken = chosen.mapNotNull { item -> vaultStore.take(item)?.let { item to it } }
+            if (taken.isNotEmpty()) {
+                pendingVault = taken.map { it.second }
+                vaultDeleteLauncher.launch(deleteRequestFor(context, taken.map { it.first }))
+            }
+        }
+    }
 
     val openItem: (MediaItem, Int) -> Unit = { item, bucket ->
         if (launchMode == LaunchMode.PICK) {
@@ -325,6 +363,7 @@ fun GalleryApp(
                             settings = settings,
                             writer = writer,
                             albumActions = albumActions(removableFrom = null),
+                            onHide = hideItems,
                             onOpen = openItem,
                         )
                     }
@@ -375,12 +414,25 @@ fun GalleryApp(
                     ) {
                         AlbumsScreen(
                             items = libraryItems,
-                            trashCount = trash.size,
+                            vaultCount = vaultItems.size,
                             prefs = albumPrefs,
                             onOpenAlbum = { source, title ->
                                 folder = FolderRoute(source, title, fromExternal = false)
                             },
+                            trashCount = trash.size,
                             onOpenTrash = { selected = Tab.TRASH.ordinal },
+                            onOpenVault = {
+                                // The vault asks every time it is opened, not
+                                // once per run: it is the only thing here worth
+                                // locking, so it is the one thing not trusted to
+                                // stay unlocked.
+                                vaultUnlocked = false
+                                folder = FolderRoute(
+                                    source = AlbumSource.Vault,
+                                    title = vaultTitle,
+                                    fromExternal = false,
+                                )
+                            },
                             onTogglePin = { scope.launch { albumStore.togglePinned(it) } },
                             onSetHidden = { source, hidden ->
                                 scope.launch { albumStore.setHidden(source, hidden) }
@@ -400,13 +452,23 @@ fun GalleryApp(
             }
         }
 
-        folder?.let { route ->
+        // Nothing of the vault is drawn until the phone says who is holding it.
+        if (folder?.source == AlbumSource.Vault && !vaultUnlocked) {
+            LockScreen(
+                title = stringResource(R.string.vault_title),
+                subtitle = stringResource(R.string.vault_subtitle),
+                onUnlocked = { vaultUnlocked = true },
+                onGiveUp = { folder = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else folder?.let { route ->
             AlbumScreen(
                 title = route.title,
                 items = folderItems,
                 settings = settings,
                 writer = writer,
                 albumActions = albumActions(removableFrom = route.source),
+                onHide = hideItems,
                 onBack = {
                     // Arrived here from another app's photo: going back a second
                     // time leaves the gallery rather than dropping into a
@@ -451,6 +513,12 @@ fun GalleryApp(
                 thumbBucketPx = viewer?.thumbBucketPx ?: DEFAULT_THUMB_BUCKET,
                 settings = settings,
                 writer = writer,
+                onRestoreFromVault = { item ->
+                    scope.launch {
+                        vaultEntries.firstOrNull { -it.id == item.id }
+                            ?.let { vaultStore.restore(it) }
+                    }
+                },
                 // Only offered where there is an album to be the cover of.
                 onSetCover = viewer?.source?.let { source ->
                     { itemId: Long -> scope.launch { albumStore.setCover(source, itemId) } }

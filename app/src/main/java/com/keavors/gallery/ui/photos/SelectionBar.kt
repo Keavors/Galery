@@ -33,6 +33,7 @@ fun SelectionBar(
     onDelete: () -> Unit,
     onAddToAlbum: () -> Unit,
     onRemoveFromAlbum: (() -> Unit)?,
+    onHide: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -93,6 +94,13 @@ fun SelectionBar(
                 Icon(
                     painter = painterResource(R.drawable.ic_share),
                     contentDescription = stringResource(R.string.viewer_share),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            IconButton(onClick = onHide) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lock),
+                    contentDescription = stringResource(R.string.vault_hide),
                     tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
