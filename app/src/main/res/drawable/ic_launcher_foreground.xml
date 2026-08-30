@@ -4,39 +4,20 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <!--
-        A framed landscape at daybreak: cool sky, warm sun, three ridges receding
-        into it. Everything inside the frame is clipped to the frame, so the
-        ridges can run past its edges and still end flush with it.
+        Sun and three ridges over the sky in the background layer. Everything runs
+        past the 108dp canvas on purpose: whatever mask the launcher applies, the
+        landscape reaches the edge and never shows a gap.
     -->
-    <group>
-        <clip-path android:pathData="M37,26 L71,26 A11,11 0 0 1 82,37 L82,71 A11,11 0 0 1 71,82 L37,82 A11,11 0 0 1 26,71 L26,37 A11,11 0 0 1 37,26 Z" />
-
-        <!-- sky -->
-        <path
-            android:fillColor="#17394F"
-            android:pathData="M37,26 L71,26 A11,11 0 0 1 82,37 L82,71 A11,11 0 0 1 71,82 L37,82 A11,11 0 0 1 26,71 L26,37 A11,11 0 0 1 37,26 Z" />
-
-        <!-- sun -->
-        <path
-            android:fillColor="#F5B841"
-            android:pathData="M38,42 A6,6 0 1 1 50,42 A6,6 0 1 1 38,42 Z" />
-
-        <!-- ridges, far to near -->
-        <path
-            android:fillColor="#7FB09E"
-            android:pathData="M24,84 L52,47 L86,84 Z" />
-        <path
-            android:fillColor="#3E7A80"
-            android:pathData="M14,84 L36,59 L60,84 Z" />
-        <path
-            android:fillColor="#24505F"
-            android:pathData="M48,84 L72,58 L96,84 Z" />
-    </group>
-
-    <!-- frame, drawn last so it caps the clipped edges -->
     <path
-        android:strokeColor="#F5E7C8"
-        android:strokeWidth="5.5"
-        android:strokeLineJoin="round"
-        android:pathData="M37,26 L71,26 A11,11 0 0 1 82,37 L82,71 A11,11 0 0 1 71,82 L37,82 A11,11 0 0 1 26,71 L26,37 A11,11 0 0 1 37,26 Z" />
+        android:fillColor="#F5A623"
+        android:pathData="M29,38 A11,11 0 1 1 51,38 A11,11 0 1 1 29,38 Z" />
+    <path
+        android:fillColor="#9BC98F"
+        android:pathData="M-10,112 L46,50 L118,112 Z" />
+    <path
+        android:fillColor="#4E9A6B"
+        android:pathData="M28,112 L78,62 L128,112 Z" />
+    <path
+        android:fillColor="#2F6B52"
+        android:pathData="M-20,112 L22,74 L66,112 Z" />
 </vector>

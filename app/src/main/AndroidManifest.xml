@@ -1,7 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Reading the library. ACCESS_MEDIA_LOCATION unlocks the GPS tags inside
+         photos, which the details sheet shows. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
+
+    <!-- Android 14 can grant access to a hand-picked subset of photos. A gallery
+         needs the whole library, but the permission has to be declared to detect
+         that the user chose the subset. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+
+    <!-- Special access, granted once in system settings. Without it every delete,
+         trash and favourite raises a system confirmation dialog. -->
+    <uses-permission android:name="android.permission.MANAGE_MEDIA" />
+
+
     <application
+        android:name=".GalleryApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"

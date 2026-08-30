@@ -12,5 +12,26 @@
     <string name="trash_placeholder">Deleted items stay for 30 days in case you change your mind.</string>
     <string name="settings_placeholder">Everything that can be configured, is.</string>
 
-    <string name="stage_notice">Stage 0 of 10 — scaffolding. Next up: media access.</string>
+    <string name="stage_notice">Stage 1 of 10 — media access. Next up: the photo timeline.</string>
+
+    <string name="access_title">Access to your photos</string>
+    <string name="access_body">The gallery shows photos and videos from this phone. Nothing is sent anywhere — the app works entirely offline.</string>
+    <string name="access_grant">Grant access</string>
+    <string name="access_partial_title">Some photos are hidden</string>
+    <string name="access_partial_body">Only a few selected photos are visible right now. A gallery needs the whole library, otherwise it shows a handful of random shots instead of a timeline. Full access is granted in the system settings for this app.</string>
+    <string name="access_open_settings">Open settings</string>
+
+    <string name="library_loading">Reading the library…</string>
+    <string name="library_empty">No photos or videos were found on this phone.</string>
+    <string name="library_total">Found</string>
+    <string name="library_photos">Photos</string>
+    <string name="library_videos">Videos</string>
+    <string name="library_albums">Folders</string>
+    <string name="library_size">Taking up</string>
+    <string name="library_range">Shots from %1$s to %2$s</string>
+
+    <string name="manage_title">Media management</string>
+    <string name="manage_granted">Granted. Deleting and favouriting work without extra confirmations.</string>
+    <string name="manage_missing">Not granted. Every delete and every heart will ask the system for confirmation.</string>
+    <string name="manage_request">Grant</string>
 </resources>

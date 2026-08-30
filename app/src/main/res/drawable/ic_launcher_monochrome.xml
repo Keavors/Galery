@@ -4,21 +4,15 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <!--
-        Themed-icon layer. The system throws the colour away and keeps the alpha,
-        so this is the same landscape reduced to one solid silhouette.
+        Themed-icon layer. The system keeps only the alpha, so the full-bleed
+        landscape is redrawn as a compact mark inside the safe zone: one ridge
+        line and the sun. Three overlapping ridges in a single tone would read as
+        a blob.
     -->
-    <group>
-        <clip-path android:pathData="M37,26 L71,26 A11,11 0 0 1 82,37 L82,71 A11,11 0 0 1 71,82 L37,82 A11,11 0 0 1 26,71 L26,37 A11,11 0 0 1 37,26 Z" />
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M24,84 L46,55 L57,68 L65,54 L86,84 Z" />
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M37,42 A5,5 0 1 1 47,42 A5,5 0 1 1 37,42 Z" />
-    </group>
     <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineJoin="round"
-        android:pathData="M37,26 L71,26 A11,11 0 0 1 82,37 L82,71 A11,11 0 0 1 71,82 L37,82 A11,11 0 0 1 26,71 L26,37 A11,11 0 0 1 37,26 Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M18,82 L40,48 L54,64 L68,44 L90,82 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M25.5,32 A6.5,6.5 0 1 1 38.5,32 A6.5,6.5 0 1 1 25.5,32 Z" />
 </vector>

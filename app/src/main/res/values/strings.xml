@@ -12,5 +12,29 @@
     <string name="trash_placeholder">Удалённое хранится 30 дней, пока не передумаешь.</string>
     <string name="settings_placeholder">Настраивается всё, до чего дотягиваются руки.</string>
 
-    <string name="stage_notice">Этап 0 из 10 — каркас. Дальше: доступ к медиа.</string>
+    <string name="stage_notice">Этап 1 из 10 — доступ к медиа. Дальше: лента снимков.</string>
+
+    <!-- Доступ -->
+    <string name="access_title">Нужен доступ к снимкам</string>
+    <string name="access_body">Галерея показывает фото и видео с этого телефона. Ничего никуда не отправляется — приложение работает только офлайн.</string>
+    <string name="access_grant">Разрешить доступ</string>
+    <string name="access_partial_title">Видны не все снимки</string>
+    <string name="access_partial_body">Сейчас выбраны отдельные фотографии. Галерее нужна вся библиотека, иначе она покажет несколько случайных кадров вместо ленты. Полный доступ выдаётся в системных настройках приложения.</string>
+    <string name="access_open_settings">Открыть настройки</string>
+
+    <!-- Библиотека -->
+    <string name="library_loading">Читаю библиотеку…</string>
+    <string name="library_empty">На телефоне не нашлось ни одного фото или видео.</string>
+    <string name="library_total">Найдено</string>
+    <string name="library_photos">Фото</string>
+    <string name="library_videos">Видео</string>
+    <string name="library_albums">Папок</string>
+    <string name="library_size">Занимают</string>
+    <string name="library_range">Снимки с %1$s по %2$s</string>
+
+    <!-- Управление медиа -->
+    <string name="manage_title">Управление медиа</string>
+    <string name="manage_granted">Выдано. Удаление и избранное работают без лишних подтверждений.</string>
+    <string name="manage_missing">Не выдано. Каждое удаление и каждое сердечко будет спрашивать подтверждение системы.</string>
+    <string name="manage_request">Выдать</string>
 </resources>

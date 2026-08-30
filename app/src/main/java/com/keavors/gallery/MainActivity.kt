@@ -21,9 +21,11 @@ class MainActivity : ComponentActivity() {
         // content never being re-laid-out when the system bars come and go.
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        val media = (application as GalleryApplication).media
         setContent {
             GalleryTheme {
-                GalleryApp()
+                GalleryApp(media)
             }
         }
     }

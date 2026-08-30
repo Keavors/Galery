@@ -1,5 +1,10 @@
 package com.keavors.gallery.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -18,22 +23,59 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.keavors.gallery.data.MediaAccess
+import com.keavors.gallery.data.MediaRepository
+import com.keavors.gallery.data.canManageMedia
+import com.keavors.gallery.data.mediaAccess
+import com.keavors.gallery.data.mediaPermissions
 import com.keavors.gallery.ui.common.PlaceholderScreen
+import com.keavors.gallery.ui.permission.MediaGate
+import com.keavors.gallery.ui.photos.PhotosScreen
 
 /** Duration of the cross-fade between tabs, ms. Kept short: tabs are cheap. */
 private const val TAB_FADE_IN = 220
 private const val TAB_FADE_OUT = 140
 
 @Composable
-fun GalleryApp() {
+fun GalleryApp(repository: MediaRepository) {
+    val context = LocalContext.current
+
     // Saved as an ordinal so the selection survives rotation without a custom saver.
     var selected by rememberSaveable { mutableIntStateOf(0) }
     val tab = Tab.entries[selected]
+
+    var access by remember { mutableStateOf(context.mediaAccess()) }
+    var manageMedia by remember { mutableStateOf(context.canManageMedia()) }
+    val library by repository.state.collectAsStateWithLifecycle()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        // The result map is not consulted on purpose: which permissions add up to
+        // full access is decided in one place, and this is not it.
+        access = context.mediaAccess()
+        repository.refresh()
+    }
+
+    // Access can change while the app sits in the background — the user may have
+    // opened system settings to widen or revoke it — so it is re-read on every
+    // resume rather than only at startup.
+    LifecycleResumeEffect(Unit) {
+        access = context.mediaAccess()
+        manageMedia = context.canManageMedia()
+        repository.refresh()
+        onPauseOrDispose { }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -75,7 +117,35 @@ fun GalleryApp() {
                 .fillMaxSize()
                 .padding(insets),
         ) { current ->
-            PlaceholderScreen(current)
+            when (current) {
+                Tab.PHOTOS -> MediaGate(
+                    access = access,
+                    onRequest = { permissionLauncher.launch(mediaPermissions) },
+                    onOpenSettings = { context.startActivity(appSettingsIntent(context.packageName)) },
+                ) {
+                    PhotosScreen(
+                        state = library,
+                        canManageMedia = manageMedia,
+                        onRequestManageMedia = {
+                            context.startActivity(manageMediaIntent(context.packageName))
+                        },
+                    )
+                }
+
+                // Settings never sits behind the gate: it is where a person goes
+                // to understand why the rest of the app is asking for anything.
+                else -> PlaceholderScreen(current)
+            }
         }
     }
 }
+
+private fun appSettingsIntent(packageName: String) = Intent(
+    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+    Uri.fromParts("package", packageName, null),
+)
+
+private fun manageMediaIntent(packageName: String) = Intent(
+    Settings.ACTION_REQUEST_MANAGE_MEDIA,
+    Uri.fromParts("package", packageName, null),
+)
