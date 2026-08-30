@@ -29,31 +29,6 @@ class MediaTimeTest {
 
 class LibrarySummaryTest {
 
-    private fun item(
-        id: Long,
-        video: Boolean = false,
-        bucket: Long = 1,
-        size: Long = 1000,
-        taken: Long = 1_700_000_000_000,
-    ) = MediaItem(
-        id = id,
-        uri = "content://media/external/file/$id",
-        name = "IMG_$id.jpg",
-        mimeType = if (video) "video/mp4" else "image/jpeg",
-        isVideo = video,
-        sizeBytes = size,
-        width = 4000,
-        height = 3000,
-        durationMs = if (video) 5000 else 0,
-        takenAt = taken,
-        addedAt = taken,
-        modifiedAt = taken,
-        bucketId = bucket,
-        bucketName = "Camera",
-        relativePath = "DCIM/Camera/",
-        isFavorite = false,
-        orientation = 0,
-    )
 
     @Test
     fun `empty library summarises to zeroes`() {
@@ -63,9 +38,9 @@ class LibrarySummaryTest {
     @Test
     fun `counts photos videos albums and bytes`() {
         val summary = listOf(
-            item(1, size = 100, bucket = 1),
-            item(2, size = 200, bucket = 1),
-            item(3, video = true, size = 300, bucket = 2),
+            testItem(1, size = 100, bucket = 1),
+            testItem(2, size = 200, bucket = 1),
+            testItem(3, isVideo = true, size = 300, bucket = 2),
         ).summarize()
 
         assertEquals(2, summary.photos)
@@ -78,9 +53,9 @@ class LibrarySummaryTest {
     @Test
     fun `date range spans oldest and newest`() {
         val summary = listOf(
-            item(1, taken = 1_000_000_000_000),
-            item(2, taken = 1_700_000_000_000),
-            item(3, taken = 1_400_000_000_000),
+            testItem(1, taken = 1_000_000_000_000),
+            testItem(2, taken = 1_700_000_000_000),
+            testItem(3, taken = 1_400_000_000_000),
         ).summarize()
 
         assertEquals(1_000_000_000_000, summary.oldest)
@@ -90,8 +65,8 @@ class LibrarySummaryTest {
     @Test
     fun `files without a date stay out of the range instead of dragging it to 1970`() {
         val summary = listOf(
-            item(1, taken = 0),
-            item(2, taken = 1_700_000_000_000),
+            testItem(1, taken = 0),
+            testItem(2, taken = 1_700_000_000_000),
         ).summarize()
 
         assertEquals(1_700_000_000_000, summary.oldest)
@@ -100,7 +75,7 @@ class LibrarySummaryTest {
 
     @Test
     fun `a library where nothing has a date reports no range`() {
-        val summary = listOf(item(1, taken = 0)).summarize()
+        val summary = listOf(testItem(1, taken = 0)).summarize()
         assertNull(summary.oldest)
         assertNull(summary.newest)
     }

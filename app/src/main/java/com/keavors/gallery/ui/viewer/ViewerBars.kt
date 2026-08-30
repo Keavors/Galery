@@ -136,7 +136,12 @@ fun ViewerTopBar(
 }
 
 @Composable
-fun ViewerBottomBar(item: MediaItem, modifier: Modifier = Modifier) {
+fun ViewerBottomBar(
+    item: MediaItem,
+    onToggleFavorite: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val shareTitle = stringResource(R.string.viewer_share)
 
@@ -152,9 +157,23 @@ fun ViewerBottomBar(item: MediaItem, modifier: Modifier = Modifier) {
             .padding(vertical = 6.dp),
     ) {
         BarAction(
+            // Filled once it is a favourite, outlined until then — the state is
+            // the icon, so nothing has to be read to know it.
+            icon = if (item.isFavorite) R.drawable.ic_heart else R.drawable.ic_heart_outline,
+            label = stringResource(
+                if (item.isFavorite) R.string.action_unfavorite else R.string.action_favorite
+            ),
+            onClick = onToggleFavorite,
+        )
+        BarAction(
             icon = R.drawable.ic_share,
             label = stringResource(R.string.viewer_share),
             onClick = { context.shareMedia(item, shareTitle) },
+        )
+        BarAction(
+            icon = R.drawable.ic_tab_trash,
+            label = stringResource(R.string.action_delete),
+            onClick = onDelete,
         )
     }
 }

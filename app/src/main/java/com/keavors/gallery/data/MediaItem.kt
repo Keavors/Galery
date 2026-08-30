@@ -31,6 +31,11 @@ data class MediaItem(
     val relativePath: String,
     val isFavorite: Boolean,
     val orientation: Int,
+    /**
+     * When the system will delete this for good, epoch millis, or 0 for a file
+     * that is not in the trash. Android sets it, and nothing here can move it.
+     */
+    val expiresAt: Long,
 )
 
 /**

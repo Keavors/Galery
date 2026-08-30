@@ -16,11 +16,13 @@ import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
 import com.keavors.gallery.data.LibraryState
 import com.keavors.gallery.data.MediaItem
+import com.keavors.gallery.data.MediaWriter
 
 /** The Photos tab: the timeline, or an honest reason why there is none yet. */
 @Composable
 fun PhotosScreen(
     state: LibraryState,
+    writer: MediaWriter,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -45,7 +47,7 @@ fun PhotosScreen(
                 )
             }
         } else {
-            TimelineScreen(items = state.items, onOpen = onOpen, modifier = modifier)
+            TimelineScreen(items = state.items, writer = writer, onOpen = onOpen, modifier = modifier)
         }
     }
 }

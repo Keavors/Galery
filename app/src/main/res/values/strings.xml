@@ -82,4 +82,26 @@
     <string name="video_sound_on">Включить звук</string>
     <string name="video_sound_off">Выключить звук</string>
     <string name="album_unknown">Папка</string>
+
+    <!-- Действия над файлами -->
+    <string name="action_favorite">В избранное</string>
+    <string name="action_unfavorite">Убрать из избранного</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_restore">Восстановить</string>
+    <string name="action_delete_forever">Удалить навсегда</string>
+    <string name="action_cancel">Отмена</string>
+
+    <string name="delete_title">Удалить?</string>
+    <string name="delete_body">Файл попадёт в корзину. Оттуда его можно вернуть в течение 30 дней.</string>
+    <string name="delete_body_many">Файлы попадут в корзину. Оттуда их можно вернуть в течение 30 дней.</string>
+    <string name="delete_forever_title">Удалить навсегда?</string>
+    <string name="delete_forever_body">Вернуть будет нельзя.</string>
+
+    <!-- Корзина -->
+    <string name="trash_empty">В корзине пусто.</string>
+    <string name="trash_empty_all">Очистить корзину</string>
+    <string name="trash_restore_all">Восстановить всё</string>
+    <string name="trash_days_left">%1$d дн.</string>
+    <string name="trash_expires_today">Сегодня</string>
+    <string name="trash_selected">Выбрано: %1$d</string>
 </resources>

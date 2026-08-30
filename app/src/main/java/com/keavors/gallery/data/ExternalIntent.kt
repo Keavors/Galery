@@ -86,6 +86,7 @@ fun ExternalRef.asStandaloneItem(): MediaItem = MediaItem(
     relativePath = "",
     isFavorite = false,
     orientation = 0,
+    expiresAt = 0,
 )
 
 /** The MediaStore row id in a uri, or null if this is not one of ours. */

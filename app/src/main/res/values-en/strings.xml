@@ -75,4 +75,24 @@
     <string name="video_sound_on">Turn sound on</string>
     <string name="video_sound_off">Turn sound off</string>
     <string name="album_unknown">Folder</string>
+
+    <string name="action_favorite">Add to favourites</string>
+    <string name="action_unfavorite">Remove from favourites</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_restore">Restore</string>
+    <string name="action_delete_forever">Delete for good</string>
+    <string name="action_cancel">Cancel</string>
+
+    <string name="delete_title">Delete?</string>
+    <string name="delete_body">It goes to the trash, and can be brought back within 30 days.</string>
+    <string name="delete_body_many">They go to the trash, and can be brought back within 30 days.</string>
+    <string name="delete_forever_title">Delete for good?</string>
+    <string name="delete_forever_body">There is no bringing this back.</string>
+
+    <string name="trash_empty">The trash is empty.</string>
+    <string name="trash_empty_all">Empty the trash</string>
+    <string name="trash_restore_all">Restore everything</string>
+    <string name="trash_days_left">%1$d d</string>
+    <string name="trash_expires_today">Today</string>
+    <string name="trash_selected">%1$d selected</string>
 </resources>

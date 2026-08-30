@@ -16,25 +16,8 @@ class TimelineTest {
 
     private var nextId = 1L
 
-    private fun item(taken: Long, video: Boolean = false) = MediaItem(
-        id = nextId++,
-        uri = "content://media/external/file/x",
-        name = "IMG.jpg",
-        mimeType = if (video) "video/mp4" else "image/jpeg",
-        isVideo = video,
-        sizeBytes = 1000,
-        width = 4000,
-        height = 3000,
-        durationMs = 0,
-        takenAt = taken,
-        addedAt = taken,
-        modifiedAt = taken,
-        bucketId = 1,
-        bucketName = "Camera",
-        relativePath = "DCIM/Camera/",
-        isFavorite = false,
-        orientation = 0,
-    )
+    private fun item(taken: Long, video: Boolean = false) =
+        testItem(id = nextId++, isVideo = video, taken = taken)
 
     private fun headers(rows: List<TimelineRow>) = rows.filterIsInstance<TimelineRow.Header>()
     private fun photoRows(rows: List<TimelineRow>) = rows.filterIsInstance<TimelineRow.Photos>()

@@ -49,6 +49,8 @@ fun Thumbnail(
     corner: Dp,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    dimmed: Boolean = false,
 ) {
     val showBadges = tileSize >= BADGE_MIN_TILE
 
@@ -107,6 +109,33 @@ fun Thumbnail(
                     modifier = Modifier.padding(start = 3.dp),
                 )
             }
+        }
+
+        // Chosen tiles are tinted and the rest are dulled, so a selection reads
+        // at a glance from across the grid rather than by hunting for ticks.
+        if (selected || dimmed) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        if (selected) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.40f)
+                        } else {
+                            Color.Black.copy(alpha = 0.35f)
+                        }
+                    ),
+            )
+        }
+        if (selected && showBadges) {
+            Icon(
+                painter = painterResource(R.drawable.ic_check),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(16.dp),
+            )
         }
 
         if (showBadges && item.isFavorite) {

@@ -53,7 +53,9 @@ import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
 import com.keavors.gallery.ui.permission.MediaGate
 import com.keavors.gallery.ui.photos.PhotosScreen
+import com.keavors.gallery.ui.common.rememberMediaWriter
 import com.keavors.gallery.ui.settings.SettingsScreen
+import com.keavors.gallery.ui.trash.TrashScreen
 import com.keavors.gallery.ui.viewer.ViewerScreen
 
 /** Duration of the cross-fade between tabs, ms. Kept short: tabs are cheap. */
@@ -85,6 +87,8 @@ fun GalleryApp(
     var access by remember { mutableStateOf(context.mediaAccess()) }
     var manageMedia by remember { mutableStateOf(context.canManageMedia()) }
     val library by repository.state.collectAsStateWithLifecycle()
+    val trash by repository.trash.collectAsStateWithLifecycle()
+    val writer = rememberMediaWriter()
     val libraryItems = (library as? LibraryState.Ready)?.items.orEmpty()
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -219,7 +223,17 @@ fun GalleryApp(
                             context.startActivity(appSettingsIntent(context.packageName))
                         },
                     ) {
-                        PhotosScreen(state = library, onOpen = openItem)
+                        PhotosScreen(state = library, writer = writer, onOpen = openItem)
+                    }
+
+                    Tab.TRASH -> MediaGate(
+                        access = access,
+                        onRequest = { permissionLauncher.launch(mediaPermissions) },
+                        onOpenSettings = {
+                            context.startActivity(appSettingsIntent(context.packageName))
+                        },
+                    ) {
+                        TrashScreen(items = trash, writer = writer)
                     }
 
                     // Settings never sits behind the gate: it is where a person
@@ -245,6 +259,7 @@ fun GalleryApp(
             AlbumScreen(
                 title = route.title,
                 items = folderItems,
+                writer = writer,
                 onBack = {
                     // Arrived here from another app's photo: going back a second
                     // time leaves the gallery rather than dropping into a

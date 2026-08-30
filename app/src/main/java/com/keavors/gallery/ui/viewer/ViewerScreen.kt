@@ -46,6 +46,10 @@ import coil3.request.ImageRequest
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.contentUri
 import com.keavors.gallery.data.thumbnailCacheKey
+import com.keavors.gallery.ui.common.ConfirmDialog
+import com.keavors.gallery.ui.common.rememberMediaWriter
+import com.keavors.gallery.R
+import androidx.compose.ui.res.stringResource
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
 import me.saket.telephoto.zoomable.rememberZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableState
@@ -84,6 +88,8 @@ fun ViewerScreen(
     )
     var chromeVisible by remember { mutableStateOf(true) }
     var detailsVisible by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val writer = rememberMediaWriter()
 
     // How far the photo has been dragged away from the middle of the screen.
     // An Animatable rather than a plain float because the gesture callbacks are
@@ -283,12 +289,33 @@ fun ViewerScreen(
                 if (current.isVideo) {
                     VideoControls(player = player)
                 }
-                ViewerBottomBar(item = current)
+                ViewerBottomBar(
+                    item = current,
+                    onToggleFavorite = { writer.setFavorite(listOf(current), !current.isFavorite) },
+                    onDelete = { confirmDelete = true },
+                )
             }
         }
     }
 
     if (detailsVisible) {
         DetailsSheet(item = current, onDismiss = { detailsVisible = false })
+    }
+
+    if (confirmDelete) {
+        ConfirmDialog(
+            title = stringResource(R.string.delete_title),
+            body = stringResource(R.string.delete_body),
+            confirm = stringResource(R.string.action_delete),
+            onConfirm = {
+                confirmDelete = false
+                writer.setTrashed(listOf(current), trashed = true)
+                // The pager drops to the next photo on its own once the library
+                // reloads without this one; if it was the last, there is nothing
+                // left to show and the viewer closes.
+                if (items.size <= 1) onClose()
+            },
+            onDismiss = { confirmDelete = false },
+        )
     }
 }

@@ -1,8 +1,10 @@
 package com.keavors.gallery.data
 
+import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
+import android.os.Bundle
 import androidx.core.net.toUri
 import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +32,9 @@ sealed interface MediaFilter {
     data class Id(val id: Long) : MediaFilter
     data class Bucket(val bucketId: Long) : MediaFilter
     data class Name(val displayName: String) : MediaFilter
+
+    /** What is in the system trash, which every other query hides by default. */
+    data object Trashed : MediaFilter
 }
 
 /**
@@ -51,7 +56,7 @@ class MediaStoreSource(private val context: Context) {
             MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(),
         )
         when (filter) {
-            MediaFilter.All -> Unit
+            MediaFilter.All, MediaFilter.Trashed -> Unit
             is MediaFilter.Id -> {
                 selection += " AND ${MediaStore.Files.FileColumns._ID} = ?"
                 args += filter.id.toString()
@@ -67,7 +72,18 @@ class MediaStoreSource(private val context: Context) {
         }
 
         val items = ArrayList<MediaItem>(2048)
-        context.contentResolver.query(collection, PROJECTION, selection, args.toTypedArray(), null)?.use { c ->
+        // The bundle form rather than the plain one: it is the only way to ask
+        // for trashed rows, which every ordinary query hides.
+        val queryArgs = Bundle().apply {
+            putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+            putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args.toTypedArray())
+            putInt(
+                MediaStore.QUERY_ARG_MATCH_TRASHED,
+                if (filter == MediaFilter.Trashed) MediaStore.MATCH_ONLY else MediaStore.MATCH_EXCLUDE,
+            )
+        }
+
+        context.contentResolver.query(collection, PROJECTION, queryArgs, null)?.use { c ->
             val idCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
             val typeCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
             val nameCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
@@ -84,6 +100,7 @@ class MediaStoreSource(private val context: Context) {
             val pathCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.RELATIVE_PATH)
             val favouriteCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.IS_FAVORITE)
             val orientationCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.ORIENTATION)
+            val expiresCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_EXPIRES)
 
             while (c.moveToNext()) {
                 val added = c.getLong(addedCol)
@@ -108,6 +125,8 @@ class MediaStoreSource(private val context: Context) {
                     relativePath = c.getString(pathCol) ?: "",
                     isFavorite = c.getInt(favouriteCol) == 1,
                     orientation = c.getInt(orientationCol),
+                    // Seconds, like the other dates MediaStore keeps.
+                    expiresAt = if (c.isNull(expiresCol)) 0 else c.getLong(expiresCol) * 1000,
                 )
             }
         }
@@ -135,6 +154,7 @@ class MediaStoreSource(private val context: Context) {
             MediaStore.Files.FileColumns.RELATIVE_PATH,
             MediaStore.Files.FileColumns.IS_FAVORITE,
             MediaStore.Files.FileColumns.ORIENTATION,
+            MediaStore.Files.FileColumns.DATE_EXPIRES,
         )
     }
 }

@@ -56,6 +56,14 @@ class MediaRepository(
     private val _state = MutableStateFlow<LibraryState>(LibraryState.Locked)
     val state: StateFlow<LibraryState> = _state.asStateFlow()
 
+    /**
+     * What is in the system trash. A separate query because every ordinary one
+     * hides trashed rows, and a separate flow because it is usually a handful of
+     * files against a library of thousands.
+     */
+    private val _trash = MutableStateFlow<List<MediaItem>>(emptyList())
+    val trash: StateFlow<List<MediaItem>> = _trash.asStateFlow()
+
     // Taking a photo fires several notifications in a row as the file is written
     // and then its metadata filled in. Collapsing them avoids three full reloads
     // for one new picture.
@@ -87,6 +95,7 @@ class MediaRepository(
         if (context.mediaAccess() == MediaAccess.NONE) {
             stopObserving()
             _state.value = LibraryState.Locked
+            _trash.value = emptyList()
             return
         }
         startObserving()
@@ -101,6 +110,7 @@ class MediaRepository(
         if (_state.value !is LibraryState.Ready) _state.value = LibraryState.Loading
         val items = source.query()
         _state.value = LibraryState.Ready(items, items.summarize())
+        _trash.value = source.query(MediaFilter.Trashed)
     }
 
     private fun startObserving() {

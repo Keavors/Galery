@@ -6,30 +6,8 @@ import org.junit.Test
 
 class MatchExternalTest {
 
-    private fun item(
-        id: Long,
-        name: String = "IMG_$id.jpg",
-        size: Long = 1000,
-        bucket: Long = 1,
-    ) = MediaItem(
-        id = id,
-        uri = "content://media/external/images/media/$id",
-        name = name,
-        mimeType = "image/jpeg",
-        isVideo = false,
-        sizeBytes = size,
-        width = 4000,
-        height = 3000,
-        durationMs = 0,
-        takenAt = 1_700_000_000_000,
-        addedAt = 1_700_000_000_000,
-        modifiedAt = 1_700_000_000_000,
-        bucketId = bucket,
-        bucketName = "Folder$bucket",
-        relativePath = "DCIM/Folder$bucket/",
-        isFavorite = false,
-        orientation = 0,
-    )
+    private fun item(id: Long, name: String = "IMG_$id.jpg", size: Long = 1000, bucket: Long = 1) =
+        testItem(id = id, name = name, size = size, bucket = bucket)
 
     private val library = listOf(
         item(1, name = "DSC_0001.jpg", size = 100, bucket = 1),
@@ -94,25 +72,8 @@ class MatchExternalTest {
 
 class FolderNeighboursTest {
 
-    private fun item(id: Long, bucket: Long) = MediaItem(
-        id = id,
-        uri = "content://media/external/images/media/$id",
-        name = "IMG_$id.jpg",
-        mimeType = "image/jpeg",
-        isVideo = false,
-        sizeBytes = 1000,
-        width = 4000,
-        height = 3000,
-        durationMs = 0,
-        takenAt = 1_700_000_000_000 - id,
-        addedAt = 0,
-        modifiedAt = 0,
-        bucketId = bucket,
-        bucketName = "Folder$bucket",
-        relativePath = "DCIM/Folder$bucket/",
-        isFavorite = false,
-        orientation = 0,
-    )
+    private fun item(id: Long, bucket: Long) =
+        testItem(id = id, bucket = bucket, taken = 1_700_000_000_000 - id)
 
     private val library = listOf(item(1, 10), item(2, 20), item(3, 10), item(4, 20), item(5, 10))
 
