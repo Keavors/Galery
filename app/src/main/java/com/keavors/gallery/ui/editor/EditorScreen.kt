@@ -75,6 +75,7 @@ fun EditorScreen(
     item: MediaItem,
     jpegQuality: Int,
     onSaved: () -> Unit,
+    onFailed: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -103,17 +104,25 @@ fun EditorScreen(
 
     BackHandler { onClose() }
 
+    // Both ways of saving go through here, because the two differ by one
+    // argument and what has to be said afterwards does not differ at all. A
+    // write that fails — no room, a card pulled out, a file gone — has to say
+    // so; the editor staying open with a button that did nothing is not an
+    // answer.
+    fun save(mode: SaveMode) {
+        scope.launch {
+            working = true
+            val ok = saveEdit(context, item, ops, mode, jpegQuality)
+            working = false
+            if (ok) onSaved() else onFailed()
+        }
+    }
+
     val overwriteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            scope.launch {
-                working = true
-                val ok = saveEdit(context, item, ops, SaveMode.OVERWRITE, jpegQuality)
-                working = false
-                if (ok) onSaved()
-            }
-        }
+        // A refusal is an answer, not a failure, and needs nothing said about it.
+        if (result.resultCode == android.app.Activity.RESULT_OK) save(SaveMode.OVERWRITE)
     }
 
     Column(
@@ -171,6 +180,10 @@ fun EditorScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        // Nothing moves while the picture is being written: the
+                        // edits being saved were settled when saving started,
+                        // and a frame dragged now would be a lie about them.
+                        .opaqueToTouch()
                         .background(Color.Black.copy(alpha = 0.55f)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -234,12 +247,7 @@ fun EditorScreen(
         SaveChoiceDialog(
             onCopy = {
                 askingHow = false
-                scope.launch {
-                    working = true
-                    val ok = saveEdit(context, item, ops, SaveMode.COPY, jpegQuality)
-                    working = false
-                    if (ok) onSaved()
-                }
+                save(SaveMode.COPY)
             },
             onOverwrite = {
                 askingHow = false

@@ -165,6 +165,7 @@ fun GalleryApp(
     val importFailed = stringResource(R.string.settings_import_failed)
     val restoredNote = stringResource(R.string.vault_restored)
     val editorSaved = stringResource(R.string.editor_saved)
+    val editorFailed = stringResource(R.string.editor_save_failed)
     val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
 
@@ -538,6 +539,11 @@ fun GalleryApp(
                 onSaved = {
                     editing = null
                     Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
+                },
+                // Left open on purpose: the edits are still there and the
+                // second attempt costs a tap.
+                onFailed = {
+                    Toast.makeText(context, editorFailed, Toast.LENGTH_LONG).show()
                 },
                 onClose = { editing = null },
                 modifier = Modifier.fillMaxSize(),
