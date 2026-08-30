@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
@@ -25,7 +26,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.data.CropRect
 import com.keavors.gallery.data.PixelRect
+import com.keavors.gallery.data.Vignette
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.min
 
 /** How close a finger has to be to a corner to be taken as grabbing it. */
@@ -61,6 +64,7 @@ fun EditorCanvas(
     onCropChange: (CropRect) -> Unit,
     modifier: Modifier = Modifier,
     colorFilter: ColorFilter? = null,
+    vignette: Float = 0f,
     cropVisible: Boolean = true,
 ) {
     var canvas by remember { mutableStateOf(Size.Zero) }
@@ -129,6 +133,7 @@ fun EditorCanvas(
             dstSize = IntSize(frame.width.toInt(), frame.height.toInt()),
             colorFilter = colorFilter,
         )
+        if (vignette != 0f) drawVignette(frame, vignette)
         if (cropVisible) drawCrop(frame, current)
     }
 }
@@ -267,6 +272,30 @@ internal fun CropRect.moved(grab: Grab, dx: Float, dy: Float): CropRect = when (
         } else {
             bottom
         },
+    )
+}
+
+/**
+ * Darkens the corners, or lightens them the other side of neutral.
+ *
+ * Over the picture rather than over the canvas, and over the part being kept
+ * rather than the whole photograph: a vignette belongs to the picture that comes
+ * out, so it is centred on what the crop has left.
+ */
+private fun DrawScope.drawVignette(frame: Rect, strength: Float) {
+    if (frame.width <= 0f || frame.height <= 0f) return
+    val corner = if (Vignette.darkens(strength)) Color.Black else Color.White
+    drawRect(
+        brush = Brush.radialGradient(
+            colorStops = arrayOf(
+                Vignette.CLEAR_TO to corner.copy(alpha = 0f),
+                1f to corner.copy(alpha = Vignette.opacity(strength)),
+            ),
+            center = frame.center,
+            radius = hypot(frame.width, frame.height) / 2f,
+        ),
+        topLeft = frame.topLeft,
+        size = frame.size,
     )
 }
 

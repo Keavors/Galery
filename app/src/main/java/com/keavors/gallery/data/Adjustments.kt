@@ -16,17 +16,52 @@ data class Adjustments(
     val brightness: Float = 0f,
     val contrast: Float = 0f,
     val exposure: Float = 0f,
+    val shadows: Float = 0f,
+    val highlights: Float = 0f,
     val saturation: Float = 0f,
     val temperature: Float = 0f,
     val tint: Float = 0f,
+    val sharpness: Float = 0f,
+    val vignette: Float = 0f,
 ) {
+    /** True when nothing here would change a single pixel. */
     val isNeutral: Boolean
+        get() = matrixIsNeutral && toneIsNeutral && vignette == 0f
+
+    /** True when nothing here needs the picture drawn through a colour matrix. */
+    val matrixIsNeutral: Boolean
         get() = brightness == 0f && contrast == 0f && exposure == 0f &&
             saturation == 0f && temperature == 0f && tint == 0f
+
+    /** True when nothing here needs the pixels walked one at a time. */
+    val toneIsNeutral: Boolean
+        get() = shadows == 0f && highlights == 0f && sharpness == 0f
 
     companion object {
         val None = Adjustments()
     }
+}
+
+/**
+ * How a vignette is drawn, in one place for the two canvases that draw it.
+ *
+ * It is drawn rather than computed into the pixels, so it costs nothing while
+ * the slider moves — and because a vignette belongs to the picture that is
+ * being kept, it goes on after the crop, centred on what is left.
+ */
+object Vignette {
+
+    /** Nothing at all happens inside this much of the way to the corner. */
+    const val CLEAR_TO = 0.45f
+
+    /** How dark the corner goes at the very end of the slider. */
+    const val DEEPEST = 0.7f
+
+    /** How opaque the corner is at this setting. */
+    fun opacity(strength: Float): Float = kotlin.math.abs(strength) * DEEPEST
+
+    /** Past the middle it darkens; short of it, it lightens instead. */
+    fun darkens(strength: Float): Boolean = strength > 0f
 }
 
 /**

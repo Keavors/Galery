@@ -237,9 +237,13 @@
     <string name="adjust_brightness">Яркость</string>
     <string name="adjust_exposure">Экспозиция</string>
     <string name="adjust_contrast">Контраст</string>
+    <string name="adjust_shadows">Тени</string>
+    <string name="adjust_highlights">Света</string>
     <string name="adjust_saturation">Насыщенность</string>
     <string name="adjust_temperature">Температура</string>
     <string name="adjust_tint">Оттенок</string>
+    <string name="adjust_sharpness">Резкость</string>
+    <string name="adjust_vignette">Виньетка</string>
 
     <string name="set_jpeg_quality">Качество JPEG при сохранении</string>
 </resources>

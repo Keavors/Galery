@@ -225,9 +225,13 @@
     <string name="adjust_brightness">Brightness</string>
     <string name="adjust_exposure">Exposure</string>
     <string name="adjust_contrast">Contrast</string>
+    <string name="adjust_shadows">Shadows</string>
+    <string name="adjust_highlights">Highlights</string>
     <string name="adjust_saturation">Saturation</string>
     <string name="adjust_temperature">Temperature</string>
     <string name="adjust_tint">Tint</string>
+    <string name="adjust_sharpness">Sharpness</string>
+    <string name="adjust_vignette">Vignette</string>
 
     <string name="set_jpeg_quality">JPEG quality when saving</string>
 </resources>

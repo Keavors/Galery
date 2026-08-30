@@ -4,10 +4,13 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
@@ -15,6 +18,7 @@ import androidx.activity.result.IntentSenderRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -108,25 +112,56 @@ fun applyOps(source: Bitmap, ops: EditOps): Bitmap {
         current = cropped
     }
 
-    if (!ops.adjustments.isNeutral) {
-        // The same matrix the sliders were drawn through, applied once to the
-        // full-size picture. Drawn rather than looped over pixel by pixel: this
-        // is a native operation, and a hundred megapixels of Kotlin arithmetic
-        // is not.
+    // Shadows, highlights and sharpness first, because they are what the
+    // preview showed first: these are all arithmetic on what the pixel already
+    // is, and doing them either side of the matrix gives different pictures.
+    if (!ops.adjustments.toneIsNeutral) {
+        val toned = current.tonedCopy(ops.adjustments)
+        if (current !== source) current.recycle()
+        current = toned
+    }
+
+    if (!ops.adjustments.matrixIsNeutral || ops.adjustments.vignette != 0f) {
+        // One pass for both: the matrix the sliders were drawn through, applied
+        // by the graphics chip rather than by a hundred megapixels of Kotlin
+        // arithmetic, and the vignette laid over the result.
         val corrected = Bitmap.createBitmap(current.width, current.height, Bitmap.Config.ARGB_8888)
-        Canvas(corrected).drawBitmap(
+        val canvas = Canvas(corrected)
+        canvas.drawBitmap(
             current,
             0f,
             0f,
             Paint(Paint.FILTER_BITMAP_FLAG).apply {
-                colorFilter = ColorMatrixColorFilter(colorMatrixFor(ops.adjustments).values)
+                if (!ops.adjustments.matrixIsNeutral) {
+                    colorFilter = ColorMatrixColorFilter(colorMatrixFor(ops.adjustments).values)
+                }
             },
         )
+        if (ops.adjustments.vignette != 0f) {
+            canvas.drawVignette(corrected.width, corrected.height, ops.adjustments.vignette)
+        }
         if (current !== source) current.recycle()
         current = corrected
     }
 
     return current
+}
+
+/** The same vignette the editor draws, on the picture that is being written. */
+private fun Canvas.drawVignette(width: Int, height: Int, strength: Float) {
+    val corner = if (Vignette.darkens(strength)) Color.BLACK else Color.WHITE
+    val alpha = (Vignette.opacity(strength) * 255f).toInt().coerceIn(0, 255)
+    val paint = Paint().apply {
+        shader = RadialGradient(
+            width / 2f,
+            height / 2f,
+            hypot(width.toFloat(), height.toFloat()) / 2f,
+            intArrayOf(corner and 0x00FFFFFF, (alpha shl 24) or (corner and 0x00FFFFFF)),
+            floatArrayOf(Vignette.CLEAR_TO, 1f),
+            Shader.TileMode.CLAMP,
+        )
+    }
+    drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
 }
 
 /**

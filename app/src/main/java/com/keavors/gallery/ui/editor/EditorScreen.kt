@@ -60,6 +60,7 @@ import com.keavors.gallery.data.decodeForEditing
 import com.keavors.gallery.data.maxEditablePixels
 import com.keavors.gallery.data.overwriteWith
 import com.keavors.gallery.data.saveEditedCopy
+import com.keavors.gallery.data.tonedCopy
 import com.keavors.gallery.data.writeRequestFor
 import com.keavors.gallery.ui.common.BarAction
 import com.keavors.gallery.ui.common.ChromeIconButton
@@ -127,15 +128,35 @@ fun EditorScreen(
         preview?.let { if (geometry.isIdentity) it else applyOps(it, geometry) }
     }
 
+    // Shadows, highlights and sharpness are the three that cannot be a matrix:
+    // they are arithmetic on every pixel, so unlike the other six they cost real
+    // work. It is done off the main thread, and the last finished picture stays
+    // on screen until the next one is ready — which is why these three sliders
+    // are followed a beat behind rather than stuttering.
+    var toned by remember(item.id) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(
+        shown,
+        ops.adjustments.shadows,
+        ops.adjustments.highlights,
+        ops.adjustments.sharpness,
+    ) {
+        val base = shown
+        toned = when {
+            base == null -> null
+            ops.adjustments.toneIsNeutral -> base
+            else -> withContext(Dispatchers.Default) { base.tonedCopy(ops.adjustments) }
+        }
+    }
+
     // Wrapped once per picture. asImageBitmap builds a new object every time it
     // is called, so wrapping it where it is used would hand the canvas a
     // different picture on every frame of a drag.
-    val image = remember(shown) { shown?.asImageBitmap() }
+    val image = remember(toned) { toned?.asImageBitmap() }
 
     // A matrix, not a redrawn bitmap: this is what makes the colour sliders cost
     // nothing on a photograph of any size.
     val colours = remember(ops.adjustments) {
-        if (ops.adjustments.isNeutral) {
+        if (ops.adjustments.matrixIsNeutral) {
             null
         } else {
             ColorFilter.colorMatrix(colorMatrixFor(ops.adjustments))
@@ -221,6 +242,7 @@ fun EditorScreen(
                     crop = ops.crop,
                     onCropChange = { ops = ops.cropped(it) },
                     colorFilter = colours,
+                    vignette = ops.adjustments.vignette,
                     cropVisible = tab == EditorTab.GEOMETRY,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -479,8 +501,10 @@ private enum class Correction(
     val write: (Adjustments, Float) -> Adjustments,
 ) {
     BRIGHTNESS(R.string.adjust_brightness, { it.brightness }, { a, v -> a.copy(brightness = v) }),
-    EXPOSURE(R.string.adjust_exposure, { it.exposure }, { a, v -> a.copy(exposure = v) }),
     CONTRAST(R.string.adjust_contrast, { it.contrast }, { a, v -> a.copy(contrast = v) }),
+    EXPOSURE(R.string.adjust_exposure, { it.exposure }, { a, v -> a.copy(exposure = v) }),
+    SHADOWS(R.string.adjust_shadows, { it.shadows }, { a, v -> a.copy(shadows = v) }),
+    HIGHLIGHTS(R.string.adjust_highlights, { it.highlights }, { a, v -> a.copy(highlights = v) }),
     SATURATION(R.string.adjust_saturation, { it.saturation }, { a, v -> a.copy(saturation = v) }),
     TEMPERATURE(
         R.string.adjust_temperature,
@@ -488,6 +512,8 @@ private enum class Correction(
         { a, v -> a.copy(temperature = v) },
     ),
     TINT(R.string.adjust_tint, { it.tint }, { a, v -> a.copy(tint = v) }),
+    SHARPNESS(R.string.adjust_sharpness, { it.sharpness }, { a, v -> a.copy(sharpness = v) }),
+    VIGNETTE(R.string.adjust_vignette, { it.vignette }, { a, v -> a.copy(vignette = v) }),
 }
 
 /** Two megapixels is more than any phone screen shows and decodes in a blink. */
