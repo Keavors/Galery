@@ -1,6 +1,8 @@
 package com.keavors.gallery
 
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -38,6 +40,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         readIntent(intent)
+
+        // Before any frame is drawn. The window is otherwise transparent, and on
+        // the way to a photo from another app that shows through to whatever
+        // sent it — a flash of the wrong screen either way.
+        if (pendingOpen != null) {
+            window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
+        }
 
         val media = (application as GalleryApplication).media
         setContent {

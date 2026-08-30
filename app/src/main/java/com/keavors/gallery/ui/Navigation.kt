@@ -30,14 +30,17 @@ data class FolderRoute(
  * shot arriving, something deleted — does not leave the pager holding a list
  * that no longer exists.
  *
+ * The exception is a photo that has just arrived from another app: it was found
+ * by asking the database about one file and one folder, which is far quicker
+ * than indexing the library, so [items] carries that answer. It is used only
+ * until the library catches up and can supply the same folder itself.
+ *
  * @param bucketId the folder to page through, or null for the whole library.
- * @param standalone a file that is not in the library at all, which happens when
- *   another app sends a photo out of its own private storage. It has no
- *   neighbours because it genuinely has none.
+ * @param items photos found ahead of the library, or null to derive them.
  */
 data class ViewerRoute(
     val itemId: Long,
     val bucketId: Long?,
     val thumbBucketPx: Int,
-    val standalone: MediaItem? = null,
+    val items: List<MediaItem>? = null,
 )

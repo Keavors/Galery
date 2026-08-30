@@ -123,19 +123,19 @@ class FolderNeighboursTest {
 
     @Test
     fun `neighbours are the rest of the same folder`() {
-        val folder = library.folderOf(item(3, 10))
+        val folder = library.inFolder(10)
         assertEquals(listOf(1L, 3L, 5L), folder.map { it.id })
     }
 
     @Test
     fun `neighbours keep the order the library already had them in`() {
-        val folder = library.folderOf(item(2, 20))
+        val folder = library.inFolder(20)
         assertEquals(listOf(2L, 4L), folder.map { it.id })
     }
 
     @Test
     fun `the opened photo is found among its neighbours`() {
-        val folder = library.folderOf(item(5, 10))
+        val folder = library.inFolder(10)
         assertEquals(2, folder.indexOfId(5))
     }
 
@@ -143,11 +143,11 @@ class FolderNeighboursTest {
     fun `a photo that vanished from its folder starts at the beginning`() {
         // The library can reload between opening and looking; landing on the
         // first neighbour beats crashing on an index of minus one.
-        assertEquals(0, library.folderOf(item(1, 10)).indexOfId(99))
+        assertEquals(0, library.inFolder(10).indexOfId(99))
     }
 
     @Test
     fun `a folder of one has exactly one page`() {
-        assertEquals(1, listOf(item(7, 70)).folderOf(item(7, 70)).size)
+        assertEquals(1, listOf(item(7, 70)).inFolder(70).size)
     }
 }

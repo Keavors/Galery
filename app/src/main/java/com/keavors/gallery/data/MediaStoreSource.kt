@@ -19,7 +19,21 @@ fun mediaContentUri(id: Long, isVideo: Boolean): Uri = ContentUris.withAppendedI
 fun MediaItem.contentUri(): Uri = uri.toUri()
 
 /**
- * Reads the whole library out of MediaStore in one pass.
+ * Which part of MediaStore to read.
+ *
+ * Opening a photo from another app needs one file and then one folder, not five
+ * thousand rows: asking the database narrowly is the difference between a photo
+ * that appears at once and one that waits for the whole library to be indexed.
+ */
+sealed interface MediaFilter {
+    data object All : MediaFilter
+    data class Id(val id: Long) : MediaFilter
+    data class Bucket(val bucketId: Long) : MediaFilter
+    data class Name(val displayName: String) : MediaFilter
+}
+
+/**
+ * Reads the library out of MediaStore in one pass.
  *
  * Photos and videos are queried together through the Files collection rather
  * than as two separate cursors: one query means one sort, and no merging of two
@@ -28,16 +42,32 @@ fun MediaItem.contentUri(): Uri = uri.toUri()
  */
 class MediaStoreSource(private val context: Context) {
 
-    suspend fun query(): List<MediaItem> = withContext(Dispatchers.IO) {
+    suspend fun query(filter: MediaFilter = MediaFilter.All): List<MediaItem> =
+        withContext(Dispatchers.IO) {
         val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        val selection = "${MediaStore.Files.FileColumns.MEDIA_TYPE} IN (?, ?)"
-        val args = arrayOf(
+        var selection = "${MediaStore.Files.FileColumns.MEDIA_TYPE} IN (?, ?)"
+        val args = mutableListOf(
             MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
             MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(),
         )
+        when (filter) {
+            MediaFilter.All -> Unit
+            is MediaFilter.Id -> {
+                selection += " AND ${MediaStore.Files.FileColumns._ID} = ?"
+                args += filter.id.toString()
+            }
+            is MediaFilter.Bucket -> {
+                selection += " AND ${MediaStore.Files.FileColumns.BUCKET_ID} = ?"
+                args += filter.bucketId.toString()
+            }
+            is MediaFilter.Name -> {
+                selection += " AND ${MediaStore.Files.FileColumns.DISPLAY_NAME} = ?"
+                args += filter.displayName
+            }
+        }
 
         val items = ArrayList<MediaItem>(2048)
-        context.contentResolver.query(collection, PROJECTION, selection, args, null)?.use { c ->
+        context.contentResolver.query(collection, PROJECTION, selection, args.toTypedArray(), null)?.use { c ->
             val idCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
             val typeCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
             val nameCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)

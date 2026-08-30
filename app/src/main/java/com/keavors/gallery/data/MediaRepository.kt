@@ -1,6 +1,7 @@
 package com.keavors.gallery.data
 
 import android.content.Context
+import android.net.Uri
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
@@ -13,6 +14,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
+
+/**
+ * A photo from another app, ready to show.
+ *
+ * [bucketId] is null when the file is not in the library at all, which is what
+ * tells the rest of the app there are no neighbours to be found later either.
+ */
+data class ExternalResolution(
+    val items: List<MediaItem>,
+    val index: Int,
+    val bucketId: Long?,
+    val folderName: String,
+)
 
 /** What the library screens render. */
 sealed interface LibraryState {
@@ -103,6 +117,48 @@ class MediaRepository(
         if (!observing) return
         context.contentResolver.unregisterContentObserver(observer)
         observing = false
+    }
+
+    /**
+     * Finds a photo another app sent over, and its folder, without waiting for
+     * the library.
+     *
+     * A cold start triggered by another app has nothing indexed yet, and reading
+     * five thousand rows before showing one photo is the difference between a
+     * picture that appears at once and one that appears in half a second. So the
+     * database is asked narrowly: the file, then its folder.
+     *
+     * Returns a resolution that always has something to show — worst case the
+     * file on its own, which is the honest answer for a picture living in some
+     * other app's private storage.
+     */
+    suspend fun resolveExternal(uri: Uri, declaredType: String?): ExternalResolution {
+        val ref = context.probeExternal(uri, declaredType)
+
+        // Asking the database narrowly, then letting the same matching rule the
+        // tests cover decide — an ambiguous name with no size stays unanswered
+        // rather than paging through the wrong folder.
+        val match = ref.mediaStoreId
+            ?.let { source.query(MediaFilter.Id(it)).firstOrNull() }
+            ?: ref.name?.takeIf { it.isNotBlank() }
+                ?.let { name -> source.query(MediaFilter.Name(name)).matchExternal(ref) }
+
+        if (match == null) {
+            return ExternalResolution(
+                items = listOf(ref.asStandaloneItem()),
+                index = 0,
+                bucketId = null,
+                folderName = "",
+            )
+        }
+
+        val folder = source.query(MediaFilter.Bucket(match.bucketId))
+        return ExternalResolution(
+            items = folder.ifEmpty { listOf(match) },
+            index = folder.indexOfId(match.id),
+            bucketId = match.bucketId,
+            folderName = match.bucketName,
+        )
     }
 
     private companion object {

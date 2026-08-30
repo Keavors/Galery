@@ -58,9 +58,6 @@ fun List<MediaItem>.matchExternal(ref: ExternalRef): MediaItem? {
 fun List<MediaItem>.inFolder(bucketId: Long): List<MediaItem> =
     filter { it.bucketId == bucketId }
 
-/** The photos alongside [item], including it. */
-fun List<MediaItem>.folderOf(item: MediaItem): List<MediaItem> = inFolder(item.bucketId)
-
 /**
  * Where the photo with this id sits in the list, or 0 if it is no longer there.
  *

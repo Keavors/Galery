@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -43,14 +44,11 @@ import com.keavors.gallery.data.LibraryState
 import com.keavors.gallery.data.MediaAccess
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaRepository
-import com.keavors.gallery.data.asStandaloneItem
 import com.keavors.gallery.data.canManageMedia
 import com.keavors.gallery.data.inFolder
 import com.keavors.gallery.data.indexOfId
-import com.keavors.gallery.data.matchExternal
 import com.keavors.gallery.data.mediaAccess
 import com.keavors.gallery.data.mediaPermissions
-import com.keavors.gallery.data.probeExternal
 import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
 import com.keavors.gallery.ui.permission.MediaGate
@@ -80,6 +78,10 @@ fun GalleryApp(
     var folder by remember { mutableStateOf<FolderRoute?>(null) }
     var viewer by remember { mutableStateOf<ViewerRoute?>(null) }
 
+    // True from the very first frame when another app started this one, so the
+    // tabs are never drawn on the way to the photo.
+    var resolvingExternal by remember { mutableStateOf(pendingOpen != null) }
+
     var access by remember { mutableStateOf(context.mediaAccess()) }
     var manageMedia by remember { mutableStateOf(context.canManageMedia()) }
     val library by repository.state.collectAsStateWithLifecycle()
@@ -106,31 +108,29 @@ fun GalleryApp(
 
     val unknownFolder = stringResource(R.string.album_unknown)
 
-    // A photo arriving from another app. The library has to be loaded first or
-    // there is nothing to search for the neighbours in, so this waits rather
-    // than giving up, and only shows the photo alone once it is certain.
-    LaunchedEffect(pendingOpen, library) {
+    // A photo arriving from another app. It no longer waits for the library:
+    // the file and its folder are looked up directly, which takes a few tens of
+    // milliseconds instead of however long indexing five thousand rows takes.
+    LaunchedEffect(pendingOpen) {
         val open = pendingOpen ?: return@LaunchedEffect
-        if (access != MediaAccess.NONE && library !is LibraryState.Ready) return@LaunchedEffect
+        resolvingExternal = true
 
-        val ref = context.probeExternal(open.uri, open.declaredType)
-        val match = libraryItems.matchExternal(ref)
-        if (match != null) {
-            folder = FolderRoute(
-                bucketId = match.bucketId,
-                title = match.bucketName.ifBlank { unknownFolder },
+        val resolved = repository.resolveExternal(open.uri, open.declaredType)
+        folder = resolved.bucketId?.let { bucket ->
+            FolderRoute(
+                bucketId = bucket,
+                title = resolved.folderName.ifBlank { unknownFolder },
                 fromExternal = true,
             )
-            viewer = ViewerRoute(match.id, match.bucketId, DEFAULT_THUMB_BUCKET)
-        } else {
-            folder = null
-            viewer = ViewerRoute(
-                itemId = -1,
-                bucketId = null,
-                thumbBucketPx = DEFAULT_THUMB_BUCKET,
-                standalone = ref.asStandaloneItem(),
-            )
         }
+        viewer = ViewerRoute(
+            itemId = resolved.items.getOrNull(resolved.index)?.id ?: -1,
+            bucketId = resolved.bucketId,
+            thumbBucketPx = DEFAULT_THUMB_BUCKET,
+            items = resolved.items,
+        )
+
+        resolvingExternal = false
         onExternalHandled()
     }
 
@@ -138,18 +138,17 @@ fun GalleryApp(
 
     val viewerItems = viewer?.let { route ->
         when {
-            route.standalone != null -> listOf(route.standalone)
-            route.bucketId != null -> libraryItems.inFolder(route.bucketId)
+            // The folder straight from the library once it has one; the answer
+            // found ahead of it only until then.
+            route.bucketId != null ->
+                libraryItems.inFolder(route.bucketId).ifEmpty { route.items.orEmpty() }
+            route.items != null -> route.items
             else -> libraryItems
         }
     }.orEmpty()
 
     val viewerIndex = viewer?.let { route ->
-        when {
-            route.standalone != null -> 0
-            viewerItems.none { it.id == route.itemId } -> -1
-            else -> viewerItems.indexOfId(route.itemId)
-        }
+        if (viewerItems.none { it.id == route.itemId }) -1 else viewerItems.indexOfId(route.itemId)
     } ?: -1
 
     val openItem: (MediaItem, Int) -> Unit = { item, bucket ->
@@ -171,7 +170,7 @@ fun GalleryApp(
             // position, but there is no point drawing a thousand tiles under
             // something opaque.
             modifier = Modifier.drawWithContent {
-                if (folder == null && viewerIndex < 0) drawContent()
+                if (!resolvingExternal && folder == null && viewerIndex < 0) drawContent()
             },
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
@@ -258,6 +257,17 @@ fun GalleryApp(
                     .background(MaterialTheme.colorScheme.background)
                     .safeDrawingPadding()
                     .drawWithContent { if (viewerIndex < 0) drawContent() },
+            )
+        }
+
+        // The gap between another app handing over a photo and the photo being
+        // ready. Black rather than the timeline: a flash of the gallery on the
+        // way to a picture reads as the wrong app opening.
+        if (resolvingExternal) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
             )
         }
 
