@@ -279,10 +279,19 @@ fun GalleryApp(
             AnimatedContent(
                 targetState = Tab.entries[selected],
                 transitionSpec = {
-                    // A fade with a whisper of scale: tabs are siblings, so
-                    // nothing should slide in from a direction implying hierarchy.
-                    (fadeIn(tween(TAB_FADE_IN)) + scaleIn(tween(TAB_FADE_IN), initialScale = 0.985f))
-                        .togetherWith(fadeOut(tween(TAB_FADE_OUT)))
+                    if (!settings.animations) {
+                        // Not a faster fade — none at all. Somebody who turns
+                        // animations off wants the next screen, not a quicker
+                        // way of being shown it arriving.
+                        fadeIn(tween(0)).togetherWith(fadeOut(tween(0)))
+                    } else {
+                        // A fade with a whisper of scale: tabs are siblings, so
+                        // nothing should slide in from a direction implying
+                        // hierarchy.
+                        (fadeIn(tween(TAB_FADE_IN)) +
+                            scaleIn(tween(TAB_FADE_IN), initialScale = 0.985f))
+                            .togetherWith(fadeOut(tween(TAB_FADE_OUT)))
+                    }
                 },
                 label = "tab",
                 modifier = Modifier
@@ -415,6 +424,7 @@ fun GalleryApp(
                 items = viewerItems,
                 startIndex = viewerIndex,
                 thumbBucketPx = viewer?.thumbBucketPx ?: DEFAULT_THUMB_BUCKET,
+                settings = settings,
                 writer = writer,
                 // Only offered where there is an album to be the cover of.
                 onSetCover = viewer?.source?.let { source ->

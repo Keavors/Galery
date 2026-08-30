@@ -43,6 +43,8 @@ import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import coil3.request.ImageRequest
+import android.view.WindowManager
+import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.contentUri
@@ -50,6 +52,8 @@ import com.keavors.gallery.data.thumbnailCacheKey
 import com.keavors.gallery.ui.common.ConfirmDialog
 import com.keavors.gallery.R
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.delay
+import me.saket.telephoto.zoomable.DoubleClickToZoomListener
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
 import me.saket.telephoto.zoomable.rememberZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableState
@@ -59,6 +63,15 @@ import kotlin.math.abs
 
 /** How far the photo has to travel before letting go closes the viewer. */
 private val DISMISS_DISTANCE = 130.dp
+
+/**
+ * Pages handed to a looping pager.
+ *
+ * Large enough that nobody swipes off either end of it, and the middle is where
+ * it starts, so there is as much room behind as ahead.
+ */
+private const val LOOP_PAGES = 1_000_000
+private const val LOOP_MIDDLE = LOOP_PAGES / 2
 
 /**
  * Full-screen viewer.
@@ -74,6 +87,7 @@ fun ViewerScreen(
     items: List<MediaItem>,
     startIndex: Int,
     thumbBucketPx: Int,
+    settings: GallerySettings,
     writer: MediaWriter,
     onSetCover: ((itemId: Long) -> Unit)?,
     onClose: () -> Unit,
@@ -84,11 +98,18 @@ fun ViewerScreen(
     val context = LocalContext.current
     val view = LocalView.current
 
+    // Looping is done by handing the pager far more pages than there are
+    // photos and folding the index back with a modulo. The alternative — moving
+    // the pager back to the start when it reaches the end — is visible as a jump.
+    val loop = settings.loopPaging && items.size > 1
+    val safeStart = startIndex.coerceIn(0, items.lastIndex)
     val pagerState = rememberPagerState(
-        initialPage = startIndex.coerceIn(0, items.lastIndex),
-        pageCount = { items.size },
+        initialPage = if (loop) LOOP_MIDDLE - LOOP_MIDDLE % items.size + safeStart else safeStart,
+        pageCount = { if (loop) LOOP_PAGES else items.size },
     )
-    var chromeVisible by remember { mutableStateOf(true) }
+    fun itemAt(page: Int) = items[if (loop) page.mod(items.size) else page.coerceIn(0, items.lastIndex)]
+
+    var chromeVisible by remember { mutableStateOf(settings.chromeOnOpen) }
     var detailsVisible by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -101,7 +122,7 @@ fun ViewerScreen(
     val dismissThresholdPx = with(density) { DISMISS_DISTANCE.toPx() }
     val close by rememberUpdatedState(onClose)
 
-    val current = items.getOrNull(pagerState.currentPage) ?: items.first()
+    val current = itemAt(pagerState.currentPage)
 
     // One player for the whole viewer, moved from page to page. Each ExoPlayer
     // holds a hardware decoder, and keeping three alive so the pages either side
@@ -112,11 +133,12 @@ fun ViewerScreen(
     LaunchedEffect(current.id, current.isVideo) {
         if (current.isVideo) {
             player.setMediaItem(Media3Item.fromUri(current.contentUri()))
-            player.repeatMode = Player.REPEAT_MODE_OFF
-            // Both off by default, as agreed: opening a video should not start
-            // making noise in a quiet room.
-            player.volume = 0f
-            player.playWhenReady = false
+            player.repeatMode =
+                if (settings.videoRepeat) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+            // Both off unless asked for: opening a video should not start making
+            // noise in a quiet room.
+            player.volume = if (settings.videoSound) 1f else 0f
+            player.playWhenReady = settings.videoAutoplay
             player.prepare()
         } else {
             player.pause()
@@ -146,6 +168,37 @@ fun ViewerScreen(
             controller.show(WindowInsetsCompat.Type.systemBars())
         } else {
             controller.hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    // Chrome that takes itself away after a while. Off by default, because a
+    // photo being looked at is not an idle screen and the controls disappearing
+    // mid-thought is its own kind of annoyance.
+    LaunchedEffect(chromeVisible, settings.autoHideSeconds) {
+        if (chromeVisible && settings.autoHideSeconds > 0) {
+            delay(settings.autoHideSeconds * 1000L)
+            chromeVisible = false
+        }
+    }
+
+    // Brightness and the screen timeout are window-wide, so both are put back
+    // exactly as they were found on the way out.
+    DisposableEffect(settings.maxBrightness, settings.keepScreenOn) {
+        val window = (view.context as Activity).window
+        val previousBrightness = window.attributes.screenBrightness
+        if (settings.maxBrightness) {
+            window.attributes = window.attributes.apply { screenBrightness = 1f }
+        }
+        if (settings.keepScreenOn) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            if (settings.maxBrightness) {
+                window.attributes = window.attributes.apply { screenBrightness = previousBrightness }
+            }
+            if (settings.keepScreenOn) {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
         }
     }
 
@@ -196,8 +249,8 @@ fun ViewerScreen(
                         onDragEnd = {
                             val travelled = dragY.value
                             when {
-                                travelled > dismissThresholdPx -> close()
-                                travelled < -dismissThresholdPx -> {
+                                travelled > dismissThresholdPx && settings.swipeDownCloses -> close()
+                                travelled < -dismissThresholdPx && settings.swipeUpDetails -> {
                                     detailsVisible = true
                                     scope.launch { dragY.animateTo(0f) }
                                 }
@@ -220,7 +273,7 @@ fun ViewerScreen(
             beyondViewportPageCount = 1,
             modifier = Modifier.fillMaxSize(),
         ) { page ->
-            val item = items[page]
+            val item = itemAt(page)
 
             if (item.isVideo) {
                 VideoPage(
@@ -250,6 +303,11 @@ fun ViewerScreen(
                 contentDescription = item.name,
                 state = imageState,
                 onClick = { chromeVisible = !chromeVisible },
+                onDoubleClick = if (settings.doubleTapZoom) {
+                    DoubleClickToZoomListener.cycle()
+                } else {
+                    DoubleClickToZoomListener { _, _ -> }
+                },
                 modifier = Modifier.fillMaxSize(),
             )
 
