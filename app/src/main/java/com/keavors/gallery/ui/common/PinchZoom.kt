@@ -17,14 +17,20 @@ import androidx.compose.ui.input.pointer.pointerInput
  * list untouched.
  *
  * @param onStart fires once, when the second finger arrives.
+ * @param key anything the callbacks read that can change. The handler is torn
+ *   down and rebuilt when it changes, which is what keeps the callbacks from
+ *   answering with values captured at first composition — a stale zoom level
+ *   there turns every pinch into a jump to the same two levels, whatever the
+ *   grid is currently showing.
  * @param onZoom cumulative scale since the gesture began; 1 means no change.
  * @param onEnd fires when the last finger lifts, with the final cumulative scale.
  */
 fun Modifier.pinchZoom(
+    key: Any?,
     onStart: () -> Unit,
     onZoom: (Float) -> Unit,
     onEnd: (Float) -> Unit,
-): Modifier = pointerInput(Unit) {
+): Modifier = pointerInput(key) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         var accumulated = 1f

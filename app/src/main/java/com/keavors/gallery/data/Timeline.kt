@@ -26,9 +26,44 @@ enum class ZoomLevel(val columns: Int, val grouping: Grouping) {
     /** One step towards smaller tiles. */
     fun zoomOut(): ZoomLevel = entries.getOrElse(ordinal + 1) { this }
 
+    /** Moves [steps] levels; positive means bigger tiles. Stops at either end. */
+    fun stepBy(steps: Int): ZoomLevel =
+        entries[(ordinal - steps).coerceIn(0, entries.lastIndex)]
+
     companion object {
         val Default = LARGE
     }
+}
+
+/** How far a pinch has to stretch the picture before it is worth one step. */
+private const val ZOOM_STEP_RATIO = 1.3f
+
+/**
+ * Levels a single pinch may move.
+ *
+ * One. A pinch that could cross the whole range at once makes the grid feel like
+ * it is guessing, and the way back is another gesture of exactly the right size.
+ * Raise this if stepping through five levels ever starts to feel slow.
+ */
+private const val MAX_ZOOM_STEPS = 1
+
+/**
+ * Turns the scale a finished pinch ended on into a number of levels to move.
+ *
+ * Positive means bigger tiles. Anything short of the threshold is nothing: a
+ * grid that changed on every stray two-finger touch would be unusable.
+ */
+fun zoomSteps(scale: Float): Int {
+    if (!scale.isFinite() || scale <= 0f) return 0
+
+    val stretch = if (scale >= 1f) scale else 1f / scale
+    var steps = 0
+    var remaining = stretch
+    while (remaining >= ZOOM_STEP_RATIO && steps < MAX_ZOOM_STEPS) {
+        remaining /= ZOOM_STEP_RATIO
+        steps++
+    }
+    return if (scale >= 1f) steps else -steps
 }
 
 /**

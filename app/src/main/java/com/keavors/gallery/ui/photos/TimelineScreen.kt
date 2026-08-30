@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +43,7 @@ import com.keavors.gallery.data.ZoomLevel
 import com.keavors.gallery.data.buildTimeline
 import com.keavors.gallery.data.firstItemFrom
 import com.keavors.gallery.data.rowOf
+import com.keavors.gallery.data.zoomSteps
 import com.keavors.gallery.ui.common.pinchZoom
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -51,10 +53,6 @@ import java.util.Locale
 /** Gap between tiles. Becomes a setting later; the timeline reads it from here. */
 private val TILE_GAP = 2.dp
 private val TILE_CORNER = 3.dp
-
-/** How far a pinch has to travel before it counts as a level change. */
-private const val ZOOM_IN_THRESHOLD = 1.28f
-private const val ZOOM_OUT_THRESHOLD = 0.78f
 
 /** Bounds on the live scale during a pinch, so the grid cannot be dragged to nothing. */
 private const val MIN_LIVE_SCALE = 0.55f
@@ -70,6 +68,10 @@ fun TimelineScreen(items: List<MediaItem>, modifier: Modifier = Modifier) {
     var levelOrdinal by rememberSaveable { mutableIntStateOf(ZoomLevel.Default.ordinal) }
     val level = ZoomLevel.entries[levelOrdinal]
     val rows = remember(items, level) { buildTimeline(items, level, zone) }
+
+    // The level keys the gesture handler, but the rows can also change under it
+    // when the library reloads mid-pinch, and that must not rebuild the handler.
+    val currentRows by rememberUpdatedState(rows)
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -92,18 +94,17 @@ fun TimelineScreen(items: List<MediaItem>, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .pinchZoom(
+                // Without this the callbacks below keep answering with the level
+                // the grid had when it was first drawn.
+                key = level,
                 onStart = {
-                    anchorId = rows.firstItemFrom(listState.firstVisibleItemIndex)?.id
+                    anchorId = currentRows.firstItemFrom(listState.firstVisibleItemIndex)?.id
                 },
                 onZoom = { zoom ->
                     scope.launch { scale.snapTo(zoom.coerceIn(MIN_LIVE_SCALE, MAX_LIVE_SCALE)) }
                 },
                 onEnd = { zoom ->
-                    val next = when {
-                        zoom > ZOOM_IN_THRESHOLD -> level.zoomIn()
-                        zoom < ZOOM_OUT_THRESHOLD -> level.zoomOut()
-                        else -> level
-                    }
+                    val next = level.stepBy(zoomSteps(zoom))
                     if (next != level) levelOrdinal = next.ordinal else anchorId = null
                     scope.launch {
                         scale.animateTo(

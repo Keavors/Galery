@@ -217,4 +217,62 @@ class TimelineTest {
     fun `an empty timeline has no heading anywhere`() {
         assertNull(emptyList<TimelineRow>().headerAt(0))
     }
+
+    @Test
+    fun `a pinch that barely moves changes nothing`() {
+        assertEquals(0, zoomSteps(1f))
+        assertEquals(0, zoomSteps(1.1f))
+        assertEquals(0, zoomSteps(0.92f))
+    }
+
+    @Test
+    fun `stretching apart asks for bigger tiles and squeezing for smaller`() {
+        assertEquals(1, zoomSteps(1.4f))
+        assertEquals(-1, zoomSteps(1f / 1.4f))
+    }
+
+    @Test
+    fun `one gesture never moves more than one level, however wide it is`() {
+        assertEquals(1, zoomSteps(12f))
+        assertEquals(-1, zoomSteps(0.02f))
+    }
+
+    @Test
+    fun `nonsense scales are ignored rather than crashing the grid`() {
+        assertEquals(0, zoomSteps(0f))
+        assertEquals(0, zoomSteps(-3f))
+        assertEquals(0, zoomSteps(Float.NaN))
+        assertEquals(0, zoomSteps(Float.POSITIVE_INFINITY))
+    }
+
+    @Test
+    fun `stepping walks the levels one at a time from wherever it is`() {
+        // The bug this guards: stepping used to be computed from a level captured
+        // when the grid was first drawn, so every pinch landed on the same two.
+        assertEquals(ZoomLevel.MEDIUM, ZoomLevel.LARGE.stepBy(-1))
+        assertEquals(ZoomLevel.SMALL, ZoomLevel.MEDIUM.stepBy(-1))
+        assertEquals(ZoomLevel.TINY, ZoomLevel.SMALL.stepBy(-1))
+        assertEquals(ZoomLevel.SMALL, ZoomLevel.TINY.stepBy(1))
+        assertEquals(ZoomLevel.HUGE, ZoomLevel.LARGE.stepBy(1))
+    }
+
+    @Test
+    fun `stepping stops at the ends instead of falling off them`() {
+        assertEquals(ZoomLevel.TINY, ZoomLevel.TINY.stepBy(-1))
+        assertEquals(ZoomLevel.HUGE, ZoomLevel.HUGE.stepBy(1))
+        assertEquals(ZoomLevel.HUGE, ZoomLevel.TINY.stepBy(99))
+        assertEquals(ZoomLevel.TINY, ZoomLevel.HUGE.stepBy(-99))
+    }
+
+    @Test
+    fun `every level is reachable by stepping out from the default`() {
+        var level = ZoomLevel.Default
+        val seen = mutableListOf(level)
+        repeat(ZoomLevel.entries.size) {
+            level = level.stepBy(-1)
+            if (seen.last() != level) seen += level
+        }
+        assertEquals(listOf(ZoomLevel.LARGE, ZoomLevel.MEDIUM, ZoomLevel.SMALL, ZoomLevel.TINY), seen)
+        assertEquals(25, level.columns)
+    }
 }
