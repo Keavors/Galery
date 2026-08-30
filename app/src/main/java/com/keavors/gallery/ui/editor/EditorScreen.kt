@@ -45,6 +45,7 @@ import com.keavors.gallery.data.maxEditablePixels
 import com.keavors.gallery.data.overwriteWith
 import com.keavors.gallery.data.saveEditedCopy
 import com.keavors.gallery.data.writeRequestFor
+import com.keavors.gallery.ui.common.opaqueToTouch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -117,6 +118,10 @@ fun EditorScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            // Before the padding, so the strips behind the system bars are
+            // covered too: the editor is over a photograph, and a touch that
+            // misses everything here must not turn the page underneath.
+            .opaqueToTouch()
             .background(Color.Black)
             .safeDrawingPadding(),
     ) {

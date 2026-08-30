@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
 import com.keavors.gallery.data.authenticate
+import com.keavors.gallery.ui.common.opaqueToTouch
 
 /**
  * Stands in front of whatever is locked.
@@ -63,6 +64,7 @@ fun LockScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .opaqueToTouch()
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 40.dp),
         verticalArrangement = Arrangement.Center,
