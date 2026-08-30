@@ -88,7 +88,7 @@ fun GalleryApp(
     var manageMedia by remember { mutableStateOf(context.canManageMedia()) }
     val library by repository.state.collectAsStateWithLifecycle()
     val trash by repository.trash.collectAsStateWithLifecycle()
-    val writer = rememberMediaWriter()
+    val writer = rememberMediaWriter(managesMedia = manageMedia)
     val libraryItems = (library as? LibraryState.Ready)?.items.orEmpty()
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -291,6 +291,7 @@ fun GalleryApp(
                 items = viewerItems,
                 startIndex = viewerIndex,
                 thumbBucketPx = viewer?.thumbBucketPx ?: DEFAULT_THUMB_BUCKET,
+                writer = writer,
                 onClose = { viewer = null },
             )
         } else if (folder == null && selected != 0) {

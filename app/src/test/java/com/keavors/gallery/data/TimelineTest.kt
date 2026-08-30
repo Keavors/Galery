@@ -259,4 +259,42 @@ class TimelineTest {
         assertEquals(listOf(ZoomLevel.LARGE, ZoomLevel.MEDIUM, ZoomLevel.SMALL, ZoomLevel.TINY), seen)
         assertEquals(25, level.columns)
     }
+
+    @Test
+    fun `a heading knows every photo underneath it`() {
+        val rows = buildTimeline(
+            listOf(
+                item(at(2026, 8, 30)),
+                item(at(2026, 8, 30)),
+                item(at(2026, 8, 30)),
+                item(at(2026, 8, 29)),
+            ),
+            ZoomLevel.HUGE,
+            zone,
+        )
+
+        // Two of the three land on one row and the third on the next, so this
+        // has to walk rows rather than read a single one.
+        assertEquals(3, rows.sectionItems(0).size)
+    }
+
+    @Test
+    fun `a heading stops at the next heading rather than running to the end`() {
+        val rows = buildTimeline(
+            listOf(item(at(2026, 8, 30)), item(at(2026, 8, 29))),
+            ZoomLevel.HUGE,
+            zone,
+        )
+
+        val secondHeader = rows.indexOfFirst { it is TimelineRow.Header && it != rows.first() }
+        assertEquals(1, rows.sectionItems(0).size)
+        assertEquals(1, rows.sectionItems(secondHeader).size)
+    }
+
+    @Test
+    fun `asking a photo row what it covers answers nothing`() {
+        val rows = buildTimeline(listOf(item(at(2026, 8, 30))), ZoomLevel.HUGE, zone)
+        assertTrue(rows.sectionItems(1).isEmpty())
+        assertTrue(rows.sectionItems(99).isEmpty())
+    }
 }

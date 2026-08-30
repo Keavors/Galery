@@ -44,10 +44,10 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import coil3.request.ImageRequest
 import com.keavors.gallery.data.MediaItem
+import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.contentUri
 import com.keavors.gallery.data.thumbnailCacheKey
 import com.keavors.gallery.ui.common.ConfirmDialog
-import com.keavors.gallery.ui.common.rememberMediaWriter
 import com.keavors.gallery.R
 import androidx.compose.ui.res.stringResource
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
@@ -74,6 +74,7 @@ fun ViewerScreen(
     items: List<MediaItem>,
     startIndex: Int,
     thumbBucketPx: Int,
+    writer: MediaWriter,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -89,7 +90,6 @@ fun ViewerScreen(
     var chromeVisible by remember { mutableStateOf(true) }
     var detailsVisible by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    val writer = rememberMediaWriter()
 
     // How far the photo has been dragged away from the middle of the screen.
     // An Animatable rather than a plain float because the gesture callbacks are
@@ -292,7 +292,14 @@ fun ViewerScreen(
                 ViewerBottomBar(
                     item = current,
                     onToggleFavorite = { writer.setFavorite(listOf(current), !current.isFavorite) },
-                    onDelete = { confirmDelete = true },
+                    onDelete = {
+                        if (writer.needsOwnConfirmation) {
+                            confirmDelete = true
+                        } else {
+                            writer.setTrashed(listOf(current), trashed = true)
+                            if (items.size <= 1) onClose()
+                        }
+                    },
                 )
             }
         }

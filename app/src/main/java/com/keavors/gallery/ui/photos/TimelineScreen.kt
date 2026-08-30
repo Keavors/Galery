@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +41,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.unit.Dp
@@ -51,6 +54,7 @@ import com.keavors.gallery.data.ZoomLevel
 import com.keavors.gallery.data.buildTimeline
 import com.keavors.gallery.data.firstItemFrom
 import com.keavors.gallery.data.rowOf
+import com.keavors.gallery.data.sectionItems
 import com.keavors.gallery.data.shareMedia
 import com.keavors.gallery.data.thumbnailBucketPx
 import com.keavors.gallery.data.zoomSteps
@@ -195,10 +199,26 @@ fun TimelineScreen(
                     )
                 },
         ) {
-            rows.forEach { row ->
+            rows.forEachIndexed { rowIndex, row ->
                 when (row) {
                     is TimelineRow.Header -> stickyHeader(key = row.key, contentType = "header") {
-                        SectionHeader(row, locale, today)
+                        val sectionIds = remember(rows, rowIndex) {
+                            rows.sectionItems(rowIndex).map { it.id }
+                        }
+                        SectionHeader(
+                            row = row,
+                            locale = locale,
+                            today = today,
+                            selecting = selected.isNotEmpty(),
+                            allSelected = sectionIds.isNotEmpty() && selected.containsAll(sectionIds),
+                            onToggleSection = {
+                                selected = if (selected.containsAll(sectionIds)) {
+                                    selected - sectionIds.toSet()
+                                } else {
+                                    selected + sectionIds
+                                }
+                            },
+                        )
                     }
 
                     is TimelineRow.Photos -> item(key = row.key, contentType = "photos") {
@@ -250,7 +270,14 @@ fun TimelineScreen(
                     selected = emptySet()
                 },
                 onShare = { context.shareMedia(chosen, shareTitle) },
-                onDelete = { confirmDelete = true },
+                onDelete = {
+                    if (writer.needsOwnConfirmation) {
+                        confirmDelete = true
+                    } else {
+                        writer.setTrashed(chosen, trashed = true)
+                        selected = emptySet()
+                    }
+                },
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
@@ -278,26 +305,53 @@ private fun SectionHeader(
     row: TimelineRow.Header,
     locale: Locale,
     today: LocalDate,
+    selecting: Boolean,
+    allSelected: Boolean,
+    onToggleSection: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
             // Opaque, not translucent: the header slides over photos as the
             // section scrolls under it, and a see-through one turns to mud.
             .background(MaterialTheme.colorScheme.background)
-            .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 8.dp),
+            .padding(start = 14.dp, end = 6.dp, top = 14.dp, bottom = 8.dp),
     ) {
-        Text(
-            text = sectionTitle(row.bucket, row.grouping, locale, today),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = row.count.toString(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = sectionTitle(row.bucket, row.grouping, locale, today),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = row.count.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        // Only while something is selected. A circle sitting on every heading
+        // the rest of the time would be a control nobody asked for on a screen
+        // whose whole point is the photographs.
+        if (selecting) {
+            IconButton(onClick = onToggleSection) {
+                Icon(
+                    painter = painterResource(
+                        if (allSelected) R.drawable.ic_circle_check else R.drawable.ic_circle_outline
+                    ),
+                    contentDescription = stringResource(
+                        if (allSelected) R.string.section_deselect else R.string.section_select
+                    ),
+                    tint = if (allSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        }
     }
 }
 

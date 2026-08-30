@@ -95,7 +95,15 @@ fun TrashScreen(
                 writer.setTrashed(chosen.ifEmpty { items }, trashed = false)
                 selected = emptySet()
             },
-            onDeleteForever = { confirmForever = chosen.ifEmpty { items } },
+            onDeleteForever = {
+                val doomed = chosen.ifEmpty { items }
+                if (writer.needsOwnConfirmation) {
+                    confirmForever = doomed
+                } else {
+                    selected = emptySet()
+                    writer.deleteForever(doomed)
+                }
+            },
         )
 
         LazyVerticalGrid(

@@ -95,4 +95,6 @@
     <string name="trash_days_left">%1$d d</string>
     <string name="trash_expires_today">Today</string>
     <string name="trash_selected">%1$d selected</string>
+    <string name="section_select">Select everything from this date</string>
+    <string name="section_deselect">Deselect this date</string>
 </resources>

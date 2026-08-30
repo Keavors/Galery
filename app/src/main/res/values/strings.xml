@@ -104,4 +104,6 @@
     <string name="trash_days_left">%1$d дн.</string>
     <string name="trash_expires_today">Сегодня</string>
     <string name="trash_selected">Выбрано: %1$d</string>
+    <string name="section_select">Выбрать все за эту дату</string>
+    <string name="section_deselect">Снять выбор за эту дату</string>
 </resources>

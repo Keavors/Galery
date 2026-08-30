@@ -15,10 +15,12 @@ import com.keavors.gallery.data.MediaWriter
  * itself. Nothing here has to keep score.
  */
 @Composable
-fun rememberMediaWriter(): MediaWriter {
+fun rememberMediaWriter(managesMedia: Boolean): MediaWriter {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { }
-    return remember(context) { MediaWriter(context) { launcher.launch(it) } }
+    return remember(context, managesMedia) {
+        MediaWriter(context, managesMedia) { launcher.launch(it) }
+    }
 }

@@ -192,3 +192,22 @@ fun List<TimelineRow>.headerAt(rowIndex: Int): TimelineRow.Header? {
     }
     return null
 }
+
+/**
+ * The photos governed by the heading at [headerIndex].
+ *
+ * Walks forward to the next heading rather than re-grouping the library: the
+ * rows already carry the section boundaries, and a heading needs to know what it
+ * covers so tapping it can select the whole day at once.
+ */
+fun List<TimelineRow>.sectionItems(headerIndex: Int): List<MediaItem> {
+    if (getOrNull(headerIndex) !is TimelineRow.Header) return emptyList()
+    val items = ArrayList<MediaItem>()
+    for (index in headerIndex + 1 until size) {
+        when (val row = this[index]) {
+            is TimelineRow.Photos -> items += row.items
+            is TimelineRow.Header -> break
+        }
+    }
+    return items
+}

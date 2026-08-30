@@ -16,8 +16,20 @@ import kotlin.math.ceil
  */
 class MediaWriter(
     private val context: Context,
+    private val managesMedia: Boolean,
     private val launch: (IntentSenderRequest) -> Unit,
 ) {
+    /**
+     * Whether the app has to ask before deleting, because the system will not.
+     *
+     * Without the media management access Android puts up its own confirmation
+     * for every trash and delete, and asking first as well means two dialogs in
+     * a row saying the same thing. With that access granted the system stays
+     * quiet — and then something has to ask, or a tap on the bin would delete
+     * with no way back.
+     */
+    val needsOwnConfirmation: Boolean get() = managesMedia
+
     fun setFavorite(items: List<MediaItem>, favorite: Boolean) {
         if (items.isEmpty()) return
         launch(
