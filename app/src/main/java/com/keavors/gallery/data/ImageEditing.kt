@@ -165,6 +165,15 @@ private fun Canvas.drawVignette(width: Int, height: Int, strength: Float) {
 }
 
 /**
+ * How a save went.
+ *
+ * Three answers rather than two, because "the photograph is there but it has
+ * forgotten when and where it was taken" is neither a success worth saying
+ * nothing about nor a failure worth throwing the edit away over.
+ */
+enum class SaveOutcome { SAVED, SAVED_WITHOUT_METADATA, FAILED }
+
+/**
  * A write request for an existing file.
  *
  * Overwriting somebody else's photo needs the system's blessing exactly as
@@ -181,14 +190,26 @@ fun writeRequestFor(context: Context, item: MediaItem): IntentSenderRequest =
  *
  * The caller must already hold permission for it — see [writeRequestFor].
  */
-suspend fun Context.overwriteWith(item: MediaItem, bitmap: Bitmap, quality: Int): Boolean =
-    withContext(Dispatchers.IO) {
-        runCatching {
-            contentResolver.openOutputStream(item.contentUri(), "wt")?.use { out ->
-                bitmap.compress(formatFor(item.mimeType), quality, out)
-            } ?: false
-        }.onFailure { Log.w(TAG, "overwrite failed", it) }.getOrElse { false }
+suspend fun Context.overwriteWith(
+    item: MediaItem,
+    bitmap: Bitmap,
+    quality: Int,
+    exif: Map<String, String>,
+): SaveOutcome = withContext(Dispatchers.IO) {
+    val written = runCatching {
+        contentResolver.openOutputStream(item.contentUri(), "wt")?.use { out ->
+            bitmap.compress(formatFor(item.mimeType), quality, out)
+        } ?: false
+    }.onFailure { Log.w(TAG, "overwrite failed", it) }.getOrElse { false }
+
+    if (!written) {
+        SaveOutcome.FAILED
+    } else if (writeCarriedExif(item.contentUri(), exif, bitmap.width, bitmap.height)) {
+        SaveOutcome.SAVED
+    } else {
+        SaveOutcome.SAVED_WITHOUT_METADATA
     }
+}
 
 /**
  * Writes the edited picture alongside the original.
@@ -196,7 +217,12 @@ suspend fun Context.overwriteWith(item: MediaItem, bitmap: Bitmap, quality: Int)
  * Pending first, published after, so no half-written photo ever appears in
  * anybody's gallery.
  */
-suspend fun Context.saveEditedCopy(item: MediaItem, bitmap: Bitmap, quality: Int): Uri? =
+suspend fun Context.saveEditedCopy(
+    item: MediaItem,
+    bitmap: Bitmap,
+    quality: Int,
+    exif: Map<String, String>,
+): SaveOutcome =
     withContext(Dispatchers.IO) {
         val format = formatFor(item.mimeType)
         val extension = if (format == Bitmap.CompressFormat.PNG) "png" else "jpg"
@@ -217,7 +243,7 @@ suspend fun Context.saveEditedCopy(item: MediaItem, bitmap: Bitmap, quality: Int
         val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val uri = runCatching { contentResolver.insert(collection, values) }
             .onFailure { Log.w(TAG, "could not create a copy", it) }
-            .getOrNull() ?: return@withContext null
+            .getOrNull() ?: return@withContext SaveOutcome.FAILED
 
         val written = runCatching {
             contentResolver.openOutputStream(uri)?.use { out ->
@@ -227,8 +253,12 @@ suspend fun Context.saveEditedCopy(item: MediaItem, bitmap: Bitmap, quality: Int
 
         if (!written) {
             runCatching { contentResolver.delete(uri, null, null) }
-            return@withContext null
+            return@withContext SaveOutcome.FAILED
         }
+
+        // While it is still pending, so that nothing else ever sees the copy
+        // without its history.
+        val kept = writeCarriedExif(uri, exif, bitmap.width, bitmap.height)
 
         runCatching {
             contentResolver.update(
@@ -238,7 +268,7 @@ suspend fun Context.saveEditedCopy(item: MediaItem, bitmap: Bitmap, quality: Int
                 null,
             )
         }
-        uri
+        if (kept) SaveOutcome.SAVED else SaveOutcome.SAVED_WITHOUT_METADATA
     }
 
 /**

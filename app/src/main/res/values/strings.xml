@@ -225,6 +225,7 @@
     <string name="editor_save_overwrite">Заменить</string>
     <string name="editor_saved">Сохранено</string>
     <string name="editor_save_failed">Не удалось сохранить</string>
+    <string name="editor_saved_without_metadata">Сохранено, но без съёмочных данных</string>
     <string name="editor_rotate">Повернуть</string>
     <string name="editor_flip">Отразить</string>
     <string name="editor_reset_crop">Весь кадр</string>

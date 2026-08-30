@@ -214,6 +214,7 @@
     <string name="editor_save_overwrite">Replace</string>
     <string name="editor_saved">Saved</string>
     <string name="editor_save_failed">Could not save</string>
+    <string name="editor_saved_without_metadata">Saved, but without its camera data</string>
     <string name="editor_rotate">Rotate</string>
     <string name="editor_flip">Flip</string>
     <string name="editor_reset_crop">Whole frame</string>

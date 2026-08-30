@@ -166,6 +166,7 @@ fun GalleryApp(
     val restoredNote = stringResource(R.string.vault_restored)
     val editorSaved = stringResource(R.string.editor_saved)
     val editorFailed = stringResource(R.string.editor_save_failed)
+    val editorSavedBare = stringResource(R.string.editor_saved_without_metadata)
     val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
 
@@ -536,9 +537,16 @@ fun GalleryApp(
             EditorScreen(
                 item = subject,
                 jpegQuality = settings.jpegQuality,
-                onSaved = {
+                onSaved = { keptMetadata ->
                     editing = null
-                    Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
+                    // A photograph that came back without its date and place is
+                    // still saved, but it is not what was asked for either, and
+                    // finding out months later is finding out too late.
+                    Toast.makeText(
+                        context,
+                        if (keptMetadata) editorSaved else editorSavedBare,
+                        if (keptMetadata) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                    ).show()
                 },
                 // Left open on purpose: the edits are still there and the
                 // second attempt costs a tap.

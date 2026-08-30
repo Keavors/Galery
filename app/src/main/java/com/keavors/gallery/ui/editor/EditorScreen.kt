@@ -55,7 +55,9 @@ import com.keavors.gallery.data.Adjustments
 import com.keavors.gallery.data.CropRect
 import com.keavors.gallery.data.EditOps
 import com.keavors.gallery.data.MediaItem
+import com.keavors.gallery.data.SaveOutcome
 import com.keavors.gallery.data.applyOps
+import com.keavors.gallery.data.carriedExif
 import com.keavors.gallery.data.times
 import com.keavors.gallery.data.colorMatrixFor
 import com.keavors.gallery.data.decodeForEditing
@@ -99,7 +101,7 @@ private enum class EditorTab { GEOMETRY, COLOUR, FILTERS }
 fun EditorScreen(
     item: MediaItem,
     jpegQuality: Int,
-    onSaved: () -> Unit,
+    onSaved: (keptMetadata: Boolean) -> Unit,
     onFailed: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -181,9 +183,13 @@ fun EditorScreen(
     fun save(mode: SaveMode) {
         scope.launch {
             working = true
-            val ok = saveEdit(context, item, ops, mode, jpegQuality)
+            val outcome = saveEdit(context, item, ops, mode, jpegQuality)
             working = false
-            if (ok) onSaved() else onFailed()
+            when (outcome) {
+                SaveOutcome.SAVED -> onSaved(true)
+                SaveOutcome.SAVED_WITHOUT_METADATA -> onSaved(false)
+                SaveOutcome.FAILED -> onFailed()
+            }
         }
     }
 
@@ -621,17 +627,21 @@ private suspend fun saveEdit(
     ops: EditOps,
     mode: SaveMode,
     quality: Int,
-): Boolean = withContext(Dispatchers.IO) {
+): SaveOutcome = withContext(Dispatchers.IO) {
+    // Read before anything is written: overwriting destroys the original, and
+    // by then there is nothing left to read the date and the place off.
+    val exif = context.carriedExif(item)
+
     val ceiling = maxEditablePixels(Runtime.getRuntime().maxMemory())
-    val full = context.decodeForEditing(item, ceiling) ?: return@withContext false
+    val full = context.decodeForEditing(item, ceiling) ?: return@withContext SaveOutcome.FAILED
     val edited = applyOps(full, ops)
 
-    val ok = when (mode) {
-        SaveMode.COPY -> context.saveEditedCopy(item, edited, quality) != null
-        SaveMode.OVERWRITE -> context.overwriteWith(item, edited, quality)
+    val outcome = when (mode) {
+        SaveMode.COPY -> context.saveEditedCopy(item, edited, quality, exif)
+        SaveMode.OVERWRITE -> context.overwriteWith(item, edited, quality, exif)
     }
 
     if (edited !== full) edited.recycle()
     full.recycle()
-    ok
+    outcome
 }
