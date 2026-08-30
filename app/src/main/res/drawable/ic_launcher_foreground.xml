@@ -3,14 +3,40 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- A 24dp glyph scaled into the 66dp safe zone of the adaptive icon. -->
-    <group
-        android:scaleX="2.5"
-        android:scaleY="2.5"
-        android:translateX="24"
-        android:translateY="24">
+    <!--
+        A framed landscape at daybreak: cool sky, warm sun, three ridges receding
+        into it. Everything inside the frame is clipped to the frame, so the
+        ridges can run past its edges and still end flush with it.
+    -->
+    <group>
+        <clip-path android:pathData="M37,26 L71,26 A11,11 0 0 1 82,37 L82,71 A11,11 0 0 1 71,82 L37,82 A11,11 0 0 1 26,71 L26,37 A11,11 0 0 1 37,26 Z" />
+
+        <!-- sky -->
         <path
-            android:fillColor="#F2B44A"
-            android:pathData="M22,16V4c0,-1.1 -0.9,-2 -2,-2H8C6.9,2 6,2.9 6,4v12c0,1.1 0.9,2 2,2h12C21.1,18 22,17.1 22,16zM11,12l2.03,2.71L16,11l4,5H8L11,12zM2,6v14c0,1.1 0.9,2 2,2h14v-2H4V6H2z" />
+            android:fillColor="#17394F"
+            android:pathData="M37,26 L71,26 A11,11 0 0 1 82,37 L82,71 A11,11 0 0 1 71,82 L37,82 A11,11 0 0 1 26,71 L26,37 A11,11 0 0 1 37,26 Z" />
+
+        <!-- sun -->
+        <path
+            android:fillColor="#F5B841"
+            android:pathData="M38,42 A6,6 0 1 1 50,42 A6,6 0 1 1 38,42 Z" />
+
+        <!-- ridges, far to near -->
+        <path
+            android:fillColor="#7FB09E"
+            android:pathData="M24,84 L52,47 L86,84 Z" />
+        <path
+            android:fillColor="#3E7A80"
+            android:pathData="M14,84 L36,59 L60,84 Z" />
+        <path
+            android:fillColor="#24505F"
+            android:pathData="M48,84 L72,58 L96,84 Z" />
     </group>
+
+    <!-- frame, drawn last so it caps the clipped edges -->
+    <path
+        android:strokeColor="#F5E7C8"
+        android:strokeWidth="5.5"
+        android:strokeLineJoin="round"
+        android:pathData="M37,26 L71,26 A11,11 0 0 1 82,37 L82,71 A11,11 0 0 1 71,82 L37,82 A11,11 0 0 1 26,71 L26,37 A11,11 0 0 1 37,26 Z" />
 </vector>
