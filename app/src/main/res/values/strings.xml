@@ -194,4 +194,14 @@
     <string name="settings_saved">Сохранено</string>
     <string name="settings_import_failed">Не похоже на файл настроек</string>
     <string name="settings_cache_cleared">Кэш очищен</string>
+
+    <string name="settings_security">Безопасность</string>
+    <string name="set_app_lock">Блокировать приложение</string>
+    <string name="set_app_lock_summary">Спрашивать отпечаток или код телефона при каждом открытии</string>
+    <string name="set_no_device_lock">На телефоне не настроена блокировка экрана</string>
+    <string name="set_hide_recents">Скрывать в недавних</string>
+    <string name="set_hide_recents_summary">В списке запущенных приложений вместо снимка экрана будет пусто</string>
+    <string name="lock_title">Галерея заблокирована</string>
+    <string name="lock_subtitle">Подтвердите, что это вы</string>
+    <string name="lock_unlock">Разблокировать</string>
 </resources>

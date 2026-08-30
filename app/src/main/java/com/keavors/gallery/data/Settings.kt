@@ -64,6 +64,10 @@ data class GallerySettings(
     val videoSound: Boolean = false,
     val videoRepeat: Boolean = false,
 
+    // Security
+    val appLock: Boolean = false,
+    val hideInRecents: Boolean = false,
+
     // General
     /** BCP-47 tag, or empty to follow the system. */
     val language: String = "",
@@ -106,6 +110,8 @@ fun encodeSettings(s: GallerySettings): String = JSONObject().apply {
     put("videoAutoplay", s.videoAutoplay)
     put("videoSound", s.videoSound)
     put("videoRepeat", s.videoRepeat)
+    put("appLock", s.appLock)
+    put("hideInRecents", s.hideInRecents)
     put("language", s.language)
 }.toString()
 
@@ -144,6 +150,8 @@ fun decodeSettings(json: String?): GallerySettings {
             videoAutoplay = o.optBoolean("videoAutoplay", d.videoAutoplay),
             videoSound = o.optBoolean("videoSound", d.videoSound),
             videoRepeat = o.optBoolean("videoRepeat", d.videoRepeat),
+            appLock = o.optBoolean("appLock", d.appLock),
+            hideInRecents = o.optBoolean("hideInRecents", d.hideInRecents),
             language = o.optString("language", d.language),
         )
     }.getOrElse { d }

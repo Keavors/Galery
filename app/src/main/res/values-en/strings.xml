@@ -184,4 +184,14 @@
     <string name="settings_saved">Saved</string>
     <string name="settings_import_failed">That does not look like a settings file</string>
     <string name="settings_cache_cleared">Cache cleared</string>
+
+    <string name="settings_security">Security</string>
+    <string name="set_app_lock">Lock the app</string>
+    <string name="set_app_lock_summary">Ask for a fingerprint or the phone code every time it opens</string>
+    <string name="set_no_device_lock">This phone has no screen lock set up</string>
+    <string name="set_hide_recents">Hide in recents</string>
+    <string name="set_hide_recents_summary">The running-apps list shows nothing instead of a screenshot</string>
+    <string name="lock_title">The gallery is locked</string>
+    <string name="lock_subtitle">Confirm it is you</string>
+    <string name="lock_unlock">Unlock</string>
 </resources>

@@ -71,6 +71,12 @@ class MainActivity : ComponentActivity() {
                 if (manager.applicationLocales != wanted) manager.applicationLocales = wanted
             }
 
+            // Not FLAG_SECURE: that would also stop screenshots being taken
+            // of the gallery, which is a different wish entirely.
+            LaunchedEffect(settings.hideInRecents) {
+                setRecentsScreenshotEnabled(!settings.hideInRecents)
+            }
+
             GalleryTheme(
                 themeMode = settings.themeMode,
                 palette = settings.palette,

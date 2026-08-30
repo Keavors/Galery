@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -56,6 +57,7 @@ import com.keavors.gallery.data.formatBytes
 import com.keavors.gallery.data.sortedFor
 import com.keavors.gallery.data.AlbumSource
 import com.keavors.gallery.data.AlbumStore
+import com.keavors.gallery.data.canAuthenticate
 import com.keavors.gallery.data.canManageMedia
 import com.keavors.gallery.data.inAlbum
 import com.keavors.gallery.data.indexOfId
@@ -64,6 +66,7 @@ import com.keavors.gallery.data.mediaPermissions
 import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.albums.AlbumsScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
+import com.keavors.gallery.ui.lock.LockScreen
 import com.keavors.gallery.ui.permission.MediaGate
 import com.keavors.gallery.ui.photos.AlbumActions
 import com.keavors.gallery.ui.photos.PhotosScreen
@@ -101,6 +104,16 @@ fun GalleryApp(
     // True from the very first frame when another app started this one, so the
     // tabs are never drawn on the way to the photo.
     var resolvingExternal by remember { mutableStateOf(pendingOpen != null) }
+
+    val activity = LocalActivity.current
+    val canLock = remember(activity) { activity?.canAuthenticate() == true }
+    // Locked until proven otherwise, and only while the setting says so. Held
+    // outside the lock screen so that leaving the app and coming back locks it
+    // again — a lock that only asks once is a lock on a door left open.
+    var unlocked by remember { mutableStateOf(false) }
+    LifecycleResumeEffect(settings.appLock) {
+        onPauseOrDispose { if (settings.appLock) unlocked = false }
+    }
 
     var access by remember { mutableStateOf(context.mediaAccess()) }
     var manageMedia by remember { mutableStateOf(context.canManageMedia()) }
@@ -336,6 +349,7 @@ fun GalleryApp(
                         canManageMedia = manageMedia,
                         versionName = BuildConfig.VERSION_NAME,
                         cacheSummary = cacheSummary,
+                        canLock = canLock,
                         onOpenSystemSettings = {
                             context.startActivity(appSettingsIntent(context.packageName))
                         },
@@ -405,6 +419,17 @@ fun GalleryApp(
                     .background(MaterialTheme.colorScheme.background)
                     .safeDrawingPadding()
                     .drawWithContent { if (viewerIndex < 0) drawContent() },
+            )
+        }
+
+        // In front of everything else, including a photo another app sent over:
+        // arriving from outside must not be a way past the lock.
+        if (settings.appLock && canLock && !unlocked) {
+            LockScreen(
+                title = stringResource(R.string.lock_title),
+                subtitle = stringResource(R.string.lock_subtitle),
+                onUnlocked = { unlocked = true },
+                onGiveUp = onFinish,
             )
         }
 

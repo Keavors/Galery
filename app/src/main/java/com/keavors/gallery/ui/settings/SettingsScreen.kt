@@ -56,6 +56,7 @@ fun SettingsScreen(
     canManageMedia: Boolean,
     versionName: String,
     cacheSummary: String,
+    canLock: Boolean,
     onOpenSystemSettings: () -> Unit,
     onRequestManageMedia: () -> Unit,
     onClearCache: () -> Unit,
@@ -263,6 +264,37 @@ fun SettingsScreen(
                     summary = null,
                     checked = settings.videoRepeat,
                     onChange = { onChange(settings.copy(videoRepeat = it)) },
+                ),
+            ),
+        ),
+
+        SettingSection(
+            stringResource(R.string.settings_security),
+            listOfNotNull(
+                if (canLock) {
+                    switchRow(
+                        title = stringResource(R.string.set_app_lock),
+                        summary = stringResource(R.string.set_app_lock_summary),
+                        checked = settings.appLock,
+                        onChange = { onChange(settings.copy(appLock = it)) },
+                    )
+                } else {
+                    // Offering a lock on a phone with no screen lock would be a
+                    // promise the phone cannot keep.
+                    SettingRow(stringResource(R.string.set_app_lock)) {
+                        ActionRow(
+                            title = stringResource(R.string.set_app_lock),
+                            summary = stringResource(R.string.set_no_device_lock),
+                            action = null,
+                            onAction = {},
+                        )
+                    }
+                },
+                switchRow(
+                    title = stringResource(R.string.set_hide_recents),
+                    summary = stringResource(R.string.set_hide_recents_summary),
+                    checked = settings.hideInRecents,
+                    onChange = { onChange(settings.copy(hideInRecents = it)) },
                 ),
             ),
         ),
