@@ -9,6 +9,12 @@ package com.keavors.gallery.data
  */
 data class MediaItem(
     val id: Long,
+    /**
+     * Where the file actually lives, as a string so the model stays free of
+     * android types. Carried rather than derived from [id]: a photo handed over
+     * by another app may have no MediaStore id at all.
+     */
+    val uri: String,
     val name: String,
     val mimeType: String,
     val isVideo: Boolean,

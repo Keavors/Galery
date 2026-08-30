@@ -3,6 +3,7 @@ package com.keavors.gallery.ui
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -11,9 +12,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -22,11 +25,11 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -35,12 +38,20 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.keavors.gallery.R
 import com.keavors.gallery.data.LibraryState
 import com.keavors.gallery.data.MediaAccess
+import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaRepository
+import com.keavors.gallery.data.asStandaloneItem
 import com.keavors.gallery.data.canManageMedia
+import com.keavors.gallery.data.inFolder
+import com.keavors.gallery.data.indexOfId
+import com.keavors.gallery.data.matchExternal
 import com.keavors.gallery.data.mediaAccess
 import com.keavors.gallery.data.mediaPermissions
+import com.keavors.gallery.data.probeExternal
+import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
 import com.keavors.gallery.ui.permission.MediaGate
 import com.keavors.gallery.ui.photos.PhotosScreen
@@ -51,22 +62,28 @@ import com.keavors.gallery.ui.viewer.ViewerScreen
 private const val TAB_FADE_IN = 220
 private const val TAB_FADE_OUT = 140
 
+/** Used until a tile has been measured and can say which size it wants. */
+private const val DEFAULT_THUMB_BUCKET = 384
+
 @Composable
-fun GalleryApp(repository: MediaRepository) {
+fun GalleryApp(
+    repository: MediaRepository,
+    launchMode: LaunchMode,
+    pendingOpen: ExternalOpen?,
+    onExternalHandled: () -> Unit,
+    onPicked: (MediaItem) -> Unit,
+    onFinish: () -> Unit,
+) {
     val context = LocalContext.current
 
-    // Saved as an ordinal so the selection survives rotation without a custom saver.
-    var selected by rememberSaveable { mutableIntStateOf(0) }
-    val tab = Tab.entries[selected]
-
-    // Which photo the viewer is showing, if any. Held by id rather than by
-    // index so a library reload underneath cannot slide it onto another photo.
-    var viewingId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var viewingBucket by rememberSaveable { mutableIntStateOf(384) }
+    var selected by remember { mutableIntStateOf(0) }
+    var folder by remember { mutableStateOf<FolderRoute?>(null) }
+    var viewer by remember { mutableStateOf<ViewerRoute?>(null) }
 
     var access by remember { mutableStateOf(context.mediaAccess()) }
     var manageMedia by remember { mutableStateOf(context.canManageMedia()) }
     val library by repository.state.collectAsStateWithLifecycle()
+    val libraryItems = (library as? LibraryState.Ready)?.items.orEmpty()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -87,92 +104,174 @@ fun GalleryApp(repository: MediaRepository) {
         onPauseOrDispose { }
     }
 
-    val items = (library as? LibraryState.Ready)?.items.orEmpty()
-    val viewingIndex = viewingId?.let { id -> items.indexOfFirst { it.id == id } } ?: -1
+    val unknownFolder = stringResource(R.string.album_unknown)
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // A photo arriving from another app. The library has to be loaded first or
+    // there is nothing to search for the neighbours in, so this waits rather
+    // than giving up, and only shows the photo alone once it is certain.
+    LaunchedEffect(pendingOpen, library) {
+        val open = pendingOpen ?: return@LaunchedEffect
+        if (access != MediaAccess.NONE && library !is LibraryState.Ready) return@LaunchedEffect
 
-    Scaffold(
-        // Composition and layout are kept so the grid holds its scroll position,
-        // but there is no point drawing a thousand tiles under an opaque viewer.
-        modifier = Modifier.drawWithContent { if (viewingIndex < 0) drawContent() },
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-                Tab.entries.forEachIndexed { index, entry ->
-                    NavigationBarItem(
-                        selected = index == selected,
-                        onClick = { selected = index },
-                        icon = {
-                            Icon(
-                                painter = painterResource(entry.icon),
-                                contentDescription = null,
-                            )
-                        },
-                        label = { Text(stringResource(entry.title)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    )
-                }
-            }
-        },
-    ) { insets ->
-        AnimatedContent(
-            targetState = tab,
-            transitionSpec = {
-                // A fade with a whisper of scale: tabs are siblings, so nothing
-                // should slide in from a direction that implies hierarchy.
-                (fadeIn(tween(TAB_FADE_IN)) + scaleIn(tween(TAB_FADE_IN), initialScale = 0.985f))
-                    .togetherWith(fadeOut(tween(TAB_FADE_OUT)))
-            },
-            label = "tab",
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(insets),
-        ) { current ->
-            when (current) {
-                Tab.PHOTOS -> MediaGate(
-                    access = access,
-                    onRequest = { permissionLauncher.launch(mediaPermissions) },
-                    onOpenSettings = { context.startActivity(appSettingsIntent(context.packageName)) },
-                ) {
-                    PhotosScreen(
-                        state = library,
-                        onOpen = { item, bucket ->
-                            viewingBucket = bucket
-                            viewingId = item.id
-                        },
-                    )
-                }
+        val ref = context.probeExternal(open.uri, open.declaredType)
+        val match = libraryItems.matchExternal(ref)
+        if (match != null) {
+            folder = FolderRoute(
+                bucketId = match.bucketId,
+                title = match.bucketName.ifBlank { unknownFolder },
+                fromExternal = true,
+            )
+            viewer = ViewerRoute(match.id, match.bucketId, DEFAULT_THUMB_BUCKET)
+        } else {
+            folder = null
+            viewer = ViewerRoute(
+                itemId = -1,
+                bucketId = null,
+                thumbBucketPx = DEFAULT_THUMB_BUCKET,
+                standalone = ref.asStandaloneItem(),
+            )
+        }
+        onExternalHandled()
+    }
 
-                // Settings never sits behind the gate: it is where a person goes
-                // to understand why the rest of the app is asking for anything.
-                Tab.SETTINGS -> SettingsScreen(
-                    access = access,
-                    canManageMedia = manageMedia,
-                    onOpenSettings = { context.startActivity(appSettingsIntent(context.packageName)) },
-                    onRequestManageMedia = {
-                        context.startActivity(manageMediaIntent(context.packageName))
-                    },
-                )
+    val folderItems = folder?.let { libraryItems.inFolder(it.bucketId) }.orEmpty()
 
-                else -> PlaceholderScreen(current)
-            }
+    val viewerItems = viewer?.let { route ->
+        when {
+            route.standalone != null -> listOf(route.standalone)
+            route.bucketId != null -> libraryItems.inFolder(route.bucketId)
+            else -> libraryItems
+        }
+    }.orEmpty()
+
+    val viewerIndex = viewer?.let { route ->
+        when {
+            route.standalone != null -> 0
+            viewerItems.none { it.id == route.itemId } -> -1
+            else -> viewerItems.indexOfId(route.itemId)
+        }
+    } ?: -1
+
+    val openItem: (MediaItem, Int) -> Unit = { item, bucket ->
+        if (launchMode == LaunchMode.PICK) {
+            onPicked(item)
+        } else {
+            viewer = ViewerRoute(
+                itemId = item.id,
+                bucketId = if (folder != null) item.bucketId else null,
+                thumbBucketPx = bucket,
+            )
         }
     }
 
-        if (viewingIndex >= 0) {
-            ViewerScreen(
-                items = items,
-                startIndex = viewingIndex,
-                thumbBucketPx = viewingBucket,
-                onClose = { viewingId = null },
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        Scaffold(
+            // Composition and layout are kept so the grid holds its scroll
+            // position, but there is no point drawing a thousand tiles under
+            // something opaque.
+            modifier = Modifier.drawWithContent {
+                if (folder == null && viewerIndex < 0) drawContent()
+            },
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                    Tab.entries.forEachIndexed { index, entry ->
+                        NavigationBarItem(
+                            selected = index == selected,
+                            onClick = { selected = index },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(entry.icon),
+                                    contentDescription = null,
+                                )
+                            },
+                            label = { Text(stringResource(entry.title)) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        )
+                    }
+                }
+            },
+        ) { insets ->
+            AnimatedContent(
+                targetState = Tab.entries[selected],
+                transitionSpec = {
+                    // A fade with a whisper of scale: tabs are siblings, so
+                    // nothing should slide in from a direction implying hierarchy.
+                    (fadeIn(tween(TAB_FADE_IN)) + scaleIn(tween(TAB_FADE_IN), initialScale = 0.985f))
+                        .togetherWith(fadeOut(tween(TAB_FADE_OUT)))
+                },
+                label = "tab",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(insets),
+            ) { current ->
+                when (current) {
+                    Tab.PHOTOS -> MediaGate(
+                        access = access,
+                        onRequest = { permissionLauncher.launch(mediaPermissions) },
+                        onOpenSettings = {
+                            context.startActivity(appSettingsIntent(context.packageName))
+                        },
+                    ) {
+                        PhotosScreen(state = library, onOpen = openItem)
+                    }
+
+                    // Settings never sits behind the gate: it is where a person
+                    // goes to understand why the rest of the app is asking for
+                    // anything.
+                    Tab.SETTINGS -> SettingsScreen(
+                        access = access,
+                        canManageMedia = manageMedia,
+                        onOpenSettings = {
+                            context.startActivity(appSettingsIntent(context.packageName))
+                        },
+                        onRequestManageMedia = {
+                            context.startActivity(manageMediaIntent(context.packageName))
+                        },
+                    )
+
+                    else -> PlaceholderScreen(current)
+                }
+            }
+        }
+
+        folder?.let { route ->
+            AlbumScreen(
+                title = route.title,
+                items = folderItems,
+                onBack = {
+                    // Arrived here from another app's photo: going back a second
+                    // time leaves the gallery rather than dropping into a
+                    // timeline nobody asked for.
+                    if (route.fromExternal) onFinish() else folder = null
+                },
+                onOpen = openItem,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .safeDrawingPadding()
+                    .drawWithContent { if (viewerIndex < 0) drawContent() },
             )
+        }
+
+        if (viewerIndex >= 0) {
+            ViewerScreen(
+                items = viewerItems,
+                startIndex = viewerIndex,
+                thumbBucketPx = viewer?.thumbBucketPx ?: DEFAULT_THUMB_BUCKET,
+                onClose = { viewer = null },
+            )
+        } else if (folder == null && selected != 0) {
+            // Back from any tab other than the first returns to the timeline
+            // before it leaves the app.
+            BackHandler { selected = 0 }
         }
     }
 }

@@ -74,4 +74,5 @@
     <string name="video_pause">Pause</string>
     <string name="video_sound_on">Turn sound on</string>
     <string name="video_sound_off">Turn sound off</string>
+    <string name="album_unknown">Folder</string>
 </resources>

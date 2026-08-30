@@ -3,6 +3,7 @@ package com.keavors.gallery.data
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,7 +16,7 @@ fun mediaContentUri(id: Long, isVideo: Boolean): Uri = ContentUris.withAppendedI
 )
 
 /** The content Uri that opens this item. */
-fun MediaItem.contentUri(): Uri = mediaContentUri(id, isVideo)
+fun MediaItem.contentUri(): Uri = uri.toUri()
 
 /**
  * Reads the whole library out of MediaStore in one pass.
@@ -57,11 +58,14 @@ class MediaStoreSource(private val context: Context) {
             while (c.moveToNext()) {
                 val added = c.getLong(addedCol)
                 val modified = c.getLong(modifiedCol)
+                val id = c.getLong(idCol)
+                val isVideo = c.getInt(typeCol) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
                 items += MediaItem(
-                    id = c.getLong(idCol),
+                    id = id,
+                    uri = mediaContentUri(id, isVideo).toString(),
                     name = c.getString(nameCol) ?: "",
                     mimeType = c.getString(mimeCol) ?: "",
-                    isVideo = c.getInt(typeCol) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO,
+                    isVideo = isVideo,
                     sizeBytes = c.getLong(sizeCol),
                     width = c.getInt(widthCol),
                     height = c.getInt(heightCol),

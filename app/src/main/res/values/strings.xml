@@ -81,4 +81,5 @@
     <string name="video_pause">Пауза</string>
     <string name="video_sound_on">Включить звук</string>
     <string name="video_sound_off">Выключить звук</string>
+    <string name="album_unknown">Папка</string>
 </resources>

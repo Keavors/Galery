@@ -18,6 +18,7 @@ class TimelineTest {
 
     private fun item(taken: Long, video: Boolean = false) = MediaItem(
         id = nextId++,
+        uri = "content://media/external/file/x",
         name = "IMG.jpg",
         mimeType = if (video) "video/mp4" else "image/jpeg",
         isVideo = video,

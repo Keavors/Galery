@@ -37,6 +37,7 @@ class LibrarySummaryTest {
         taken: Long = 1_700_000_000_000,
     ) = MediaItem(
         id = id,
+        uri = "content://media/external/file/$id",
         name = "IMG_$id.jpg",
         mimeType = if (video) "video/mp4" else "image/jpeg",
         isVideo = video,
