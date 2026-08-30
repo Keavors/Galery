@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Галерея</string>
+
+    <string name="tab_photos">Снимки</string>
+    <string name="tab_albums">Альбомы</string>
+    <string name="tab_trash">Корзина</string>
+    <string name="tab_settings">Настройки</string>
+
+    <string name="photos_placeholder">Лента снимков по датам. Двумя пальцами — от отдельных кадров до целых лет.</string>
+    <string name="albums_placeholder">Папки на устройстве, избранное, видео и свои альбомы.</string>
+    <string name="trash_placeholder">Удалённое хранится 30 дней, пока не передумаешь.</string>
+    <string name="settings_placeholder">Настраивается всё, до чего дотягиваются руки.</string>
+
+    <string name="stage_notice">Этап 0 из 10 — каркас. Дальше: доступ к медиа.</string>
+</resources>
