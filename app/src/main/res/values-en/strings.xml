@@ -99,4 +99,20 @@
     <string name="section_deselect">Deselect this date</string>
     <string name="album_favourites">Favourites</string>
     <string name="album_videos">Videos</string>
+
+    <string name="albums_show_hidden">Show hidden</string>
+    <string name="albums_hide_hidden">Hide them again</string>
+    <string name="albums_create">New album</string>
+    <string name="albums_create_confirm">Create</string>
+    <string name="albums_rename">Rename</string>
+    <string name="albums_rename_confirm">Done</string>
+    <string name="album_pin">Pin</string>
+    <string name="album_unpin">Unpin</string>
+    <string name="album_hide">Hide</string>
+    <string name="album_unhide">Show</string>
+    <string name="album_delete">Delete album</string>
+    <string name="album_add_to">Add to album</string>
+    <string name="album_remove_from">Remove from album</string>
+    <string name="album_set_cover">Use as cover</string>
+    <string name="albums_none_yet">No albums of your own yet.</string>
 </resources>

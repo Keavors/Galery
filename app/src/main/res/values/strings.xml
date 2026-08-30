@@ -108,4 +108,20 @@
     <string name="section_deselect">Снять выбор за эту дату</string>
     <string name="album_favourites">Избранное</string>
     <string name="album_videos">Видео</string>
+
+    <string name="albums_show_hidden">Показать скрытые</string>
+    <string name="albums_hide_hidden">Скрыть скрытые</string>
+    <string name="albums_create">Новый альбом</string>
+    <string name="albums_create_confirm">Создать</string>
+    <string name="albums_rename">Переименовать</string>
+    <string name="albums_rename_confirm">Готово</string>
+    <string name="album_pin">Закрепить</string>
+    <string name="album_unpin">Открепить</string>
+    <string name="album_hide">Скрыть</string>
+    <string name="album_unhide">Показывать</string>
+    <string name="album_delete">Удалить альбом</string>
+    <string name="album_add_to">Добавить в альбом</string>
+    <string name="album_remove_from">Убрать из альбома</string>
+    <string name="album_set_cover">Сделать обложкой</string>
+    <string name="albums_none_yet">Своих альбомов пока нет.</string>
 </resources>

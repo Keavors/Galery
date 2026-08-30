@@ -7,6 +7,7 @@ import coil3.SingletonImageLoader
 import coil3.memory.MemoryCache
 import coil3.request.crossfade
 import coil3.size.Precision
+import com.keavors.gallery.data.AlbumStore
 import com.keavors.gallery.data.MediaRepository
 import com.keavors.gallery.data.MediaThumbnailFetcher
 import kotlinx.coroutines.CoroutineScope
@@ -25,9 +26,14 @@ class GalleryApplication : Application(), SingletonImageLoader.Factory {
     lateinit var media: MediaRepository
         private set
 
+    /** Pinned, hidden, chosen covers and albums that exist nowhere else. */
+    lateinit var albums: AlbumStore
+        private set
+
     override fun onCreate() {
         super.onCreate()
         media = MediaRepository(this, appScope)
+        albums = AlbumStore(this)
     }
 
     /**

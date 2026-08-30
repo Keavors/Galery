@@ -60,6 +60,7 @@ fun ViewerTopBar(
     item: MediaItem,
     onBack: () -> Unit,
     onDetails: () -> Unit,
+    onSetCover: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -123,6 +124,15 @@ fun ViewerTopBar(
                         onDetails()
                     },
                 )
+                onSetCover?.let { setCover ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.album_set_cover)) },
+                        onClick = {
+                            menuOpen = false
+                            setCover()
+                        },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.viewer_copy)) },
                     onClick = {

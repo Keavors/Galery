@@ -48,11 +48,12 @@ class MainActivity : ComponentActivity() {
             window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
         }
 
-        val media = (application as GalleryApplication).media
+        val app = application as GalleryApplication
         setContent {
             GalleryTheme {
                 GalleryApp(
-                    repository = media,
+                    repository = app.media,
+                    albumStore = app.albums,
                     launchMode = launchMode,
                     pendingOpen = pendingOpen,
                     onExternalHandled = { pendingOpen = null },

@@ -55,6 +55,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
     implementation(libs.telephoto.zoomable.coil)
     implementation(libs.androidx.exifinterface)
@@ -64,5 +65,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     testImplementation(libs.junit)
+    // android.jar ships org.json as stubs that throw; tests need the real one.
+    testImplementation(libs.json)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

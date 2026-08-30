@@ -1,11 +1,13 @@
 package com.keavors.gallery.ui.albums
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,10 +17,18 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,97 +42,249 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.keavors.gallery.R
+import com.keavors.gallery.data.AlbumPreferences
 import com.keavors.gallery.data.AlbumSource
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaThumb
 import com.keavors.gallery.data.folderAlbums
+import com.keavors.gallery.data.inAlbum
+import com.keavors.gallery.data.key
+import com.keavors.gallery.data.pinnedFirst
 import com.keavors.gallery.data.thumbnailCacheKey
+import com.keavors.gallery.data.withoutHidden
+import com.keavors.gallery.ui.common.TextPromptDialog
 
 /** Cover art is asked for at this size whatever the screen width. */
 private const val COVER_BUCKET = 384
 private const val ALBUM_COLUMNS = 2
 
+/** One card on the albums screen, whatever kind of album it stands for. */
+private data class AlbumCardModel(
+    val source: AlbumSource,
+    val title: String,
+    val count: Int,
+    val cover: MediaItem?,
+    val fallbackIcon: Int,
+    val renamable: Boolean = false,
+    val deletable: Boolean = false,
+)
+
 /**
  * Every album on the device.
  *
- * Folders first by how recently each was used, with the questions that reach
- * across all of them — favourites, videos, the trash — pinned above. A folder
- * touched this morning belongs at the top whatever it is called, which is why
- * the list is not alphabetical.
+ * Folders are ordered by how recently each was used rather than alphabetically:
+ * the folder shot in this morning belongs above the one last touched in 2019,
+ * whatever the two are called. Pinning overrides that; hiding takes an album out
+ * of the list without touching a single file.
+ *
+ * A long press on any card is where the choices live. Nothing is on the cards
+ * themselves — a row of buttons under every album would bury the covers, which
+ * are the only thing here worth looking at.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AlbumsScreen(
     items: List<MediaItem>,
     trashCount: Int,
+    prefs: AlbumPreferences,
     onOpenAlbum: (source: AlbumSource, title: String) -> Unit,
     onOpenTrash: () -> Unit,
+    onTogglePin: (AlbumSource) -> Unit,
+    onSetHidden: (AlbumSource, Boolean) -> Unit,
+    onCreateAlbum: (String) -> Unit,
+    onRenameAlbum: (Long, String) -> Unit,
+    onDeleteAlbum: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val folders = items.folderAlbums()
+    var showHidden by remember { mutableStateOf(false) }
+    var creating by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf<Pair<Long, String>?>(null) }
+
+    val byId = remember(items) { items.associateBy { it.id } }
+    fun coverFor(source: AlbumSource, fallback: MediaItem?): MediaItem? =
+        prefs.coverId(source)?.let { byId[it] } ?: fallback
+
     val favourites = items.filter { it.isFavorite }
     val videos = items.filter { it.isVideo }
+    val virtual = listOf(
+        AlbumCardModel(
+            source = AlbumSource.Favourites,
+            title = stringResource(R.string.album_favourites),
+            count = favourites.size,
+            cover = coverFor(AlbumSource.Favourites, favourites.firstOrNull()),
+            fallbackIcon = R.drawable.ic_heart,
+        ),
+        AlbumCardModel(
+            source = AlbumSource.Videos,
+            title = stringResource(R.string.album_videos),
+            count = videos.size,
+            cover = coverFor(AlbumSource.Videos, videos.firstOrNull()),
+            fallbackIcon = R.drawable.ic_play,
+        ),
+    )
 
-    val favouritesTitle = stringResource(R.string.album_favourites)
-    val videosTitle = stringResource(R.string.album_videos)
+    val userCards = prefs.userAlbums.map { album ->
+        val source = AlbumSource.User(album.id)
+        val contents = items.inAlbum(source, prefs.userAlbums)
+        AlbumCardModel(
+            source = source,
+            title = album.name,
+            count = contents.size,
+            cover = coverFor(source, contents.firstOrNull()),
+            fallbackIcon = R.drawable.ic_tab_albums,
+            renamable = true,
+            deletable = true,
+        )
+    }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(ALBUM_COLUMNS),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = modifier.fillMaxSize(),
-    ) {
-        item(key = "favourites") {
-            AlbumCard(
-                title = favouritesTitle,
-                count = favourites.size,
-                cover = favourites.firstOrNull(),
-                fallbackIcon = R.drawable.ic_heart,
-                onClick = { onOpenAlbum(AlbumSource.Favourites, favouritesTitle) },
-            )
-        }
-        item(key = "videos") {
-            AlbumCard(
-                title = videosTitle,
-                count = videos.size,
-                cover = videos.firstOrNull(),
-                fallbackIcon = R.drawable.ic_play,
-                onClick = { onOpenAlbum(AlbumSource.Videos, videosTitle) },
-            )
-        }
-        item(key = "trash") {
-            AlbumCard(
-                title = stringResource(R.string.tab_trash),
-                count = trashCount,
-                cover = null,
-                fallbackIcon = R.drawable.ic_tab_trash,
-                onClick = onOpenTrash,
-            )
-        }
-
-        items(folders, key = { it.bucketId }) { folder ->
-            AlbumCard(
+    val folderCards = items.folderAlbums()
+        .withoutHidden(prefs, showHidden)
+        .pinnedFirst(prefs)
+        .map { folder ->
+            val source = AlbumSource.Folder(folder.bucketId)
+            AlbumCardModel(
+                source = source,
                 title = folder.name,
                 count = folder.count,
-                cover = folder.cover,
+                cover = coverFor(source, folder.cover),
                 fallbackIcon = R.drawable.ic_tab_albums,
-                onClick = { onOpenAlbum(AlbumSource.Folder(folder.bucketId), folder.name) },
             )
         }
+
+    val cards = (virtual + userCards).filter { showHidden || !prefs.isHidden(it.source) } + folderCards
+    val anythingHidden = prefs.hidden.isNotEmpty()
+
+    Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 18.dp, end = 6.dp, top = 10.dp),
+        ) {
+            Text(
+                text = cards.size.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            if (anythingHidden) {
+                TextButton(onClick = { showHidden = !showHidden }) {
+                    Text(
+                        stringResource(
+                            if (showHidden) R.string.albums_hide_hidden else R.string.albums_show_hidden
+                        )
+                    )
+                }
+            }
+            IconButton(onClick = { creating = true }) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_add),
+                    contentDescription = stringResource(R.string.albums_create),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(ALBUM_COLUMNS),
+            contentPadding = PaddingValues(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            items(cards, key = { it.source.key }) { card ->
+                AlbumCard(
+                    card = card,
+                    pinned = prefs.isPinned(card.source),
+                    hidden = prefs.isHidden(card.source),
+                    onOpen = { onOpenAlbum(card.source, card.title) },
+                    onTogglePin = { onTogglePin(card.source) },
+                    onToggleHidden = { onSetHidden(card.source, !prefs.isHidden(card.source)) },
+                    onRename = {
+                        (card.source as? AlbumSource.User)?.let {
+                            renaming = it.albumId to card.title
+                        }
+                    },
+                    onDelete = {
+                        (card.source as? AlbumSource.User)?.let { onDeleteAlbum(it.albumId) }
+                    },
+                )
+            }
+
+            item(key = "trash") {
+                AlbumCard(
+                    card = AlbumCardModel(
+                        // The trash is not an album and cannot be pinned or
+                        // hidden; it is here because this is where people look
+                        // for it.
+                        source = AlbumSource.Favourites,
+                        title = stringResource(R.string.tab_trash),
+                        count = trashCount,
+                        cover = null,
+                        fallbackIcon = R.drawable.ic_tab_trash,
+                    ),
+                    pinned = false,
+                    hidden = false,
+                    menuEnabled = false,
+                    onOpen = onOpenTrash,
+                    onTogglePin = {},
+                    onToggleHidden = {},
+                    onRename = {},
+                    onDelete = {},
+                )
+            }
+        }
+    }
+
+    if (creating) {
+        TextPromptDialog(
+            title = stringResource(R.string.albums_create),
+            initial = "",
+            confirm = stringResource(R.string.albums_create_confirm),
+            onConfirm = {
+                creating = false
+                onCreateAlbum(it)
+            },
+            onDismiss = { creating = false },
+        )
+    }
+
+    renaming?.let { (albumId, currentName) ->
+        TextPromptDialog(
+            title = stringResource(R.string.albums_rename),
+            initial = currentName,
+            confirm = stringResource(R.string.albums_rename_confirm),
+            onConfirm = {
+                renaming = null
+                onRenameAlbum(albumId, it)
+            },
+            onDismiss = { renaming = null },
+        )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AlbumCard(
-    title: String,
-    count: Int,
-    cover: MediaItem?,
-    fallbackIcon: Int,
-    onClick: () -> Unit,
+    card: AlbumCardModel,
+    pinned: Boolean,
+    hidden: Boolean,
+    onOpen: () -> Unit,
+    onTogglePin: () -> Unit,
+    onToggleHidden: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    menuEnabled: Boolean = true,
 ) {
     val context = LocalContext.current
+    var menuOpen by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.clickable(onClick = onClick)) {
+    Column(
+        modifier = Modifier.combinedClickable(
+            onClick = onOpen,
+            onLongClick = { if (menuEnabled) menuOpen = true },
+        )
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -131,43 +293,94 @@ private fun AlbumCard(
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh),
             contentAlignment = Alignment.Center,
         ) {
+            val cover = card.cover
             if (cover != null) {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
                         .data(MediaThumb(cover.id, cover.isVideo))
                         .size(COVER_BUCKET)
-                        // The same name the grid uses, so an album cover costs
-                        // nothing once its photo has been on screen.
+                        // The same name the grid uses, so a cover costs nothing
+                        // once its photo has been on screen.
                         .memoryCacheKey(thumbnailCacheKey(cover.id, COVER_BUCKET))
                         .placeholderMemoryCacheKey(thumbnailCacheKey(cover.id, COVER_BUCKET))
                         .build(),
-                    contentDescription = title,
+                    contentDescription = card.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                // An empty album still needs a face, and a blank tile reads as a
+                // An empty album still needs a face: a blank tile reads as a
                 // picture that failed to load rather than an album with nothing
                 // in it yet.
                 Icon(
-                    painter = painterResource(fallbackIcon),
+                    painter = painterResource(card.fallbackIcon),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(30.dp),
                 )
             }
 
-            if (cover != null) {
+            if (pinned) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_pin),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(16.dp),
+                )
+            }
+            if (hidden) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.06f)),
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)),
                 )
+            }
+
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = {
+                        Text(stringResource(if (pinned) R.string.album_unpin else R.string.album_pin))
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onTogglePin()
+                    },
+                )
+                DropdownMenuItem(
+                    text = {
+                        Text(stringResource(if (hidden) R.string.album_unhide else R.string.album_hide))
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onToggleHidden()
+                    },
+                )
+                if (card.renamable) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.albums_rename)) },
+                        onClick = {
+                            menuOpen = false
+                            onRename()
+                        },
+                    )
+                }
+                if (card.deletable) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.album_delete)) },
+                        onClick = {
+                            menuOpen = false
+                            onDelete()
+                        },
+                    )
+                }
             }
         }
 
         Text(
-            text = title,
+            text = card.title,
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -175,7 +388,7 @@ private fun AlbumCard(
             modifier = Modifier.padding(top = 8.dp, start = 2.dp),
         )
         Text(
-            text = count.toString(),
+            text = card.count.toString(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 2.dp),

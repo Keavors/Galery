@@ -11,13 +11,28 @@ sealed interface AlbumSource {
     data class Folder(val bucketId: Long) : AlbumSource
     data object Favourites : AlbumSource
     data object Videos : AlbumSource
+
+    /** One somebody made. Its contents live in [AlbumPreferences], not on disk. */
+    data class User(val albumId: Long) : AlbumSource
 }
 
-/** Everything in one album, in the order the library already has it. */
-fun List<MediaItem>.inAlbum(source: AlbumSource): List<MediaItem> = when (source) {
+/**
+ * Everything in one album, in the order the library already has it.
+ *
+ * User albums need [userAlbums] because their membership is the one thing in
+ * this app that cannot be asked of MediaStore.
+ */
+fun List<MediaItem>.inAlbum(
+    source: AlbumSource,
+    userAlbums: List<UserAlbum> = emptyList(),
+): List<MediaItem> = when (source) {
     is AlbumSource.Folder -> inFolder(source.bucketId)
     AlbumSource.Favourites -> filter { it.isFavorite }
     AlbumSource.Videos -> filter { it.isVideo }
+    is AlbumSource.User -> {
+        val members = userAlbums.firstOrNull { it.id == source.albumId }?.memberIds.orEmpty()
+        filter { it.id in members }
+    }
 }
 
 /**
@@ -62,3 +77,19 @@ fun List<MediaItem>.folderAlbums(): List<FolderAlbum> {
         )
     }.sortedByDescending { it.newestAt }
 }
+
+/**
+ * Pinned albums float to the top, everything else keeps the order it had.
+ *
+ * Sorting rather than filtering into two lists so the screen renders one list:
+ * a pinned album that is later unpinned drops back into its old place instead of
+ * appearing somewhere new.
+ */
+fun List<FolderAlbum>.pinnedFirst(prefs: AlbumPreferences): List<FolderAlbum> {
+    val (pinned, rest) = partition { prefs.isPinned(AlbumSource.Folder(it.bucketId)) }
+    return pinned + rest
+}
+
+/** Albums the person chose not to see, unless they asked to see them again. */
+fun List<FolderAlbum>.withoutHidden(prefs: AlbumPreferences, showHidden: Boolean): List<FolderAlbum> =
+    if (showHidden) this else filterNot { prefs.isHidden(AlbumSource.Folder(it.bucketId)) }

@@ -83,3 +83,41 @@ class AlbumSourceTest {
         assertEquals(library.filter { it.isVideo }.map { it.id }, ordered.map { it.id })
     }
 }
+
+class AlbumOrderTest {
+
+    private val albums = listOf(
+        testItem(1, bucket = 10, taken = 500),
+        testItem(2, bucket = 20, taken = 400),
+        testItem(3, bucket = 30, taken = 300),
+    ).folderAlbums()
+
+    @Test
+    fun `nothing pinned leaves the order alone`() {
+        assertEquals(
+            albums.map { it.bucketId },
+            albums.pinnedFirst(AlbumPreferences()).map { it.bucketId },
+        )
+    }
+
+    @Test
+    fun `a pinned album goes to the top`() {
+        val prefs = AlbumPreferences(pinned = setOf(AlbumSource.Folder(30).key))
+        assertEquals(listOf(30L, 10L, 20L), albums.pinnedFirst(prefs).map { it.bucketId })
+    }
+
+    @Test
+    fun `pinned albums keep their order relative to each other`() {
+        val prefs = AlbumPreferences(
+            pinned = setOf(AlbumSource.Folder(30).key, AlbumSource.Folder(20).key)
+        )
+        assertEquals(listOf(20L, 30L, 10L), albums.pinnedFirst(prefs).map { it.bucketId })
+    }
+
+    @Test
+    fun `hidden albums are left out until asked for`() {
+        val prefs = AlbumPreferences(hidden = setOf(AlbumSource.Folder(20).key))
+        assertEquals(listOf(10L, 30L), albums.withoutHidden(prefs, showHidden = false).map { it.bucketId })
+        assertEquals(3, albums.withoutHidden(prefs, showHidden = true).size)
+    }
+}

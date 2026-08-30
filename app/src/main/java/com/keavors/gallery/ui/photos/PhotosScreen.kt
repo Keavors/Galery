@@ -23,6 +23,7 @@ import com.keavors.gallery.data.MediaWriter
 fun PhotosScreen(
     state: LibraryState,
     writer: MediaWriter,
+    albumActions: AlbumActions,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -47,7 +48,13 @@ fun PhotosScreen(
                 )
             }
         } else {
-            TimelineScreen(items = state.items, writer = writer, onOpen = onOpen, modifier = modifier)
+            TimelineScreen(
+                items = state.items,
+                writer = writer,
+                albumActions = albumActions,
+                onOpen = onOpen,
+                modifier = modifier,
+            )
         }
     }
 }

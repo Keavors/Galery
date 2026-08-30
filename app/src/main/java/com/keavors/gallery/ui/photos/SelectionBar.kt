@@ -31,6 +31,8 @@ fun SelectionBar(
     onToggleFavorite: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
+    onAddToAlbum: () -> Unit,
+    onRemoveFromAlbum: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -68,6 +70,24 @@ fun SelectionBar(
                     ),
                     tint = MaterialTheme.colorScheme.onSurface,
                 )
+            }
+            IconButton(onClick = onAddToAlbum) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_add),
+                    contentDescription = stringResource(R.string.album_add_to),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            // Only inside an album someone made: nothing can be removed from a
+            // folder, because being in one is a fact about the disk.
+            onRemoveFromAlbum?.let { remove ->
+                IconButton(onClick = remove) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_remove),
+                        contentDescription = stringResource(R.string.album_remove_from),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
             IconButton(onClick = onShare) {
                 Icon(

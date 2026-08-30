@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,7 +45,9 @@ import com.keavors.gallery.data.LibraryState
 import com.keavors.gallery.data.MediaAccess
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaRepository
+import com.keavors.gallery.data.AlbumPreferences
 import com.keavors.gallery.data.AlbumSource
+import com.keavors.gallery.data.AlbumStore
 import com.keavors.gallery.data.canManageMedia
 import com.keavors.gallery.data.inAlbum
 import com.keavors.gallery.data.indexOfId
@@ -54,11 +57,13 @@ import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.albums.AlbumsScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
 import com.keavors.gallery.ui.permission.MediaGate
+import com.keavors.gallery.ui.photos.AlbumActions
 import com.keavors.gallery.ui.photos.PhotosScreen
 import com.keavors.gallery.ui.common.rememberMediaWriter
 import com.keavors.gallery.ui.settings.SettingsScreen
 import com.keavors.gallery.ui.trash.TrashScreen
 import com.keavors.gallery.ui.viewer.ViewerScreen
+import kotlinx.coroutines.launch
 
 /** Duration of the cross-fade between tabs, ms. Kept short: tabs are cheap. */
 private const val TAB_FADE_IN = 220
@@ -70,6 +75,7 @@ private const val DEFAULT_THUMB_BUCKET = 384
 @Composable
 fun GalleryApp(
     repository: MediaRepository,
+    albumStore: AlbumStore,
     launchMode: LaunchMode,
     pendingOpen: ExternalOpen?,
     onExternalHandled: () -> Unit,
@@ -91,6 +97,8 @@ fun GalleryApp(
     val library by repository.state.collectAsStateWithLifecycle()
     val trash by repository.trash.collectAsStateWithLifecycle()
     val writer = rememberMediaWriter(managesMedia = manageMedia)
+    val albumPrefs by albumStore.preferences.collectAsStateWithLifecycle(AlbumPreferences())
+    val scope = rememberCoroutineScope()
     val libraryItems = (library as? LibraryState.Ready)?.items.orEmpty()
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -141,14 +149,16 @@ fun GalleryApp(
         onExternalHandled()
     }
 
-    val folderItems = folder?.let { libraryItems.inAlbum(it.source) }.orEmpty()
+    val folderItems = folder?.let { libraryItems.inAlbum(it.source, albumPrefs.userAlbums) }
+        .orEmpty()
 
     val viewerItems = viewer?.let { route ->
         when {
             // The folder straight from the library once it has one; the answer
             // found ahead of it only until then.
             route.source != null ->
-                libraryItems.inAlbum(route.source).ifEmpty { route.items.orEmpty() }
+                libraryItems.inAlbum(route.source, albumPrefs.userAlbums)
+                    .ifEmpty { route.items.orEmpty() }
             route.items != null -> route.items
             else -> libraryItems
         }
@@ -157,6 +167,18 @@ fun GalleryApp(
     val viewerIndex = viewer?.let { route ->
         if (viewerItems.none { it.id == route.itemId }) -1 else viewerItems.indexOfId(route.itemId)
     } ?: -1
+
+    // Album actions for the timeline. The remove action is filled in only when
+    // the grid on screen is an album someone made — a photo cannot be removed
+    // from a folder, only moved out of it, which is a different thing entirely.
+    fun albumActions(removableFrom: AlbumSource?) = AlbumActions(
+        userAlbums = albumPrefs.userAlbums,
+        onAddTo = { albumId, ids -> scope.launch { albumStore.addToUserAlbum(albumId, ids) } },
+        onCreateWith = { name, ids -> scope.launch { albumStore.createUserAlbum(name, ids) } },
+        onRemoveFrom = (removableFrom as? AlbumSource.User)?.let { album ->
+            { ids: Set<Long> -> scope.launch { albumStore.removeFromUserAlbum(album.albumId, ids) } }
+        },
+    )
 
     val openItem: (MediaItem, Int) -> Unit = { item, bucket ->
         if (launchMode == LaunchMode.PICK) {
@@ -226,7 +248,12 @@ fun GalleryApp(
                             context.startActivity(appSettingsIntent(context.packageName))
                         },
                     ) {
-                        PhotosScreen(state = library, writer = writer, onOpen = openItem)
+                        PhotosScreen(
+                            state = library,
+                            writer = writer,
+                            albumActions = albumActions(removableFrom = null),
+                            onOpen = openItem,
+                        )
                     }
 
                     Tab.TRASH -> MediaGate(
@@ -263,10 +290,22 @@ fun GalleryApp(
                         AlbumsScreen(
                             items = libraryItems,
                             trashCount = trash.size,
+                            prefs = albumPrefs,
                             onOpenAlbum = { source, title ->
                                 folder = FolderRoute(source, title, fromExternal = false)
                             },
                             onOpenTrash = { selected = Tab.TRASH.ordinal },
+                            onTogglePin = { scope.launch { albumStore.togglePinned(it) } },
+                            onSetHidden = { source, hidden ->
+                                scope.launch { albumStore.setHidden(source, hidden) }
+                            },
+                            onCreateAlbum = { name ->
+                                scope.launch { albumStore.createUserAlbum(name) }
+                            },
+                            onRenameAlbum = { id, name ->
+                                scope.launch { albumStore.renameUserAlbum(id, name) }
+                            },
+                            onDeleteAlbum = { id -> scope.launch { albumStore.deleteUserAlbum(id) } },
                         )
                     }
 
@@ -280,6 +319,7 @@ fun GalleryApp(
                 title = route.title,
                 items = folderItems,
                 writer = writer,
+                albumActions = albumActions(removableFrom = route.source),
                 onBack = {
                     // Arrived here from another app's photo: going back a second
                     // time leaves the gallery rather than dropping into a
@@ -312,6 +352,10 @@ fun GalleryApp(
                 startIndex = viewerIndex,
                 thumbBucketPx = viewer?.thumbBucketPx ?: DEFAULT_THUMB_BUCKET,
                 writer = writer,
+                // Only offered where there is an album to be the cover of.
+                onSetCover = viewer?.source?.let { source ->
+                    { itemId: Long -> scope.launch { albumStore.setCover(source, itemId) } }
+                },
                 onClose = { viewer = null },
             )
         } else if (folder == null && selected != 0) {

@@ -59,6 +59,7 @@ import com.keavors.gallery.data.shareMedia
 import com.keavors.gallery.data.thumbnailBucketPx
 import com.keavors.gallery.data.zoomSteps
 import com.keavors.gallery.ui.common.ConfirmDialog
+import com.keavors.gallery.ui.common.TextPromptDialog
 import com.keavors.gallery.ui.common.pinchZoom
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -78,6 +79,7 @@ private const val MAX_LIVE_SCALE = 1.9f
 fun TimelineScreen(
     items: List<MediaItem>,
     writer: MediaWriter,
+    albumActions: AlbumActions,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -105,6 +107,8 @@ fun TimelineScreen(
 
     var selected by remember { mutableStateOf(emptySet<Long>()) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var choosingAlbum by remember { mutableStateOf(false) }
+    var namingAlbum by remember { mutableStateOf(false) }
 
     // Files can vanish from under a selection — deleted here, or by another app
     // entirely — and a count of things nobody can point at helps no one.
@@ -270,6 +274,13 @@ fun TimelineScreen(
                     selected = emptySet()
                 },
                 onShare = { context.shareMedia(chosen, shareTitle) },
+                onAddToAlbum = { choosingAlbum = true },
+                onRemoveFromAlbum = albumActions.onRemoveFrom?.let { remove ->
+                    {
+                        remove(selected)
+                        selected = emptySet()
+                    }
+                },
                 onDelete = {
                     if (writer.needsOwnConfirmation) {
                         confirmDelete = true
@@ -281,6 +292,36 @@ fun TimelineScreen(
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
+    }
+
+    if (choosingAlbum) {
+        ChooseAlbumDialog(
+            albums = albumActions.userAlbums,
+            onChoose = { albumId ->
+                choosingAlbum = false
+                albumActions.onAddTo(albumId, selected)
+                selected = emptySet()
+            },
+            onCreateNew = {
+                choosingAlbum = false
+                namingAlbum = true
+            },
+            onDismiss = { choosingAlbum = false },
+        )
+    }
+
+    if (namingAlbum) {
+        TextPromptDialog(
+            title = stringResource(R.string.albums_create),
+            initial = "",
+            confirm = stringResource(R.string.albums_create_confirm),
+            onConfirm = { name ->
+                namingAlbum = false
+                albumActions.onCreateWith(name, selected)
+                selected = emptySet()
+            },
+            onDismiss = { namingAlbum = false },
+        )
     }
 
     if (confirmDelete) {

@@ -75,6 +75,7 @@ fun ViewerScreen(
     startIndex: Int,
     thumbBucketPx: Int,
     writer: MediaWriter,
+    onSetCover: ((itemId: Long) -> Unit)?,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -274,6 +275,7 @@ fun ViewerScreen(
                 item = current,
                 onBack = onClose,
                 onDetails = { detailsVisible = true },
+                onSetCover = onSetCover?.let { set -> { set(current.id) } },
             )
         }
 
