@@ -2,8 +2,6 @@ package com.keavors.gallery.ui.editor
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,11 +17,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.data.CropRect
-import kotlin.math.abs
 import kotlin.math.min
 
 /** How close a finger has to be to a corner to be taken as grabbing it. */
@@ -37,6 +35,11 @@ private val HANDLE_REACH = 36.dp
  * the screen has left. Two boxes agreeing on that by layout would drift apart
  * the moment either changed.
  *
+ * The picture handed in must be the one *before* cropping — turned and
+ * straightened, but whole. The crop is this frame, and a picture that already
+ * had it applied would leave the frame measuring a photograph that is no longer
+ * underneath it.
+ *
  * The corners are grabbed; the middle drags the whole frame. Nothing snaps to
  * anything: a crop is a judgement, and a frame that jumps to a ratio nobody
  * asked for is fighting it.
@@ -48,70 +51,120 @@ fun CropCanvas(
     onCropChange: (CropRect) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var canvas by remember { mutableStateOf(Size.Zero) }
+
+    // Where the photograph sits inside the canvas, worked out from the two
+    // sizes rather than measured while drawing. Drawing happens after touches
+    // are handled, so a frame written there was always one gesture out of date —
+    // the first drag of a session moved the crop against a rectangle of zeroes.
+    val frame = letterboxIn(canvas, image.width, image.height)
+
+    // Read through updated state rather than captured: the gesture detector is
+    // created once per picture, and a captured frame or crop would keep the
+    // value it was born with for as long as the editor is open.
     val current by rememberUpdatedState(crop)
     val report by rememberUpdatedState(onCropChange)
+    val box by rememberUpdatedState(frame)
 
-    // Where the photograph ended up inside the canvas, in pixels. Written while
-    // drawing and read while handling touches, which is the only way the two can
-    // agree without one of them guessing.
-    var frame by remember { mutableStateOf(Rect.Zero) }
     var grabbed by remember { mutableStateOf(Grab.NONE) }
 
-    Box(
-        modifier = modifier.pointerInput(image) {
-            val reach = HANDLE_REACH.toPx()
-            detectDragGestures(
-                onDragStart = { start ->
-                    grabbed = grabFor(start, current, frame, reach)
-                },
-                onDragEnd = { grabbed = Grab.NONE },
-                onDragCancel = { grabbed = Grab.NONE },
-            ) { change, drag ->
-                change.consume()
-                if (frame.width <= 0f || frame.height <= 0f) return@detectDragGestures
-                val dx = drag.x / frame.width
-                val dy = drag.y / frame.height
-                report(current.moved(grabbed, dx, dy))
-            }
-        },
+    Canvas(
+        modifier = modifier
+            .onSizeChanged { canvas = Size(it.width.toFloat(), it.height.toFloat()) }
+            .pointerInput(image) {
+                val reach = HANDLE_REACH.toPx()
+                detectDragGestures(
+                    onDragStart = { start -> grabbed = grabFor(start, current, box, reach) },
+                    onDragEnd = { grabbed = Grab.NONE },
+                    onDragCancel = { grabbed = Grab.NONE },
+                ) { change, drag ->
+                    change.consume()
+                    val over = box
+                    if (over.width <= 0f || over.height <= 0f) return@detectDragGestures
+                    report(current.moved(grabbed, drag.x / over.width, drag.y / over.height))
+                }
+            },
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            frame = drawLetterboxed(image)
-            drawCrop(frame, current)
-        }
+        drawImage(
+            image = image,
+            dstOffset = IntOffset(frame.left.toInt(), frame.top.toInt()),
+            dstSize = IntSize(frame.width.toInt(), frame.height.toInt()),
+        )
+        drawCrop(frame, current)
     }
 }
 
 /** Which part of the frame a finger took hold of. */
-private enum class Grab { NONE, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, WHOLE }
+internal enum class Grab { NONE, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, WHOLE }
 
-private fun grabFor(point: Offset, crop: CropRect, frame: Rect, reach: Float): Grab {
-    if (frame.width <= 0f) return Grab.NONE
-    val left = frame.left + frame.width * crop.left
-    val right = frame.left + frame.width * crop.right
-    val top = frame.top + frame.height * crop.top
-    val bottom = frame.top + frame.height * crop.bottom
-
-    fun near(x: Float, y: Float) = abs(point.x - x) < reach && abs(point.y - y) < reach
-
-    return when {
-        near(left, top) -> Grab.TOP_LEFT
-        near(right, top) -> Grab.TOP_RIGHT
-        near(left, bottom) -> Grab.BOTTOM_LEFT
-        near(right, bottom) -> Grab.BOTTOM_RIGHT
-        point.x in left..right && point.y in top..bottom -> Grab.WHOLE
-        else -> Grab.NONE
+/**
+ * Where a picture of this shape ends up inside a canvas of that shape: as large
+ * as it goes without being stretched, and centred in what is left over.
+ */
+internal fun letterboxIn(canvas: Size, imageWidth: Int, imageHeight: Int): Rect {
+    if (canvas.width <= 0f || canvas.height <= 0f || imageWidth <= 0 || imageHeight <= 0) {
+        return Rect.Zero
     }
+    val scale = min(canvas.width / imageWidth, canvas.height / imageHeight)
+    val width = imageWidth * scale
+    val height = imageHeight * scale
+    val left = (canvas.width - width) / 2f
+    val top = (canvas.height - height) / 2f
+    return Rect(left, top, left + width, top + height)
 }
 
 /**
- * The frame after a drag.
+ * What a finger landing here took hold of.
+ *
+ * The nearest corner wins rather than the first one within reach: on a crop
+ * pulled down to a thumbnail every corner is within reach of every touch, and
+ * asking them in a fixed order would always answer the top left.
+ */
+internal fun grabFor(point: Offset, crop: CropRect, frame: Rect, reach: Float): Grab {
+    if (frame.width <= 0f || frame.height <= 0f) return Grab.NONE
+    val on = crop.on(frame)
+
+    var closest = Grab.NONE
+    var distance = reach * reach
+    listOf(
+        Grab.TOP_LEFT to on.topLeft,
+        Grab.TOP_RIGHT to on.topRight,
+        Grab.BOTTOM_LEFT to on.bottomLeft,
+        Grab.BOTTOM_RIGHT to on.bottomRight,
+    ).forEach { (corner, at) ->
+        val away = (point - at).getDistanceSquared()
+        if (away <= distance) {
+            distance = away
+            closest = corner
+        }
+    }
+    if (closest != Grab.NONE) return closest
+
+    return if (on.contains(point)) Grab.WHOLE else Grab.NONE
+}
+
+/**
+ * Where a crop lands on the canvas.
+ *
+ * A crop is fractions of the picture; this is the one place they are turned
+ * into pixels, so the frame that is drawn and the frame that is grabbed cannot
+ * be two different rectangles.
+ */
+internal fun CropRect.on(frame: Rect): Rect = Rect(
+    left = frame.left + frame.width * this.left,
+    top = frame.top + frame.height * this.top,
+    right = frame.left + frame.width * this.right,
+    bottom = frame.top + frame.height * this.bottom,
+)
+
+/**
+ * The frame after a drag, in fractions of the picture.
  *
  * A corner moves alone and stops before it crosses its opposite; the middle
  * moves the whole frame and stops at the edges of the picture rather than
  * shrinking against them.
  */
-private fun CropRect.moved(grab: Grab, dx: Float, dy: Float): CropRect = when (grab) {
+internal fun CropRect.moved(grab: Grab, dx: Float, dy: Float): CropRect = when (grab) {
     Grab.NONE -> this
 
     Grab.TOP_LEFT -> copy(
@@ -141,30 +194,15 @@ private fun CropRect.moved(grab: Grab, dx: Float, dy: Float): CropRect = when (g
     }
 }
 
-/** Draws the picture as large as it goes without changing its shape. */
-private fun DrawScope.drawLetterboxed(image: ImageBitmap): Rect {
-    val scale = min(size.width / image.width, size.height / image.height)
-    val width = image.width * scale
-    val height = image.height * scale
-    val left = (size.width - width) / 2f
-    val top = (size.height - height) / 2f
-
-    drawImage(
-        image = image,
-        dstOffset = IntOffset(left.toInt(), top.toInt()),
-        dstSize = IntSize(width.toInt(), height.toInt()),
-    )
-    return Rect(left, top, left + width, top + height)
-}
-
 /** Dims what is being cut away and draws the frame and its corners. */
 private fun DrawScope.drawCrop(frame: Rect, crop: CropRect) {
     if (frame.width <= 0f) return
 
-    val left = frame.left + frame.width * crop.left
-    val right = frame.left + frame.width * crop.right
-    val top = frame.top + frame.height * crop.top
-    val bottom = frame.top + frame.height * crop.bottom
+    val on = crop.on(frame)
+    val left = on.left
+    val right = on.right
+    val top = on.top
+    val bottom = on.bottom
 
     val shade = Color.Black.copy(alpha = 0.55f)
     // Four bands rather than one rectangle with a hole: a hole needs a layer,
@@ -190,14 +228,16 @@ private fun DrawScope.drawCrop(frame: Rect, crop: CropRect) {
         drawLine(hairline, Offset(left, top + thirdY * i), Offset(right, top + thirdY * i))
     }
 
-    val arm = 22.dp.toPx()
-    val thick = Stroke(width = 4.dp.toPx())
+    // The arms never reach further than half the side they sit on, or a frame
+    // pulled small would be drawn as a solid white block.
+    val arm = min(22.dp.toPx(), min(right - left, bottom - top) / 2f)
+    val thick = 4.dp.toPx()
     listOf(
         Offset(left, top) to listOf(Offset(left + arm, top), Offset(left, top + arm)),
         Offset(right, top) to listOf(Offset(right - arm, top), Offset(right, top + arm)),
         Offset(left, bottom) to listOf(Offset(left + arm, bottom), Offset(left, bottom - arm)),
         Offset(right, bottom) to listOf(Offset(right - arm, bottom), Offset(right, bottom - arm)),
     ).forEach { (corner, arms) ->
-        arms.forEach { drawLine(Color.White, corner, it, strokeWidth = thick.width) }
+        arms.forEach { drawLine(Color.White, corner, it, strokeWidth = thick) }
     }
 }

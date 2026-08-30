@@ -91,8 +91,12 @@ fun EditorScreen(
         preview = context.decodeForEditing(item, PREVIEW_PIXELS)
     }
 
-    val shown = remember(preview, ops) {
-        preview?.let { if (ops.isIdentity) it else applyOps(it, ops) }
+    // Turns and straightening only: the crop is the frame drawn on top of this
+    // picture, and applying it here as well would cut away the very part the
+    // frame is measured against — every drag would then crop the crop.
+    val geometry = ops.copy(crop = CropRect.Whole)
+    val shown = remember(preview, geometry) {
+        preview?.let { if (geometry.isIdentity) it else applyOps(it, geometry) }
     }
 
     BackHandler { onClose() }
