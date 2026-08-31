@@ -130,7 +130,7 @@ fun EditorScreen(
     var brush by remember(item.id) { mutableStateOf(Brush()) }
     // The line still under the finger. It joins the edits only when the finger
     // comes up, so that one stroke is one thing to undo rather than two hundred.
-    var pending by remember(item.id) { mutableStateOf<Mark.Stroke?>(null) }
+    var pending by remember(item.id) { mutableStateOf<Mark?>(null) }
     // Where a tap landed, waiting for the words that go there. Held rather than
     // acted on at once, because the words have to be typed first and the spot
     // has to still be the spot by the time they are.
@@ -320,7 +320,7 @@ fun EditorScreen(
                     } else {
                         pending?.let { ops.marks + it } ?: ops.marks
                     },
-                    onPlace = if (tab == EditorTab.MARKUP && !comparing && brush.tool != Tool.BRUSH) {
+                    onPlace = if (tab == EditorTab.MARKUP && !comparing && brush.tool.isTapped) {
                         { point ->
                             if (brush.tool == Tool.TEXT) {
                                 writingAt = point
@@ -334,9 +334,13 @@ fun EditorScreen(
                     } else {
                         null
                     },
-                    onDraw = if (tab == EditorTab.MARKUP && !comparing && brush.tool == Tool.BRUSH) {
+                    onDraw = if (tab == EditorTab.MARKUP && !comparing && !brush.tool.isTapped) {
                         { point, started ->
-                            pending = if (started) brush.strokeAt(point) else pending?.extendedTo(point)
+                            pending = if (started) {
+                                brush.markAt(point)
+                            } else {
+                                pending?.extendedTo(point)
+                            }
                         }
                     } else {
                         null
@@ -659,12 +663,17 @@ private data class Brush(
     val font: MarkFont = MarkFont.PLAIN,
     val sticker: String = STICKERS.first(),
 ) {
-    fun strokeAt(point: MarkPoint) = Mark.Stroke(
-        points = listOf(point),
-        colour = colour,
-        width = width,
-        erases = erasing,
-    )
+    /** What a finger starting to drag puts down, whichever tool is open. */
+    fun markAt(point: MarkPoint): Mark = when (tool) {
+        Tool.BLUR -> Mark.Obscured(from = point, to = point, pixelated = false)
+        Tool.PIXELATE -> Mark.Obscured(from = point, to = point, pixelated = true)
+        else -> Mark.Stroke(
+            points = listOf(point),
+            colour = colour,
+            width = width,
+            erases = erasing,
+        )
+    }
 
     fun writingAt(point: MarkPoint, words: String) = Mark.Text(
         text = words,
@@ -684,8 +693,19 @@ private data class Brush(
     )
 }
 
-/** What a touch on the picture does while the markup tools are open. */
-private enum class Tool { BRUSH, TEXT, STICKER }
+/**
+ * What a touch on the picture does while the markup tools are open.
+ *
+ * Some are put down with a tap and some are dragged out, and that is the only
+ * thing the canvas needs to know about any of them.
+ */
+private enum class Tool(val isTapped: Boolean) {
+    BRUSH(isTapped = false),
+    TEXT(isTapped = true),
+    STICKER(isTapped = true),
+    BLUR(isTapped = false),
+    PIXELATE(isTapped = false),
+}
 
 /** A sticker is drawn at this multiple of the writing size. */
 private const val STICKER_SCALE = 2.5f
@@ -701,8 +721,18 @@ private val STICKERS = listOf(
     "❌", "➡️", "⬅️", "⭕", "📍", "🎯", "💡", "⚠️",
 )
 
-/** The same stroke with one more point on the end of it. */
-private fun Mark.Stroke.extendedTo(point: MarkPoint) = copy(points = points + point)
+/**
+ * The same mark, followed to where the finger is now.
+ *
+ * A line gains a point; a hidden region keeps the corner it started at and
+ * moves the opposite one, which is what makes it drag out of that corner in any
+ * direction.
+ */
+private fun Mark.extendedTo(point: MarkPoint): Mark = when (this) {
+    is Mark.Stroke -> copy(points = points + point)
+    is Mark.Obscured -> copy(to = point)
+    is Mark.Text -> this
+}
 
 /**
  * The colours to draw in.
@@ -775,6 +805,18 @@ private fun MarkupTools(
                 touched = false,
                 onClick = { onBrush(brush.copy(tool = Tool.STICKER)) },
             )
+            CorrectionChip(
+                label = stringResource(R.string.markup_blur),
+                selected = brush.tool == Tool.BLUR,
+                touched = false,
+                onClick = { onBrush(brush.copy(tool = Tool.BLUR)) },
+            )
+            CorrectionChip(
+                label = stringResource(R.string.markup_pixelate),
+                selected = brush.tool == Tool.PIXELATE,
+                touched = false,
+                onClick = { onBrush(brush.copy(tool = Tool.PIXELATE)) },
+            )
             if (canClear) {
                 CorrectionChip(
                     label = stringResource(R.string.markup_clear),
@@ -789,6 +831,13 @@ private fun MarkupTools(
         // swatches over an eraser, or a choice of lettering over a brush, is a
         // control that lies about what it governs.
         when {
+            brush.tool == Tool.BLUR || brush.tool == Tool.PIXELATE -> Text(
+                text = stringResource(R.string.markup_hide_hint),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.padding(vertical = 12.dp),
+            )
+
             brush.tool == Tool.STICKER -> Row(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 modifier = Modifier
@@ -845,19 +894,23 @@ private fun MarkupTools(
             }
         }
 
-        // One slider, governing whichever of the two sizes the open tool has.
-        if (brush.tool == Tool.BRUSH) {
-            WhiteSlider(
+        // One slider, governing whichever size the open tool has — and none at
+        // all for the two that have none: a hidden region is as large as the
+        // rectangle it was dragged out to.
+        when (brush.tool) {
+            Tool.BRUSH -> WhiteSlider(
                 value = brush.width,
                 onValueChange = { onBrush(brush.copy(width = it)) },
                 range = THINNEST..THICKEST,
             )
-        } else {
-            WhiteSlider(
+
+            Tool.TEXT, Tool.STICKER -> WhiteSlider(
                 value = brush.writingSize,
                 onValueChange = { onBrush(brush.copy(writingSize = it)) },
                 range = SMALLEST_WRITING..LARGEST_WRITING,
             )
+
+            Tool.BLUR, Tool.PIXELATE -> Unit
         }
     }
 }

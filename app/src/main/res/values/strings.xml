@@ -261,6 +261,9 @@
     <string name="markup_font_plain">Обычный</string>
     <string name="markup_font_serif">С засечками</string>
     <string name="markup_font_mono">Моноширинный</string>
+    <string name="markup_blur">Размыть</string>
+    <string name="markup_pixelate">Пиксели</string>
+    <string name="markup_hide_hint">Обведите пальцем участок, который надо скрыть</string>
     <string name="markup_clear">Убрать всё</string>
 
     <!-- Фильтры: те же коррекции, выставленные заранее. -->

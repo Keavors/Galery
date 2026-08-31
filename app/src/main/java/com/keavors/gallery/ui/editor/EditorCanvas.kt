@@ -29,6 +29,7 @@ import com.keavors.gallery.data.CropRect
 import com.keavors.gallery.data.Mark
 import com.keavors.gallery.data.MarkPoint
 import com.keavors.gallery.data.PixelRect
+import com.keavors.gallery.data.Underneath
 import com.keavors.gallery.data.drawMarks
 import com.keavors.gallery.data.uncroppedArea
 import com.keavors.gallery.data.Vignette
@@ -184,11 +185,16 @@ fun EditorCanvas(
         // a mark belongs to the picture, so cropping moves the picture under it
         // instead of dragging it along.
         if (marks.isNotEmpty()) {
+            val whole = uncroppedArea(shownCrop(cropVisible, current), frame.width, frame.height)
+                .translate(frame.left, frame.top)
             drawMarks(
                 marks = marks,
-                area = uncroppedArea(shownCrop(cropVisible, current), frame.width, frame.height)
-                    .translate(frame.left, frame.top),
+                area = whole,
                 clipTo = frame,
+                // The preview bitmap, and where all of it would sit if none of
+                // it had been cropped away — which is what a blur has to read
+                // from, since it is reading the picture rather than the screen.
+                under = Underneath(image, whole),
             )
         }
         if (cropVisible) drawCrop(frame, current)
@@ -362,20 +368,6 @@ internal fun CropRect.keeping(ratio: Float, pictureShape: Float, grab: Grab): Cr
 
     return CropRect(left, top, left + wide, top + high)
 }
-
-/**
- * Where a crop lands on the canvas.
- *
- * A crop is fractions of the picture; this is the one place they are turned
- * into pixels, so the frame that is drawn and the frame that is grabbed cannot
- * be two different rectangles.
- */
-internal fun CropRect.on(frame: Rect): Rect = Rect(
-    left = frame.left + frame.width * this.left,
-    top = frame.top + frame.height * this.top,
-    right = frame.left + frame.width * this.right,
-    bottom = frame.top + frame.height * this.bottom,
-)
 
 /**
  * The frame after a drag, in fractions of the picture.

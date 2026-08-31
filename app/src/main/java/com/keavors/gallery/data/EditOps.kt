@@ -1,5 +1,6 @@
 package com.keavors.gallery.data
 
+import androidx.compose.ui.geometry.Rect
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -56,6 +57,21 @@ data class CropRect(
             height = (height * this.height).toInt().coerceIn(1, height - y),
         )
     }
+
+    /**
+     * Where this lands on a rectangle.
+     *
+     * A crop is fractions of the picture; this is the one place they are turned
+     * into somewhere, so that the frame that is drawn, the frame that is
+     * grabbed and the region that is blurred cannot be three different
+     * rectangles.
+     */
+    fun on(area: Rect): Rect = Rect(
+        left = area.left + area.width * this.left,
+        top = area.top + area.height * this.top,
+        right = area.left + area.width * this.right,
+        bottom = area.top + area.height * this.bottom,
+    )
 
     companion object {
         val Whole = CropRect()

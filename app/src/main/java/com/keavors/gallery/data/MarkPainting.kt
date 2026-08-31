@@ -7,6 +7,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -19,6 +21,8 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 
 /**
@@ -35,13 +39,29 @@ import androidx.compose.ui.unit.LayoutDirection
  */
 
 /**
+ * The picture the marks are going over, and where it sits on the canvas.
+ *
+ * Needed only by the marks that hide part of it: blurring a face means reading
+ * the face first, and the marks are drawn in canvas coordinates while the pixels
+ * live in the picture's own. On screen those are two very different rectangles;
+ * while saving they happen to be the same one, which is why this is one
+ * parameter rather than two code paths.
+ */
+data class Underneath(val image: ImageBitmap, val occupies: Rect)
+
+/**
  * Draws [marks] over the picture occupying [area].
  *
  * [area] is where the *whole* photograph sits, cropped parts and all, so a mark
  * put near an edge that was later cropped away falls outside and is clipped
  * rather than sliding inwards.
  */
-fun DrawScope.drawMarks(marks: List<Mark>, area: Rect, clipTo: Rect = area) {
+fun DrawScope.drawMarks(
+    marks: List<Mark>,
+    area: Rect,
+    clipTo: Rect = area,
+    under: Underneath? = null,
+) {
     if (marks.isEmpty() || area.width <= 0f || area.height <= 0f) return
 
     clipRect(clipTo.left, clipTo.top, clipTo.right, clipTo.bottom) {
@@ -55,6 +75,7 @@ fun DrawScope.drawMarks(marks: List<Mark>, area: Rect, clipTo: Rect = area) {
                 when (mark) {
                     is Mark.Stroke -> drawStroke(mark, area)
                     is Mark.Text -> drawWriting(mark, area)
+                    is Mark.Obscured -> under?.let { drawObscured(mark, area, it) }
                 }
             }
             canvas.restore()
@@ -148,6 +169,52 @@ private fun MarkFont.typeface(): android.graphics.Typeface = when (this) {
     MarkFont.MONOSPACE -> android.graphics.Typeface.MONOSPACE
 }
 
+/**
+ * A part of the picture, made unreadable.
+ *
+ * The region is read, averaged down to a few dozen blocks and drawn back over
+ * itself. Stretched smoothly that is a blur; stretched in squares it is a
+ * mosaic. Doing it this way rather than with a real convolution means the work
+ * is the size of the answer instead of the size of the question — hiding a
+ * whole sky costs what hiding a face costs.
+ */
+private fun DrawScope.drawObscured(mark: Mark.Obscured, area: Rect, under: Underneath) {
+    val dst = mark.bounds.on(area)
+    if (dst.width < 1f || dst.height < 1f) return
+
+    val cut = sourcePixels(dst, under.occupies, under.image.width, under.image.height)
+    if (cut.width < 1 || cut.height < 1) return
+
+    val pixels = IntArray(cut.width * cut.height)
+    runCatching {
+        under.image.readPixels(
+            buffer = pixels,
+            startX = cut.x,
+            startY = cut.y,
+            width = cut.width,
+            height = cut.height,
+        )
+    }.onFailure { return }
+
+    val across = OBSCURE_BLOCKS.coerceAtMost(cut.width)
+    val down = (across * cut.height / cut.width.coerceAtLeast(1)).coerceIn(1, cut.height)
+    val blocks = coarsen(pixels, cut.width, cut.height, across, down)
+
+    val coarse = android.graphics.Bitmap
+        .createBitmap(blocks, across, down, android.graphics.Bitmap.Config.ARGB_8888)
+        .asImageBitmap()
+
+    drawImage(
+        image = coarse,
+        srcOffset = IntOffset.Zero,
+        srcSize = IntSize(across, down),
+        dstOffset = IntOffset(dst.left.toInt(), dst.top.toInt()),
+        dstSize = IntSize(dst.width.toInt().coerceAtLeast(1), dst.height.toInt().coerceAtLeast(1)),
+        // The one difference between the two: squares or no squares.
+        filterQuality = if (mark.pixelated) FilterQuality.None else FilterQuality.High,
+    )
+}
+
 /** Where a point of a mark falls on the picture. */
 private fun MarkPoint.on(area: Rect): Offset =
     Offset(area.left + x * area.width, area.top + y * area.height)
@@ -176,7 +243,15 @@ fun Bitmap.withMarks(marks: List<Mark>, crop: CropRect): Bitmap {
         canvas = Canvas(target.asImageBitmap()),
         size = size,
     ) {
-        drawMarks(marks, uncroppedArea(crop, size.width, size.height), shown)
+        drawMarks(
+            marks = marks,
+            area = uncroppedArea(crop, size.width, size.height),
+            clipTo = shown,
+            // The picture being drawn on is also the picture being read from:
+            // by this point it is the finished photograph, and a blur is meant
+            // to hide what is finally there rather than what was there first.
+            under = Underneath(target.asImageBitmap(), shown),
+        )
     }
 
     if (target !== this) recycle()

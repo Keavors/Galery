@@ -92,3 +92,86 @@ class MarkedOpsTest {
         assertEquals(1, ops.quarterTurns)
     }
 }
+
+class ObscuredRegionTest {
+
+    @Test
+    fun `a region dragged backwards is still a region`() {
+        // Dragged up and to the left, which is half of all drags: the corner
+        // that was started from stays put and the other one follows the finger,
+        // so the rectangle has to be put the right way round afterwards.
+        val backwards = Mark.Obscured(
+            from = MarkPoint(0.8f, 0.9f),
+            to = MarkPoint(0.2f, 0.3f),
+            pixelated = false,
+        )
+        assertEquals(0.2f, backwards.bounds.left, 1e-5f)
+        assertEquals(0.3f, backwards.bounds.top, 1e-5f)
+        assertEquals(0.8f, backwards.bounds.right, 1e-5f)
+        assertEquals(0.9f, backwards.bounds.bottom, 1e-5f)
+    }
+}
+
+class SourcePixelsTest {
+
+    /** A picture 400 by 300, shown on screen at twice that size. */
+    private val occupies = Rect(0f, 0f, 800f, 600f)
+
+    @Test
+    fun `a rectangle of the screen maps to the pixels beneath it`() {
+        val cut = sourcePixels(Rect(200f, 150f, 600f, 450f), occupies, 400, 300)
+        assertEquals(PixelRect(100, 75, 200, 150), cut)
+    }
+
+    @Test
+    fun `a rectangle hanging off the picture is trimmed to it`() {
+        // Half the reason this exists: a region dragged past the edge of the
+        // photograph would otherwise ask for pixels that are not there.
+        val cut = sourcePixels(Rect(-500f, -500f, 400f, 300f), occupies, 400, 300)
+        assertEquals(0, cut.x)
+        assertEquals(0, cut.y)
+        assertTrue(cut.x + cut.width <= 400)
+        assertTrue(cut.y + cut.height <= 300)
+    }
+
+    @Test
+    fun `a region is never nothing at all`() {
+        val cut = sourcePixels(Rect(10f, 10f, 10.1f, 10.1f), occupies, 400, 300)
+        assertTrue(cut.width >= 1 && cut.height >= 1)
+    }
+
+    @Test
+    fun `a picture that is nowhere yet asks for nothing`() {
+        assertEquals(PixelRect(0, 0, 0, 0), sourcePixels(Rect.Zero, Rect.Zero, 400, 300))
+    }
+}
+
+class CoarsenTest {
+
+    @Test
+    fun `each block becomes the average of what was in it`() {
+        // Two blocks across: black on the left, white on the right, and nothing
+        // in between to average them into grey.
+        val pixels = IntArray(4) { if (it % 2 == 0) 0xFF000000.toInt() else 0xFFFFFFFF.toInt() }
+        val blocks = coarsen(pixels, width = 2, height = 2, across = 2, down = 1)
+        assertEquals(2, blocks.size)
+        assertEquals(0, blocks[0] and 0xFF)
+        assertEquals(255, blocks[1] and 0xFF)
+    }
+
+    @Test
+    fun `a whole region can become a single colour`() {
+        val pixels = IntArray(100) { 0xFF404040.toInt() }
+        val blocks = coarsen(pixels, width = 10, height = 10, across = 1, down = 1)
+        assertEquals(1, blocks.size)
+        assertEquals(0x40, blocks[0] and 0xFF)
+    }
+
+    @Test
+    fun `the answer is the size asked for, whatever went in`() {
+        // What makes hiding a sky cost the same as hiding a face: the work and
+        // the result are the size of the answer, not of the question.
+        val pixels = IntArray(500 * 400) { 0xFF123456.toInt() }
+        assertEquals(14 * 9, coarsen(pixels, 500, 400, across = 14, down = 9).size)
+    }
+}
