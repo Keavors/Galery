@@ -14,6 +14,7 @@ import android.graphics.Shader
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import java.io.File
 import android.util.Log
 import androidx.activity.result.IntentSenderRequest
 import kotlinx.coroutines.Dispatchers
@@ -212,22 +213,51 @@ suspend fun Context.overwriteWith(
     bitmap: Bitmap,
     quality: Int,
     exif: Map<String, String>,
-): SaveOutcome = withContext(Dispatchers.IO) {
-    val written = runCatching {
-        contentResolver.openOutputStream(item.contentUri(), "wt")?.use { out ->
-            bitmap.compress(formatFor(item.mimeType), quality, out)
-        } ?: false
-    }.onFailure { Log.w(TAG, "overwrite failed", it) }.getOrElse { false }
+): SaveResult = withContext(Dispatchers.IO) {
+    // The whole photograph is assembled in a scratch file first — pixels, then
+    // the history that belongs with them — and only then copied over the
+    // original, in one go.
+    //
+    // Doing it the other way round is what made a replaced photograph look like
+    // a brand new one. Writing the pixels straight into the library's file and
+    // patching the metadata afterwards leaves a moment where the file is a
+    // picture with no history at all, and the library looks at it during that
+    // moment: it finds no date inside, so it uses the only date left, which is
+    // now. The correction that arrives a heartbeat later is a correction to a
+    // decision already taken.
+    val scratch = File(cacheDir, "edit-${item.id}-${System.currentTimeMillis()}.tmp")
+    try {
+        val compressed = runCatching {
+            scratch.outputStream().use { out ->
+                if (bitmap.compress(formatFor(item.mimeType), quality, out)) null
+                else "the picture would not compress"
+            }
+        }.onFailure { Log.w(TAG, "could not lay out the edited photo", it) }
+            .getOrElse { it.describe() }
 
-    if (!written) {
-        SaveOutcome.FAILED
-    } else if (writeCarriedExif(item.contentUri(), exif, bitmap.width, bitmap.height)) {
-        // The date the photograph was taken travels with the rest of the EXIF,
-        // inside the file, which is where the library looks for it after a
-        // rewrite. Nothing needs telling separately.
-        SaveOutcome.SAVED
-    } else {
-        SaveOutcome.SAVED_WITHOUT_METADATA
+        if (compressed != null) {
+            return@withContext SaveResult(SaveOutcome.FAILED, compressed)
+        }
+
+        val kept = writeCarriedExif(scratch, exif, bitmap.width, bitmap.height)
+
+        val copied = runCatching {
+            val out = contentResolver.openOutputStream(item.contentUri(), "wt")
+            if (out == null) {
+                "the original would not open for writing"
+            } else {
+                out.use { scratch.inputStream().use { source -> source.copyTo(it) } }
+                null
+            }
+        }.onFailure { Log.w(TAG, "overwrite failed", it) }.getOrElse { it.describe() }
+
+        when {
+            copied != null -> SaveResult(SaveOutcome.FAILED, copied)
+            kept -> SaveResult(SaveOutcome.SAVED)
+            else -> SaveResult(SaveOutcome.SAVED_WITHOUT_METADATA)
+        }
+    } finally {
+        runCatching { scratch.delete() }
     }
 }
 

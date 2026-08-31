@@ -1280,7 +1280,7 @@ private suspend fun saveEdit(
 
     val outcome = when (mode) {
         SaveMode.COPY -> context.saveEditedCopy(item, edited, quality, exif)
-        SaveMode.OVERWRITE -> SaveResult(context.overwriteWith(item, edited, quality, exif))
+        SaveMode.OVERWRITE -> context.overwriteWith(item, edited, quality, exif)
     }
 
     if (edited !== full) edited.recycle()

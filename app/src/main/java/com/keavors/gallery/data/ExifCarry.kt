@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -177,22 +178,44 @@ suspend fun Context.writeCarriedExif(
 ): Boolean = withContext(Dispatchers.IO) {
     runCatching {
         contentResolver.openFileDescriptor(uri, "rw")?.use { file ->
-            val exif = ExifInterface(file.fileDescriptor)
-            tags.forEach { (tag, value) -> exif.setAttribute(tag, value) }
-
-            // The turns are in the pixels now. A file that still asks to be
-            // turned would be turned twice by whatever opens it next.
-            exif.setAttribute(
-                ExifInterface.TAG_ORIENTATION,
-                ExifInterface.ORIENTATION_NORMAL.toString(),
-            )
-            exif.setAttribute(ExifInterface.TAG_IMAGE_WIDTH, width.toString())
-            exif.setAttribute(ExifInterface.TAG_IMAGE_LENGTH, height.toString())
-            exif.setAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION, width.toString())
-            exif.setAttribute(ExifInterface.TAG_PIXEL_Y_DIMENSION, height.toString())
-
-            exif.saveAttributes()
+            ExifInterface(file.fileDescriptor).carry(tags, width, height)
             true
         } == true
     }.onFailure { Log.w(TAG, "could not write the metadata back", it) }.getOrElse { false }
+}
+
+/**
+ * The same, onto a file sitting on the disk.
+ *
+ * Used where the finished photograph is assembled before it is put anywhere:
+ * an ordinary file is the simplest thing ExifInterface can be handed, and the
+ * result is a complete picture — pixels and history together — from the first
+ * moment anybody else can see it.
+ */
+suspend fun writeCarriedExif(
+    file: File,
+    tags: Map<String, String>,
+    width: Int,
+    height: Int,
+): Boolean = withContext(Dispatchers.IO) {
+    runCatching {
+        ExifInterface(file.absolutePath).carry(tags, width, height)
+        true
+    }.onFailure { Log.w(TAG, "could not write the metadata onto the file", it) }
+        .getOrElse { false }
+}
+
+/** What is actually written, wherever the file came from. */
+private fun ExifInterface.carry(tags: Map<String, String>, width: Int, height: Int) {
+    tags.forEach { (tag, value) -> setAttribute(tag, value) }
+
+    // The turns are in the pixels now. A file that still asks to be turned
+    // would be turned twice by whatever opens it next.
+    setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+    setAttribute(ExifInterface.TAG_IMAGE_WIDTH, width.toString())
+    setAttribute(ExifInterface.TAG_IMAGE_LENGTH, height.toString())
+    setAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION, width.toString())
+    setAttribute(ExifInterface.TAG_PIXEL_Y_DIMENSION, height.toString())
+
+    saveAttributes()
 }
