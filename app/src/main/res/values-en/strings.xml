@@ -230,7 +230,6 @@
     <string name="trim_working">Working… %1$d%%</string>
     <string name="trim_save_body">Save the trimmed video alongside the original, or replace the original? Replacing cannot be undone.</string>
     <string name="trim_failed">Could not trim: %1$s</string>
-    <string name="trim_saved_redated">Saved, but the library has dated the video today</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
     <string name="editor_straighten">Straighten: %1$d°</string>

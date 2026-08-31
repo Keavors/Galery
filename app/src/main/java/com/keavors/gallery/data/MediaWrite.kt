@@ -1,13 +1,8 @@
 package com.keavors.gallery.data
 
-import android.content.ContentValues
 import android.content.Context
 import android.provider.MediaStore
-import android.util.Log
 import androidx.activity.result.IntentSenderRequest
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import kotlin.math.ceil
 
 /**
@@ -69,70 +64,6 @@ class MediaWriter(
         )
     }
 }
-
-/**
- * Puts the day a file was taken back, after its bytes have been replaced.
- *
- * Writing over a file moves its modification date to now, and for most videos —
- * and for screenshots, and for anything downloaded — that date is the only one
- * the library has. A camera writes the day into the file itself; a screen
- * recorder does not. So without this, editing a video quietly moves it to
- * today: to the top of the timeline, away from the day it belongs to and away
- * from everything it was taken alongside.
- *
- * The taken date is written rather than the modification date because that is
- * the one that can be written at all — the modification date belongs to the
- * file system — and because it is the one every gallery prefers when it is
- * there, this one included.
- */
-suspend fun Context.keepTakenAt(item: MediaItem): Boolean = withContext(Dispatchers.IO) {
-    // Nothing to put back: a file the library never had a date for is one this
-    // cannot invent one for either.
-    if (item.takenAt <= 0L) return@withContext true
-
-    // Written more than once, and read back each time, because writing it once
-    // was not enough. Replacing a file's bytes makes the library look at that
-    // file again, on its own schedule — and a look that lands after the date
-    // has been put back takes it away again. So: write, wait, ask what it says
-    // now, and write again if the library has changed its mind. What comes back
-    // from here is what the library actually holds, not what it was told.
-    repeat(DATE_ATTEMPTS) {
-        writeTakenAt(item, item.takenAt)
-        delay(DATE_SETTLE_MS)
-        if (storedTakenAt(item) == item.takenAt) return@withContext true
-    }
-    false
-}
-
-/** How many times the date is put back before giving up and saying so. */
-private const val DATE_ATTEMPTS = 3
-
-/** How long the library is given to change its mind, in milliseconds. */
-private const val DATE_SETTLE_MS = 250L
-
-private fun Context.writeTakenAt(item: MediaItem, takenAt: Long) {
-    runCatching {
-        contentResolver.update(
-            item.contentUri(),
-            ContentValues().apply { put(MediaStore.MediaColumns.DATE_TAKEN, takenAt) },
-            null,
-            null,
-        )
-    }.onFailure { Log.w("MediaWrite", "could not put the date back", it) }
-}
-
-/** What the library says the date is now, or null if it will not say. */
-private fun Context.storedTakenAt(item: MediaItem): Long? = runCatching {
-    contentResolver.query(
-        item.contentUri(),
-        arrayOf(MediaStore.MediaColumns.DATE_TAKEN),
-        null,
-        null,
-        null,
-    )?.use { row ->
-        if (row.moveToFirst() && !row.isNull(0)) row.getLong(0) else null
-    }
-}.getOrNull()
 
 /**
  * A permanent-delete request the caller launches itself.

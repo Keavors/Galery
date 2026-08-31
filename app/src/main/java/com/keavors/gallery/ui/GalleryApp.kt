@@ -178,7 +178,6 @@ fun GalleryApp(
     val editorFailed = stringResource(R.string.editor_save_failed)
     val editorSavedBare = stringResource(R.string.editor_saved_without_metadata)
     val trimFailed = stringResource(R.string.trim_failed)
-    val trimRedated = stringResource(R.string.trim_saved_redated)
     val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
 
@@ -587,13 +586,9 @@ fun GalleryApp(
             if (subject.isVideo) {
                 VideoTrimScreen(
                     item = subject,
-                    onSaved = { keptDate ->
+                    onSaved = {
                         editing = null
-                        Toast.makeText(
-                            context,
-                            if (keptDate) editorSaved else trimRedated,
-                            if (keptDate) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
-                        ).show()
+                        Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
                     },
                     onFailed = { reason ->
                         // The encoder's own words. An export can fail for a

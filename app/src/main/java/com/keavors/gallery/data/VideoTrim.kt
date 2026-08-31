@@ -12,11 +12,14 @@ import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
 import androidx.media3.common.MediaItem as Media3Item
+import androidx.media3.container.Mp4TimestampData
+import androidx.media3.muxer.Muxer
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.InAppMp4Muxer
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import kotlinx.coroutines.Dispatchers
@@ -139,14 +142,7 @@ private const val FRAME_HEIGHT_PX = 200
  * dozen unrelated reasons and only the one it actually hit is any use.
  */
 sealed interface TrimResult {
-    /**
-     * [keptDate] is false when the clip is safely saved but the library has
-     * re-dated it to today. Worth saying out loud: the file is fine and the
-     * work is not lost, but it has been filed under the wrong day, and a
-     * recording that quietly moves to the top of the timeline is one nobody
-     * will find again where they left it.
-     */
-    data class Saved(val keptDate: Boolean) : TrimResult
+    data object Saved : TrimResult
     data class Failed(val reason: String) : TrimResult
 }
 
@@ -187,22 +183,12 @@ suspend fun Context.trimVideo(
                 }
         }
 
-        when {
-            failure != null -> TrimResult.Failed(failure)
-            overwrite -> {
-                val replaced = replaceOriginal(item, scratch)
-                if (replaced.failure != null) {
-                    TrimResult.Failed(replaced.failure)
-                } else {
-                    TrimResult.Saved(replaced.keptDate)
-                }
-            }
+        val landing = when {
+            failure != null -> failure
+            overwrite -> replaceOriginal(item, scratch)
             else -> publishTrimmed(item, scratch)
-                ?.let { TrimResult.Failed(it) }
-                // A new file was made rather than an old one changed, so its
-                // date was set when it was created and nothing can have moved it.
-                ?: TrimResult.Saved(keptDate = true)
         }
+        if (landing == null) TrimResult.Saved else TrimResult.Failed(landing)
     } finally {
         // The scratch file goes whatever happened, including a cancellation:
         // a cache full of half-written videos is its own bug.
@@ -215,6 +201,19 @@ private const val HDR_KEEP = Composition.HDR_MODE_KEEP_HDR
 
 /** Bring it down to ordinary colour, which every phone can encode. */
 private const val HDR_TONE_MAP = Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL
+
+/**
+ * A muxer that stamps the file with the day the recording was made.
+ *
+ * MP4 keeps its creation time in seconds counted from 1904, which is what the
+ * conversion is for. Everything else about the muxer is left exactly as it was.
+ */
+private fun datedMuxer(takenAtMs: Long): Muxer.Factory =
+    InAppMp4Muxer.Factory { entries ->
+        entries.removeAll { it is Mp4TimestampData }
+        val stamp = Mp4TimestampData.unixTimeToMp4TimeSeconds(takenAtMs)
+        entries.add(Mp4TimestampData(stamp, stamp))
+    }
 
 /** Anything else's account of a failure, as short as it can be made. */
 private fun Throwable.describe(): String =
@@ -268,7 +267,7 @@ private suspend fun Context.exportFailure(
 
     try {
         suspendCancellableCoroutine { continuation ->
-            val encoder = Transformer.Builder(this@exportFailure)
+            val builder = Transformer.Builder(this@exportFailure)
                 .addListener(object : Transformer.Listener {
                     override fun onCompleted(composition: Composition, result: ExportResult) {
                         continuation.resume(null)
@@ -283,7 +282,21 @@ private suspend fun Context.exportFailure(
                         continuation.resume(exception.describe())
                     }
                 })
-                .build()
+
+            // The day the recording was made, written into the file itself.
+            //
+            // This is the whole of the date problem and every other approach to
+            // it was a mistake. Replacing a file's bytes makes the library look
+            // at that file again, and what it finds there wins — so telling the
+            // library a date and letting it read a different one out of the
+            // file is an argument the file always eventually wins. A muxer left
+            // to itself stamps the moment of muxing, which is now; told what to
+            // stamp, it writes the day the camera was actually pointed at
+            // something, and every gallery on earth reads it back correctly
+            // without being asked.
+            if (item.takenAt > 0L) builder.setMuxerFactory(datedMuxer(item.takenAt))
+
+            val encoder = builder.build()
 
             // Slow motion is deliberately not flattened here. The library
             // refuses the combination outright — "Slow motion flattening is not
@@ -337,7 +350,7 @@ private const val PROGRESS_INTERVAL_MS = 200L
  * MP4 whatever the original's name says; on this phone recordings are MP4
  * already, and players go by the bytes rather than the name.
  */
-private suspend fun Context.replaceOriginal(item: MediaItem, source: File): Replaced =
+private suspend fun Context.replaceOriginal(item: MediaItem, source: File): String? =
     withContext(Dispatchers.IO) {
         val failure = runCatching {
             val out = contentResolver.openOutputStream(item.contentUri(), "wt")
@@ -350,17 +363,8 @@ private suspend fun Context.replaceOriginal(item: MediaItem, source: File): Repl
         }.onFailure { Log.w(TAG, "could not write over the original", it) }
             .getOrElse { it.describe() }
 
-        // The bytes are new, so the library now believes the recording was made
-        // today. It was not, and a trimmed video that jumps to the top of the
-        // timeline has been filed under the wrong day.
-        Replaced(
-            failure = failure,
-            keptDate = failure != null || keepTakenAt(item),
-        )
+        failure
     }
-
-/** What became of an attempt to write over the original. */
-private data class Replaced(val failure: String?, val keptDate: Boolean)
 
 /**
  * Moves the finished file into the library, beside the video it came from.
