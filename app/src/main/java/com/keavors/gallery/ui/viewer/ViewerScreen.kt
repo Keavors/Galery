@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -33,11 +34,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.Player
@@ -54,6 +55,8 @@ import com.keavors.gallery.R
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.delay
 import me.saket.telephoto.zoomable.DoubleClickToZoomListener
+import me.saket.telephoto.zoomable.DynamicZoomSpec
+import me.saket.telephoto.zoomable.ZoomSpec
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
 import me.saket.telephoto.zoomable.rememberZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableState
@@ -63,6 +66,36 @@ import kotlin.math.abs
 
 /** How far the photo has to travel before letting go closes the viewer. */
 private val DISMISS_DISTANCE = 130.dp
+
+/**
+ * How far a photograph can be pinched, as a multiple of the size it is shown at.
+ *
+ * Eight is past the point where there is any more detail in the file, and that
+ * is deliberate: at some point what is wanted is a closer look at something
+ * small, not a sharper picture, and stopping at twice is stopping too early.
+ */
+private const val MAX_ZOOM = 8f
+
+/** Where a double tap goes and comes back from. Twice, as it has always been. */
+private const val DOUBLE_TAP_ZOOM = 2f
+
+/**
+ * The zoom limit, worked out from the sizes rather than fixed.
+ *
+ * Telephoto counts zoom from the picture's own pixels, and the picture's own
+ * pixels are whatever the decoder felt like handing over — a screen-sized copy
+ * of a forty-megapixel photograph on one phone, the whole thing on the next. A
+ * fixed number would therefore mean something different for every photo. This
+ * asks how large the picture is being shown and multiplies from there, so that
+ * "eight times" always means eight times what is on the screen.
+ */
+private val VIEWER_ZOOM = DynamicZoomSpec { inputs ->
+    val shownAt = inputs.scaledContentBounds.size.maxDimension /
+        inputs.unscaledContentSize.maxDimension
+    ZoomSpec(
+        maxZoomFactor = if (shownAt.isFinite() && shownAt > 0f) MAX_ZOOM * shownAt else MAX_ZOOM,
+    )
+}
 
 /**
  * Pages handed to a looping pager.
@@ -288,7 +321,7 @@ fun ViewerScreen(
                 return@HorizontalPager
             }
 
-            val zoomableState = rememberZoomableState()
+            val zoomableState = rememberZoomableState(zoomSpec = VIEWER_ZOOM)
             val imageState = rememberZoomableImageState(zoomableState)
 
             val request = remember(item.id, thumbBucketPx) {
@@ -306,7 +339,10 @@ fun ViewerScreen(
                 state = imageState,
                 onClick = { chromeVisible = !chromeVisible },
                 onDoubleClick = if (settings.doubleTapZoom) {
-                    DoubleClickToZoomListener.cycle()
+                    // Told where to stop rather than left to the limit above:
+                    // a double tap is meant to land on a face, not to throw the
+                    // picture eight times across the screen.
+                    DoubleClickToZoomListener.cycle(maxZoomFactor = DOUBLE_TAP_ZOOM)
                 } else {
                     DoubleClickToZoomListener { _, _ -> }
                 },
@@ -317,7 +353,7 @@ fun ViewerScreen(
             // returned to, which is never what someone means by going back.
             LaunchedEffect(pagerState.settledPage) {
                 if (pagerState.settledPage != page) {
-                    zoomableState.resetZoom(withAnimation = false)
+                    zoomableState.resetZoom(animationSpec = snap())
                 }
             }
         }
