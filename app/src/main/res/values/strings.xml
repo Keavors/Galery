@@ -55,6 +55,9 @@
     <string name="viewer_details">Сведения</string>
     <string name="viewer_copy">Копировать в буфер обмена</string>
     <string name="viewer_share">Поделиться</string>
+    <string name="viewer_orientation_system">Поворот: как в системе</string>
+    <string name="viewer_orientation_landscape">Поворот: горизонтально</string>
+    <string name="viewer_orientation_portrait">Поворот: вертикально</string>
 
     <!-- Сведения -->
     <string name="details_taken">Снято</string>

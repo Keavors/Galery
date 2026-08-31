@@ -2,6 +2,7 @@
 
 package com.keavors.gallery.ui.viewer
 
+import android.content.pm.ActivityInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,12 +54,46 @@ import java.util.Locale
 private val stableInsets: WindowInsets
     @Composable get() = WindowInsets.systemBarsIgnoringVisibility
 
+/**
+ * What the viewer has asked of the screen.
+ *
+ * Three states rather than a switch. Holding a landscape photograph steady on a
+ * phone that is lying flat is a thing people want on purpose, and so is holding
+ * an upright one steady, and so is having the screen behave normally again — a
+ * switch can offer two of those three.
+ *
+ * Both locks follow the sensor within their own shape, so a phone turned end
+ * for end still turns the picture the right way up.
+ */
+enum class ScreenLock(val icon: Int, val label: Int, val request: Int) {
+    SYSTEM(
+        R.drawable.ic_screen_rotation,
+        R.string.viewer_orientation_system,
+        ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
+    ),
+    LANDSCAPE(
+        R.drawable.ic_screen_landscape,
+        R.string.viewer_orientation_landscape,
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+    ),
+    PORTRAIT(
+        R.drawable.ic_screen_portrait,
+        R.string.viewer_orientation_portrait,
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT,
+    ),
+    ;
+
+    fun next(): ScreenLock = entries[(ordinal + 1) % entries.size]
+}
+
 @Composable
 fun ViewerTopBar(
     item: MediaItem,
     onBack: () -> Unit,
     onDetails: () -> Unit,
     onSetCover: (() -> Unit)?,
+    screenLock: ScreenLock,
+    onCycleScreenLock: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -104,6 +139,15 @@ fun ViewerTopBar(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+
+        // Before the overflow rather than inside it: turning a photograph is
+        // something people do while looking at it, and a menu covers the thing
+        // being looked at.
+        ChromeIconButton(
+            icon = screenLock.icon,
+            contentDescription = stringResource(screenLock.label),
+            onClick = onCycleScreenLock,
+        )
 
         Box {
             ChromeIconButton(

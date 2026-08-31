@@ -144,6 +144,20 @@ fun ViewerScreen(
     )
     fun itemAt(page: Int) = items[if (loop) page.mod(items.size) else page.coerceIn(0, items.lastIndex)]
 
+    // What the viewer is holding the screen at. The system's own setting is
+    // where it starts and where it is put back on the way out — the rest of the
+    // app has no business being locked to what one photograph needed.
+    var screenLock by remember { mutableStateOf(ScreenLock.SYSTEM) }
+    LaunchedEffect(screenLock) {
+        (view.context as Activity).requestedOrientation = screenLock.request
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            (view.context as Activity).requestedOrientation =
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
     var chromeVisible by remember { mutableStateOf(settings.chromeOnOpen) }
     var detailsVisible by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -372,6 +386,8 @@ fun ViewerScreen(
                 onBack = onClose,
                 onDetails = { detailsVisible = true },
                 onSetCover = onSetCover?.let { set -> { set(current.id) } },
+                screenLock = screenLock,
+                onCycleScreenLock = { screenLock = screenLock.next() },
             )
         }
 

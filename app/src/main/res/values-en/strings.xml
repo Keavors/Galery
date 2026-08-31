@@ -49,6 +49,9 @@
     <string name="viewer_details">Details</string>
     <string name="viewer_copy">Copy to clipboard</string>
     <string name="viewer_share">Share</string>
+    <string name="viewer_orientation_system">Rotation: follow the system</string>
+    <string name="viewer_orientation_landscape">Rotation: landscape</string>
+    <string name="viewer_orientation_portrait">Rotation: portrait</string>
 
     <string name="details_taken">Taken</string>
     <string name="details_resolution">Resolution</string>
