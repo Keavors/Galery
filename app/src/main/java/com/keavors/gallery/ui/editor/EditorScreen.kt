@@ -58,6 +58,7 @@ import com.keavors.gallery.data.EditHistory
 import com.keavors.gallery.data.EditOps
 import com.keavors.gallery.data.EditStep
 import com.keavors.gallery.data.Mark
+import com.keavors.gallery.data.MarkFont
 import com.keavors.gallery.data.MarkPoint
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.SaveOutcome
@@ -74,6 +75,7 @@ import com.keavors.gallery.data.writeRequestFor
 import com.keavors.gallery.ui.common.BarAction
 import com.keavors.gallery.ui.common.ChromeIconButton
 import com.keavors.gallery.ui.common.TOUCH_TARGET
+import com.keavors.gallery.ui.common.TextPromptDialog
 import com.keavors.gallery.ui.common.opaqueToTouch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -129,6 +131,10 @@ fun EditorScreen(
     // The line still under the finger. It joins the edits only when the finger
     // comes up, so that one stroke is one thing to undo rather than two hundred.
     var pending by remember(item.id) { mutableStateOf<Mark.Stroke?>(null) }
+    // Where a tap landed, waiting for the words that go there. Held rather than
+    // acted on at once, because the words have to be typed first and the spot
+    // has to still be the spot by the time they are.
+    var writingAt by remember(item.id) { mutableStateOf<MarkPoint?>(null) }
     // Which filter is on and how far. Kept beside the corrections rather than
     // inside them because a filter is only a way of setting them: once it has,
     // it is the corrections that are the truth, and these two are just what the
@@ -314,7 +320,21 @@ fun EditorScreen(
                     } else {
                         pending?.let { ops.marks + it } ?: ops.marks
                     },
-                    onDraw = if (tab == EditorTab.MARKUP && !comparing) {
+                    onPlace = if (tab == EditorTab.MARKUP && !comparing && brush.tool != Tool.BRUSH) {
+                        { point ->
+                            if (brush.tool == Tool.TEXT) {
+                                writingAt = point
+                            } else {
+                                change(
+                                    ops.marked(ops.marks + brush.stickerAt(point)),
+                                    EditStep(EditStep.Kind.MARK, "sticker"),
+                                )
+                            }
+                        }
+                    } else {
+                        null
+                    },
+                    onDraw = if (tab == EditorTab.MARKUP && !comparing && brush.tool == Tool.BRUSH) {
                         { point, started ->
                             pending = if (started) brush.strokeAt(point) else pending?.extendedTo(point)
                         }
@@ -451,6 +471,22 @@ fun EditorScreen(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+
+    writingAt?.let { spot ->
+        TextPromptDialog(
+            title = stringResource(R.string.markup_text),
+            initial = "",
+            confirm = stringResource(R.string.markup_place),
+            onConfirm = { words ->
+                writingAt = null
+                change(
+                    ops.marked(ops.marks + brush.writingAt(spot, words)),
+                    EditStep(EditStep.Kind.MARK, "text"),
+                )
+            },
+            onDismiss = { writingAt = null },
+        )
     }
 
     if (askingHow) {
@@ -615,9 +651,13 @@ private fun ColourTools(
  * differently is take away instead of put down.
  */
 private data class Brush(
+    val tool: Tool = Tool.BRUSH,
     val colour: Int = MARK_COLOURS.first(),
     val width: Float = 0.012f,
     val erasing: Boolean = false,
+    val writingSize: Float = 0.07f,
+    val font: MarkFont = MarkFont.PLAIN,
+    val sticker: String = STICKERS.first(),
 ) {
     fun strokeAt(point: MarkPoint) = Mark.Stroke(
         points = listOf(point),
@@ -625,7 +665,41 @@ private data class Brush(
         width = width,
         erases = erasing,
     )
+
+    fun writingAt(point: MarkPoint, words: String) = Mark.Text(
+        text = words,
+        at = point,
+        colour = colour,
+        size = writingSize,
+        font = font,
+    )
+
+    // A sticker is an emoji drawn as text, and rather larger than words: the
+    // colour is left out of it on purpose, because an emoji brings its own.
+    fun stickerAt(point: MarkPoint) = Mark.Text(
+        text = sticker,
+        at = point,
+        colour = MARK_COLOURS.first(),
+        size = writingSize * STICKER_SCALE,
+    )
 }
+
+/** What a touch on the picture does while the markup tools are open. */
+private enum class Tool { BRUSH, TEXT, STICKER }
+
+/** A sticker is drawn at this multiple of the writing size. */
+private const val STICKER_SCALE = 2.5f
+
+/**
+ * The stickers.
+ *
+ * Emoji rather than pictures of our own, because emoji are already on the phone,
+ * already the right size for any screen, and already the ones people reach for.
+ */
+private val STICKERS = listOf(
+    "❤️", "🔥", "😀", "😍", "👍", "🎉", "⭐", "✅",
+    "❌", "➡️", "⬅️", "⭕", "📍", "🎯", "💡", "⚠️",
+)
 
 /** The same stroke with one more point on the end of it. */
 private fun Mark.Stroke.extendedTo(point: MarkPoint) = copy(points = points + point)
@@ -667,6 +741,8 @@ private fun MarkupTools(
     canClear: Boolean,
     onClear: () -> Unit,
 ) {
+    val erasing = brush.tool == Tool.BRUSH && brush.erasing
+
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -677,15 +753,27 @@ private fun MarkupTools(
         ) {
             CorrectionChip(
                 label = stringResource(R.string.markup_brush),
-                selected = !brush.erasing,
+                selected = brush.tool == Tool.BRUSH && !brush.erasing,
                 touched = false,
-                onClick = { onBrush(brush.copy(erasing = false)) },
+                onClick = { onBrush(brush.copy(tool = Tool.BRUSH, erasing = false)) },
             )
             CorrectionChip(
                 label = stringResource(R.string.markup_eraser),
-                selected = brush.erasing,
+                selected = erasing,
                 touched = false,
-                onClick = { onBrush(brush.copy(erasing = true)) },
+                onClick = { onBrush(brush.copy(tool = Tool.BRUSH, erasing = true)) },
+            )
+            CorrectionChip(
+                label = stringResource(R.string.markup_text),
+                selected = brush.tool == Tool.TEXT,
+                touched = false,
+                onClick = { onBrush(brush.copy(tool = Tool.TEXT)) },
+            )
+            CorrectionChip(
+                label = stringResource(R.string.markup_sticker),
+                selected = brush.tool == Tool.STICKER,
+                touched = false,
+                onClick = { onBrush(brush.copy(tool = Tool.STICKER)) },
             )
             if (canClear) {
                 CorrectionChip(
@@ -697,33 +785,91 @@ private fun MarkupTools(
             }
         }
 
-        // The colours are hidden while erasing, because an eraser has none and a
-        // row of swatches that changes nothing is a row of swatches that lies.
-        if (!brush.erasing) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        // Each tool shows what it actually uses and nothing else. A row of
+        // swatches over an eraser, or a choice of lettering over a brush, is a
+        // control that lies about what it governs.
+        when {
+            brush.tool == Tool.STICKER -> Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 8.dp),
+                    .horizontalScroll(rememberScrollState()),
             ) {
-                MARK_COLOURS.forEach { colour ->
-                    Swatch(
-                        colour = colour,
-                        selected = colour == brush.colour,
-                        onClick = { onBrush(brush.copy(colour = colour)) },
+                STICKERS.forEach { emoji ->
+                    CorrectionChip(
+                        label = emoji,
+                        selected = emoji == brush.sticker,
+                        touched = false,
+                        onClick = { onBrush(brush.copy(sticker = emoji)) },
                     )
+                }
+            }
+
+            erasing -> Unit
+
+            else -> Column {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(vertical = 8.dp),
+                ) {
+                    MARK_COLOURS.forEach { colour ->
+                        Swatch(
+                            colour = colour,
+                            selected = colour == brush.colour,
+                            onClick = { onBrush(brush.copy(colour = colour)) },
+                        )
+                    }
+                }
+
+                if (brush.tool == Tool.TEXT) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                    ) {
+                        MarkFont.entries.forEach { font ->
+                            CorrectionChip(
+                                label = stringResource(font.label()),
+                                selected = font == brush.font,
+                                touched = false,
+                                onClick = { onBrush(brush.copy(font = font)) },
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        WhiteSlider(
-            value = brush.width,
-            onValueChange = { onBrush(brush.copy(width = it)) },
-            range = THINNEST..THICKEST,
-        )
+        // One slider, governing whichever of the two sizes the open tool has.
+        if (brush.tool == Tool.BRUSH) {
+            WhiteSlider(
+                value = brush.width,
+                onValueChange = { onBrush(brush.copy(width = it)) },
+                range = THINNEST..THICKEST,
+            )
+        } else {
+            WhiteSlider(
+                value = brush.writingSize,
+                onValueChange = { onBrush(brush.copy(writingSize = it)) },
+                range = SMALLEST_WRITING..LARGEST_WRITING,
+            )
+        }
     }
+}
+
+/** The smallest and largest writing, as fractions of the shorter side. */
+private const val SMALLEST_WRITING = 0.03f
+private const val LARGEST_WRITING = 0.2f
+
+private fun MarkFont.label(): Int = when (this) {
+    MarkFont.PLAIN -> R.string.markup_font_plain
+    MarkFont.SERIF -> R.string.markup_font_serif
+    MarkFont.MONOSPACE -> R.string.markup_font_mono
 }
 
 /**

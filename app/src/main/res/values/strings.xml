@@ -255,6 +255,12 @@
     <string name="editor_tab_markup">Разметка</string>
     <string name="markup_brush">Кисть</string>
     <string name="markup_eraser">Ластик</string>
+    <string name="markup_text">Текст</string>
+    <string name="markup_sticker">Стикер</string>
+    <string name="markup_place">Поставить</string>
+    <string name="markup_font_plain">Обычный</string>
+    <string name="markup_font_serif">С засечками</string>
+    <string name="markup_font_mono">Моноширинный</string>
     <string name="markup_clear">Убрать всё</string>
 
     <!-- Фильтры: те же коррекции, выставленные заранее. -->

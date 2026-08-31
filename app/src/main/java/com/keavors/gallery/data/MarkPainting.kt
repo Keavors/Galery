@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 
@@ -53,6 +54,7 @@ fun DrawScope.drawMarks(marks: List<Mark>, area: Rect, clipTo: Rect = area) {
             marks.forEach { mark ->
                 when (mark) {
                     is Mark.Stroke -> drawStroke(mark, area)
+                    is Mark.Text -> drawWriting(mark, area)
                 }
             }
             canvas.restore()
@@ -97,6 +99,53 @@ private fun DrawScope.drawStroke(stroke: Mark.Stroke, area: Rect) {
         style = Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round),
         blendMode = blend,
     )
+}
+
+/**
+ * Words on the picture.
+ *
+ * Drawn through the platform's own text painter rather than through Compose's,
+ * for one reason: this same function runs on a background thread while saving,
+ * where there is no composition to ask for a font resolver. The platform painter
+ * needs nothing but a typeface and a size, and it draws emoji as readily as
+ * letters — which is what makes a sticker nothing more than a very large full
+ * stop.
+ */
+private fun DrawScope.drawWriting(writing: Mark.Text, area: Rect) {
+    if (writing.text.isBlank()) return
+
+    val height = writing.sizeOn(area).coerceAtLeast(1f)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = writing.colour
+        textSize = height
+        textAlign = android.graphics.Paint.Align.CENTER
+        typeface = writing.font.typeface()
+    }
+
+    val lines = writing.text.split('\n')
+    val step = height * LINE_SPACING
+    val centre = Offset(
+        x = area.left + writing.at.x * area.width,
+        y = area.top + writing.at.y * area.height,
+    )
+    // Put down from the middle outwards, so a caption grows evenly around the
+    // spot that was tapped rather than hanging off it.
+    val first = centre.y - (lines.size - 1) * step / 2f + height / 3f
+
+    drawIntoCanvas { canvas ->
+        lines.forEachIndexed { index, line ->
+            canvas.nativeCanvas.drawText(line, centre.x, first + index * step, paint)
+        }
+    }
+}
+
+/** How far apart lines of a caption sit, as a multiple of their height. */
+private const val LINE_SPACING = 1.2f
+
+private fun MarkFont.typeface(): android.graphics.Typeface = when (this) {
+    MarkFont.PLAIN -> android.graphics.Typeface.DEFAULT_BOLD
+    MarkFont.SERIF -> android.graphics.Typeface.SERIF
+    MarkFont.MONOSPACE -> android.graphics.Typeface.MONOSPACE
 }
 
 /** Where a point of a mark falls on the picture. */

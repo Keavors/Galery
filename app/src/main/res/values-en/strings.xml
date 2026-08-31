@@ -239,6 +239,12 @@
     <string name="editor_tab_markup">Markup</string>
     <string name="markup_brush">Brush</string>
     <string name="markup_eraser">Eraser</string>
+    <string name="markup_text">Text</string>
+    <string name="markup_sticker">Sticker</string>
+    <string name="markup_place">Place</string>
+    <string name="markup_font_plain">Plain</string>
+    <string name="markup_font_serif">Serif</string>
+    <string name="markup_font_mono">Monospace</string>
     <string name="markup_clear">Clear all</string>
 
     <string name="filter_strength">Strength</string>

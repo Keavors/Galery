@@ -2,6 +2,7 @@ package com.keavors.gallery.ui.editor
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +78,9 @@ fun EditorCanvas(
     // which thing is decided by the tools that are open.
     onDraw: ((MarkPoint, started: Boolean) -> Unit)? = null,
     onDrawEnd: (() -> Unit)? = null,
+    // A tap rather than a drag: words and stickers are put down in one place
+    // instead of being trailed across the picture.
+    onPlace: ((MarkPoint) -> Unit)? = null,
 ) {
     var canvas by remember { mutableStateOf(Size.Zero) }
 
@@ -110,11 +114,18 @@ fun EditorCanvas(
 
     val paint by rememberUpdatedState(onDraw)
     val paintEnd by rememberUpdatedState(onDrawEnd)
+    val place by rememberUpdatedState(onPlace)
     var grabbed by remember { mutableStateOf(Grab.NONE) }
 
     Canvas(
         modifier = modifier
             .onSizeChanged { canvas = Size(it.width.toFloat(), it.height.toFloat()) }
+            .pointerInput(onPlace != null) {
+                if (onPlace == null) return@pointerInput
+                detectTapGestures { at ->
+                    place?.invoke(pointAt(at, box, shownCrop(cropVisible, current)))
+                }
+            }
             .pointerInput(onDraw != null) {
                 if (onDraw == null) return@pointerInput
                 detectDragGestures(

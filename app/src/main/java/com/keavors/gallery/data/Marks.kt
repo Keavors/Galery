@@ -37,7 +37,27 @@ sealed interface Mark {
         val width: Float,
         val erases: Boolean = false,
     ) : Mark
+
+    /**
+     * Words, or one big emoji, put down where a finger tapped.
+     *
+     * A sticker is not a separate kind of thing: an emoji is text, drawn by the
+     * same code through the same font, and pretending otherwise would be two
+     * implementations of one idea. [size] is the height of the writing as a
+     * fraction of the picture's shorter side, so it survives the jump from the
+     * preview to the original like everything else here.
+     */
+    data class Text(
+        val text: String,
+        val at: MarkPoint,
+        val colour: Int,
+        val size: Float,
+        val font: MarkFont = MarkFont.PLAIN,
+    ) : Mark
 }
+
+/** The three shapes of lettering on offer. Enough to choose from, few enough to choose. */
+enum class MarkFont { PLAIN, SERIF, MONOSPACE }
 
 /**
  * Where the whole picture sits, relative to the piece of it being shown.
@@ -63,3 +83,7 @@ fun uncroppedArea(crop: CropRect, shownWidth: Float, shownHeight: Float): Rect {
 /** Thickness in pixels, given the picture it is being drawn on. */
 fun Mark.Stroke.widthOn(area: Rect): Float =
     width * minOf(area.width, area.height)
+
+/** Letter height in pixels, given the picture it is being drawn on. */
+fun Mark.Text.sizeOn(area: Rect): Float =
+    size * minOf(area.width, area.height)
