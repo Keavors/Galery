@@ -111,6 +111,10 @@ fun GalleryApp(
     var selected by remember { mutableIntStateOf(0) }
     var folder by remember { mutableStateOf<FolderRoute?>(null) }
     var viewer by remember { mutableStateOf<ViewerRoute?>(null) }
+    // Bumped when the viewer must be rebuilt on its anchor — after an editor
+    // closes — because a pager holds on to its page number while the list
+    // underneath it shifts.
+    var viewerEpoch by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<MediaItem?>(null) }
 
 
@@ -328,6 +332,22 @@ fun GalleryApp(
         selected = Tab.PHOTOS.ordinal
     }
 
+    // The one way out of either editor, for every kind of save on every kind
+    // of file. The library is re-read first, so the list under the viewer is
+    // already in its final order; then the viewer is rebuilt anchored on the
+    // very item that was being edited. Without this the outcome depended on
+    // timing — a copy appearing above shifts every index under an open pager,
+    // and a pager keeps its page number, not its photograph — so it sometimes
+    // came back to the same picture and sometimes to the grid.
+    fun closeEditorOnto(subject: MediaItem) {
+        scope.launch {
+            repository.reloadNow()
+            viewer = viewer?.copy(itemId = subject.id)
+            viewerEpoch++
+            editing = null
+        }
+    }
+
     val openItem: (MediaItem, Int) -> Unit = { item, bucket ->
         if (launchMode == LaunchMode.PICK) {
             onPicked(item)
@@ -529,7 +549,7 @@ fun GalleryApp(
             // keeps the page it is on, and page zero of one photo is not
             // page forty of a folder — without this the picture would change
             // under the finger a moment after opening.
-            key(route?.resolved) {
+            key(route?.resolved, viewerEpoch) {
                 ViewerScreen(
                     items = viewerItems,
                     startIndex = viewerIndex,
@@ -577,8 +597,8 @@ fun GalleryApp(
                 VideoTrimScreen(
                     item = subject,
                     onSaved = {
-                        editing = null
                         Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
+                        closeEditorOnto(subject)
                     },
                     onFailed = { reason ->
                         // The encoder's own words. An export can fail for a
@@ -590,7 +610,7 @@ fun GalleryApp(
                             Toast.LENGTH_LONG,
                         ).show()
                     },
-                    onClose = { editing = null },
+                    onClose = { closeEditorOnto(subject) },
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -598,7 +618,6 @@ fun GalleryApp(
                     item = subject,
                     jpegQuality = settings.jpegQuality,
                     onSaved = { keptMetadata ->
-                        editing = null
                         // A photograph that came back without its date and place
                         // is still saved, but it is not what was asked for
                         // either, and finding out months later is too late.
@@ -607,6 +626,7 @@ fun GalleryApp(
                             if (keptMetadata) editorSaved else editorSavedBare,
                             if (keptMetadata) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
                         ).show()
+                        closeEditorOnto(subject)
                     },
                     // Left open on purpose: the edits are still there and the
                     // second attempt costs a tap.
@@ -617,7 +637,7 @@ fun GalleryApp(
                             Toast.LENGTH_LONG,
                         ).show()
                     },
-                    onClose = { editing = null },
+                    onClose = { closeEditorOnto(subject) },
                     modifier = Modifier.fillMaxSize(),
                 )
             }

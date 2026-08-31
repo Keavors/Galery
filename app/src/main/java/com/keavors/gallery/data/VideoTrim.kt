@@ -172,13 +172,26 @@ suspend fun Context.trimVideo(
         // there is no way to ask it, before trying, whether it can read its own
         // recording back — so it is tried, and the picture is brought down to
         // ordinary colour only if that fails.
+        // What the finished file will say about when it came to be. A
+        // replacement is the same recording and keeps its day. A copy is a new
+        // clip made now — and that has to be said outright rather than left to
+        // the muxer, because the encoder carries the source's own stamp
+        // through into the output where it can: left alone, a copied clip
+        // inherits its original's creation time, which is exactly how a copy
+        // came out dated last summer.
+        val stampMs = when {
+            !overwrite -> System.currentTimeMillis()
+            item.takenAt > 0L -> item.takenAt
+            else -> null
+        }
+
         val keepingColour =
-            exportFailure(item, range, scratch, HDR_KEEP, stampDate = overwrite, onProgress)
+            exportFailure(item, range, scratch, HDR_KEEP, stampMs, onProgress)
         val failure = if (keepingColour == null) {
             null
         } else {
             withContext(Dispatchers.IO) { scratch.delete() }
-            exportFailure(item, range, scratch, HDR_TONE_MAP, stampDate = overwrite, onProgress)
+            exportFailure(item, range, scratch, HDR_TONE_MAP, stampMs, onProgress)
                 ?.let { second ->
                     if (second == keepingColour) second else "$keepingColour / $second"
                 }
@@ -204,15 +217,15 @@ private const val HDR_KEEP = Composition.HDR_MODE_KEEP_HDR
 private const val HDR_TONE_MAP = Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL
 
 /**
- * A muxer that stamps the file with the day the recording was made.
+ * A muxer that stamps the file with the given moment.
  *
  * MP4 keeps its creation time in seconds counted from 1904, which is what the
  * conversion is for. Everything else about the muxer is left exactly as it was.
  */
-private fun datedMuxer(takenAtMs: Long): Muxer.Factory =
+private fun datedMuxer(momentMs: Long): Muxer.Factory =
     InAppMp4Muxer.Factory { entries ->
         entries.removeAll { it is Mp4TimestampData }
-        val stamp = Mp4TimestampData.unixTimeToMp4TimeSeconds(takenAtMs)
+        val stamp = Mp4TimestampData.unixTimeToMp4TimeSeconds(momentMs)
         entries.add(Mp4TimestampData(stamp, stamp))
     }
 
@@ -239,7 +252,7 @@ private suspend fun Context.exportFailure(
     range: TrimRange,
     target: File,
     hdrMode: Int,
-    stampDate: Boolean,
+    stampMs: Long?,
     onProgress: (Int) -> Unit,
 ): String? = withContext(Dispatchers.Main) {
     val clipped = Media3Item.Builder()
@@ -296,9 +309,7 @@ private suspend fun Context.exportFailure(
             // stamp, it writes the day the camera was actually pointed at
             // something, and every gallery on earth reads it back correctly
             // without being asked.
-            // Only for a replacement. A copy is a new clip made now, and the
-            // muxer left to itself stamps exactly that.
-            if (stampDate && item.takenAt > 0L) builder.setMuxerFactory(datedMuxer(item.takenAt))
+            if (stampMs != null) builder.setMuxerFactory(datedMuxer(stampMs))
 
             val encoder = builder.build()
 

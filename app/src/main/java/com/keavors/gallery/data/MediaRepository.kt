@@ -102,6 +102,17 @@ class MediaRepository(
         scope.launch { load() }
     }
 
+    /**
+     * Loads right now and returns only once the state holds the answer.
+     *
+     * For the moments the app is about to rebuild a screen on top of the list
+     * and must not build it on a stale one — closing an editor after a save.
+     * The observer would get there too, but on its own schedule, and a reload
+     * arriving a debounce later is exactly the shifting-underneath this
+     * exists to prevent.
+     */
+    suspend fun reloadNow() = load()
+
     private suspend fun load() {
         if (context.mediaAccess() == MediaAccess.NONE) {
             _state.value = LibraryState.Locked
