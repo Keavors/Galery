@@ -172,12 +172,13 @@ suspend fun Context.trimVideo(
         // there is no way to ask it, before trying, whether it can read its own
         // recording back — so it is tried, and the picture is brought down to
         // ordinary colour only if that fails.
-        val keepingColour = exportFailure(item, range, scratch, HDR_KEEP, onProgress)
+        val keepingColour =
+            exportFailure(item, range, scratch, HDR_KEEP, stampDate = overwrite, onProgress)
         val failure = if (keepingColour == null) {
             null
         } else {
             withContext(Dispatchers.IO) { scratch.delete() }
-            exportFailure(item, range, scratch, HDR_TONE_MAP, onProgress)
+            exportFailure(item, range, scratch, HDR_TONE_MAP, stampDate = overwrite, onProgress)
                 ?.let { second ->
                     if (second == keepingColour) second else "$keepingColour / $second"
                 }
@@ -238,6 +239,7 @@ private suspend fun Context.exportFailure(
     range: TrimRange,
     target: File,
     hdrMode: Int,
+    stampDate: Boolean,
     onProgress: (Int) -> Unit,
 ): String? = withContext(Dispatchers.Main) {
     val clipped = Media3Item.Builder()
@@ -294,7 +296,9 @@ private suspend fun Context.exportFailure(
             // stamp, it writes the day the camera was actually pointed at
             // something, and every gallery on earth reads it back correctly
             // without being asked.
-            if (item.takenAt > 0L) builder.setMuxerFactory(datedMuxer(item.takenAt))
+            // Only for a replacement. A copy is a new clip made now, and the
+            // muxer left to itself stamps exactly that.
+            if (stampDate && item.takenAt > 0L) builder.setMuxerFactory(datedMuxer(item.takenAt))
 
             val encoder = builder.build()
 
@@ -363,6 +367,14 @@ private suspend fun Context.replaceOriginal(item: MediaItem, source: File): Stri
         }.onFailure { Log.w(TAG, "could not write over the original", it) }
             .getOrElse { it.describe() }
 
+        // The file itself carries the recording's day, stamped by the muxer.
+        // The row is told as well and then watched, because the library
+        // re-reads a rewritten file on a schedule of its own and a late look
+        // can undo what an early write said.
+        if (failure == null) {
+            keepTakenAt(item)
+            guardTakenAt(item)
+        }
         failure
     }
 
@@ -403,10 +415,9 @@ private fun Context.writeCopy(item: MediaItem, source: File, folder: String?): S
         put(MediaStore.MediaColumns.DISPLAY_NAME, stem + "_trim.mp4")
         put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
         if (folder != null) put(MediaStore.MediaColumns.RELATIVE_PATH, "$folder/")
-        // A video has no EXIF to carry, but it does have the one thing that
-        // matters most: when it was taken. Without this the clip sorts to today
-        // and is lost among things it has nothing to do with.
-        if (item.takenAt > 0) put(MediaStore.MediaColumns.DATE_TAKEN, item.takenAt)
+        // Nothing here about when it was taken, and that is the policy rather
+        // than a gap: a copy is a new clip, made now, and files under now. The
+        // replacement is the one that keeps the recording's day.
         put(MediaStore.MediaColumns.IS_PENDING, 1)
     }
 

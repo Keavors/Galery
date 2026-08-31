@@ -1270,8 +1270,12 @@ private suspend fun saveEdit(
     quality: Int,
 ): SaveResult = withContext(Dispatchers.IO) {
     // Read before anything is written: overwriting destroys the original, and
-    // by then there is nothing left to read the date and the place off.
-    val exif = context.carriedExif(item)
+    // by then there is nothing left to read the camera and the place off.
+    //
+    // What happens to the date depends on which save this is, and that is the
+    // policy rather than an accident: a replacement is the same photograph and
+    // keeps its day; a copy is a new file made now, and is dated now.
+    val exif = context.carriedExif(item, keepWhen = mode == SaveMode.OVERWRITE)
 
     val ceiling = maxEditablePixels(Runtime.getRuntime().maxMemory())
     val full = context.decodeForEditing(item, ceiling)

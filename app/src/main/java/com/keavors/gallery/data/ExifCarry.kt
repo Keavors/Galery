@@ -11,6 +11,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 private const val TAG = "ExifCarry"
 
@@ -113,23 +114,37 @@ private val CARRIED = listOf(
  * Empty is a perfectly good answer: a screenshot has no camera and a PNG has no
  * EXIF at all.
  */
-suspend fun Context.carriedExif(item: MediaItem): Map<String, String> =
+suspend fun Context.carriedExif(item: MediaItem, keepWhen: Boolean): Map<String, String> =
     withContext(Dispatchers.IO) {
         val found = readExif(item)
-        // A photograph that never had a date inside it — a screenshot, a
-        // download, anything a messenger has stripped on the way — still has one
-        // the library knows about. It is written into the file now, because
-        // after this the file is where the date will be read from: rewriting the
-        // pixels makes the library look again, and what it finds there wins.
-        // Without this such a photograph quietly moves to today.
-        if (found.keys.none { it in DATE_TAGS } && item.takenAt > 0) {
-            val stamp = EXIF_DATE.format(Date(item.takenAt))
-            found + mapOf(
-                ExifInterface.TAG_DATETIME_ORIGINAL to stamp,
-                ExifInterface.TAG_DATETIME to stamp,
-            )
-        } else {
-            found
+        when {
+            // A copy is a new photograph, made now, and says so: every tag
+            // about when goes. The camera, the lens and the place still travel
+            // — they are as true of the copy as of the original — but the day
+            // is not, and a copy claiming its original's day would sort back
+            // into last summer instead of appearing where it was just made.
+            !keepWhen -> found - WHEN_TAGS
+
+            // A replacement is the same photograph and keeps its day. One that
+            // never had a day inside it — a screenshot, anything a messenger
+            // stripped on the way — is given the day the library knew, because
+            // after this the file is where the day will be read from:
+            // rewriting the pixels makes the library look again, and what it
+            // finds there wins.
+            found.keys.none { it in DATE_TAGS } && item.takenAt > 0 -> {
+                val stamp = EXIF_DATE.format(Date(item.takenAt))
+                found + mapOf(
+                    ExifInterface.TAG_DATETIME_ORIGINAL to stamp,
+                    ExifInterface.TAG_DATETIME to stamp,
+                    // Stamped as UTC and saying so, so the moment any reader
+                    // computes back is exactly the moment that went in,
+                    // whatever timezone either end is in.
+                    ExifInterface.TAG_OFFSET_TIME_ORIGINAL to "+00:00",
+                    ExifInterface.TAG_OFFSET_TIME to "+00:00",
+                )
+            }
+
+            else -> found
         }
     }
 
@@ -140,8 +155,21 @@ private val DATE_TAGS = setOf(
     ExifInterface.TAG_DATETIME_DIGITIZED,
 )
 
+/** Every tag with a moment in it, for the saves that must not carry one. */
+private val WHEN_TAGS = DATE_TAGS + setOf(
+    ExifInterface.TAG_OFFSET_TIME,
+    ExifInterface.TAG_OFFSET_TIME_ORIGINAL,
+    ExifInterface.TAG_OFFSET_TIME_DIGITIZED,
+    ExifInterface.TAG_SUBSEC_TIME,
+    ExifInterface.TAG_SUBSEC_TIME_ORIGINAL,
+    ExifInterface.TAG_SUBSEC_TIME_DIGITIZED,
+)
+
 /** The one shape EXIF writes a moment in, and it is not anybody else's. */
-private val EXIF_DATE = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US)
+private val EXIF_DATE = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).apply {
+    // In step with the offset tags written beside it.
+    timeZone = TimeZone.getTimeZone("UTC")
+}
 
 private suspend fun Context.readExif(item: MediaItem): Map<String, String> =
     withContext(Dispatchers.IO) {

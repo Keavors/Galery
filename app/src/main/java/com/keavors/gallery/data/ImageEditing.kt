@@ -266,8 +266,10 @@ suspend fun Context.overwriteWith(
 
         // And told outright as well, for the case where the look above changed
         // nothing: on a card, or on a phone that keeps its own counsel. The two
-        // agree, so whichever is believed is right.
+        // agree, so whichever is believed is right. The guard then watches for
+        // a few seconds more, for the look that lands after all of this.
         keepTakenAt(item)
+        guardTakenAt(item)
 
         if (kept) SaveResult(SaveOutcome.SAVED) else SaveResult(SaveOutcome.SAVED_WITHOUT_METADATA)
     } finally {

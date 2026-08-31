@@ -5,8 +5,11 @@ import android.content.Context
 import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.result.IntentSenderRequest
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.ceil
 
@@ -123,6 +126,55 @@ private const val DATE_ATTEMPTS = 3
 
 /** How long the library is given to change its mind, in milliseconds. */
 private const val DATE_SETTLE_MS = 250L
+
+/**
+ * Goes on asserting the day after [keepTakenAt] has gone home.
+ *
+ * Replacing a file's bytes makes the library read it again, and that reading
+ * lands whenever the library pleases — sometimes after every attempt above has
+ * finished and verified. This watches from a distance for a few seconds more
+ * and puts the day back if a late look took it away. It holds the application
+ * context rather than the caller's, so it cannot keep a screen alive.
+ */
+fun Context.guardTakenAt(item: MediaItem) {
+    if (item.takenAt <= 0L) return
+    val app = applicationContext
+    dateGuardScope.launch {
+        GUARD_LOOKS_MS.forEach { pause ->
+            delay(pause)
+            val stored = runCatching {
+                app.contentResolver.query(
+                    item.contentUri(),
+                    arrayOf(MediaStore.MediaColumns.DATE_TAKEN),
+                    null,
+                    null,
+                    null,
+                )?.use { row ->
+                    if (row.moveToFirst() && !row.isNull(0)) row.getLong(0) else null
+                }
+            }.getOrNull()
+
+            if (stored != item.takenAt) {
+                runCatching {
+                    app.contentResolver.update(
+                        item.contentUri(),
+                        ContentValues().apply {
+                            put(MediaStore.MediaColumns.DATE_TAKEN, item.takenAt)
+                        },
+                        null,
+                        null,
+                    )
+                }.onFailure { Log.w("MediaWrite", "the guard could not put the date back", it) }
+            }
+        }
+    }
+}
+
+/** When the guard looks again, counted from the save. */
+private val GUARD_LOOKS_MS = listOf(1_000L, 3_000L, 8_000L)
+
+/** Off the save's own coroutine, so the guard outlives the screen that saved. */
+private val dateGuardScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 /**
  * A permanent-delete request the caller launches itself.
