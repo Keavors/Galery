@@ -63,6 +63,42 @@ suspend fun Context.probeExternal(uri: Uri, declaredType: String?): ExternalRef 
     }
 
 /**
+ * The photo as it can be known before anything has been asked of anybody.
+ *
+ * Opening a picture from another app used to wait for the database: probe the
+ * uri, find the row, read the folder, and only then put something on screen.
+ * All of that is worth doing — it is what makes the neighbours swipeable — but
+ * none of it is needed to show the photograph, because the uri that arrived is
+ * already the photograph. So it goes up first, from this, and the answer from
+ * the database replaces it when it comes.
+ */
+fun provisionalItem(uri: Uri, declaredType: String?): MediaItem = ExternalRef(
+    name = uri.lastPathSegment?.substringAfterLast('/'),
+    isVideo = looksLikeVideo(declaredType, uri.toString()),
+    mimeType = declaredType.orEmpty(),
+    uri = uri.toString(),
+).asStandaloneItem()
+
+/**
+ * A first guess at whether this is a video.
+ *
+ * The type the intent declared, and failing that the end of the file name.
+ * Deliberately no question to the content provider: that is a call into another
+ * app, another app can be slow, and the whole point of this is to be instant.
+ * The considered answer comes from [probeExternal] a moment later.
+ */
+fun looksLikeVideo(declaredType: String?, uri: String): Boolean {
+    if (!declaredType.isNullOrBlank()) return declaredType.startsWith("video")
+    val extension = uri.substringBefore('?').substringAfterLast('.', "").lowercase()
+    return extension in VIDEO_EXTENSIONS
+}
+
+private val VIDEO_EXTENSIONS = setOf(
+    "mp4", "m4v", "mkv", "webm", "3gp", "3gpp", "mov", "avi", "ts", "mts",
+    "mpg", "mpeg", "flv", "wmv",
+)
+
+/**
  * Builds a stand-in for a file that is not in the library.
  *
  * Everything works on it except moving to a neighbour, because it genuinely has

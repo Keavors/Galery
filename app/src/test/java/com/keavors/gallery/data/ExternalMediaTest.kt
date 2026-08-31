@@ -1,7 +1,9 @@
 package com.keavors.gallery.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MatchExternalTest {
@@ -110,5 +112,35 @@ class FolderNeighboursTest {
     @Test
     fun `a folder of one has exactly one page`() {
         assertEquals(1, listOf(item(7, 70)).inFolder(70).size)
+    }
+}
+
+class ProvisionalGuessTest {
+
+    @Test
+    fun `the type the intent declared settles it`() {
+        assertTrue(looksLikeVideo("video/mp4", "content://x/1"))
+        assertFalse(looksLikeVideo("image/jpeg", "content://x/clip.mp4"))
+    }
+
+    @Test
+    fun `without a type the name is the next best thing`() {
+        // Nothing is asked of the sending app here on purpose: that is a call
+        // into somebody else's process, and this runs before the first frame.
+        assertTrue(looksLikeVideo(null, "content://media/external/video/media/7.mkv"))
+        assertTrue(looksLikeVideo("", "file:///storage/DCIM/VID_0001.MP4"))
+        assertFalse(looksLikeVideo(null, "content://media/external/images/media/7.jpg"))
+    }
+
+    @Test
+    fun `a query string does not become part of the extension`() {
+        assertTrue(looksLikeVideo(null, "content://x/a.mp4?token=9"))
+    }
+
+    @Test
+    fun `a uri that says nothing at all is taken for a photograph`() {
+        // The commoner case by far, and the cheaper one to be wrong about: a
+        // video shown as a still corrects itself a moment later.
+        assertFalse(looksLikeVideo(null, "content://com.example.files/document/42"))
     }
 }

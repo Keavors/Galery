@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +67,7 @@ import com.keavors.gallery.data.inAlbum
 import com.keavors.gallery.data.indexOfId
 import com.keavors.gallery.data.mediaAccess
 import com.keavors.gallery.data.mediaPermissions
+import com.keavors.gallery.data.provisionalItem
 import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.albums.AlbumsScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
@@ -87,6 +89,9 @@ private const val TAB_FADE_OUT = 140
 /** Used until a tile has been measured and can say which size it wants. */
 private const val DEFAULT_THUMB_BUCKET = 384
 
+/** The id of a photograph that has arrived from outside and not been placed yet. */
+private const val PROVISIONAL_ID = -1L
+
 @Composable
 fun GalleryApp(
     settings: GallerySettings,
@@ -107,9 +112,6 @@ fun GalleryApp(
     var viewer by remember { mutableStateOf<ViewerRoute?>(null) }
     var editing by remember { mutableStateOf<MediaItem?>(null) }
 
-    // True from the very first frame when another app started this one, so the
-    // tabs are never drawn on the way to the photo.
-    var resolvingExternal by remember { mutableStateOf(pendingOpen != null) }
 
     val activity = LocalActivity.current
     val canLock = remember(activity) { activity?.canAuthenticate() == true }
@@ -151,10 +153,17 @@ fun GalleryApp(
     // Access can change while the app sits in the background — the user may have
     // opened system settings to widen or revoke it — so it is re-read on every
     // resume rather than only at startup.
-    LifecycleResumeEffect(Unit) {
+    //
+    // Re-reading the library is held back while a photograph from another app is
+    // on its way. Five thousand rows and one photograph want the same disk at
+    // the same moment, and the photograph is the one somebody is waiting for.
+    // The key is what starts it afterwards: it flips the instant the photo has
+    // been placed, and the effect runs again.
+    val opening = pendingOpen != null
+    LifecycleResumeEffect(opening) {
         access = context.mediaAccess()
         manageMedia = context.canManageMedia()
-        repository.refresh()
+        if (!opening) repository.refresh()
         onPauseOrDispose { }
     }
 
@@ -199,12 +208,33 @@ fun GalleryApp(
         }
     }
 
-    // A photo arriving from another app. It no longer waits for the library:
-    // the file and its folder are looked up directly, which takes a few tens of
-    // milliseconds instead of however long indexing five thousand rows takes.
+    // A photo arriving from another app, on screen before anything has been
+    // asked of anybody.
+    //
+    // Worked out while composing rather than in an effect, and that is the whole
+    // point: an effect runs after a frame has been drawn, and that frame is
+    // whatever was on screen when the app was last used — which is how an album
+    // someone had open flashed past on the way to a photograph. There was
+    // nothing to wait for in the first place. The uri that arrived is the
+    // photograph.
+    val arriving = remember(pendingOpen) {
+        pendingOpen?.let { open ->
+            ViewerRoute(
+                itemId = PROVISIONAL_ID,
+                source = null,
+                thumbBucketPx = DEFAULT_THUMB_BUCKET,
+                items = listOf(provisionalItem(open.uri, open.declaredType)),
+                resolved = false,
+            )
+        }
+    }
+
+    // And the considered answer, which arrives a moment later and brings the
+    // neighbours with it. Finding the file and reading its folder is two narrow
+    // queries rather than an index of five thousand rows, but two queries is
+    // still not nothing, and nothing is what opening a photograph has to cost.
     LaunchedEffect(pendingOpen) {
         val open = pendingOpen ?: return@LaunchedEffect
-        resolvingExternal = true
 
         val resolved = repository.resolveExternal(open.uri, open.declaredType)
         val source = resolved.bucketId?.let { AlbumSource.Folder(it) }
@@ -216,15 +246,18 @@ fun GalleryApp(
             )
         }
         viewer = ViewerRoute(
-            itemId = resolved.items.getOrNull(resolved.index)?.id ?: -1,
+            itemId = resolved.items.getOrNull(resolved.index)?.id ?: PROVISIONAL_ID,
             source = source,
             thumbBucketPx = DEFAULT_THUMB_BUCKET,
             items = resolved.items,
         )
 
-        resolvingExternal = false
         onExternalHandled()
     }
+
+    // What is on screen: the picture straight off the intent until the library
+    // has been asked about it, and the library's answer from then on.
+    val route = arriving ?: viewer
 
     val folderItems = when (folder?.source) {
         null -> emptyList()
@@ -232,21 +265,21 @@ fun GalleryApp(
         else -> libraryItems.inAlbum(folder!!.source, albumPrefs.userAlbums)
     }
 
-    val viewerItems = viewer?.let { route ->
+    val viewerItems = route?.let { shown ->
         when {
             // The folder straight from the library once it has one; the answer
             // found ahead of it only until then.
-            route.source == AlbumSource.Vault -> vaultItems
-            route.source != null ->
-                libraryItems.inAlbum(route.source, albumPrefs.userAlbums)
-                    .ifEmpty { route.items.orEmpty() }
-            route.items != null -> route.items
+            shown.source == AlbumSource.Vault -> vaultItems
+            shown.source != null ->
+                libraryItems.inAlbum(shown.source, albumPrefs.userAlbums)
+                    .ifEmpty { shown.items.orEmpty() }
+            shown.items != null -> shown.items
             else -> libraryItems
         }
     }.orEmpty()
 
-    val viewerIndex = viewer?.let { route ->
-        if (viewerItems.none { it.id == route.itemId }) -1 else viewerItems.indexOfId(route.itemId)
+    val viewerIndex = route?.let { shown ->
+        if (viewerItems.none { it.id == shown.itemId }) -1 else viewerItems.indexOfId(shown.itemId)
     } ?: -1
 
     // Album actions for the timeline. The remove action is filled in only when
@@ -306,7 +339,7 @@ fun GalleryApp(
             // position, but there is no point drawing a thousand tiles under
             // something opaque.
             modifier = Modifier.drawWithContent {
-                if (!resolvingExternal && folder == null && viewerIndex < 0) drawContent()
+                if (folder == null && viewerIndex < 0) drawContent()
             },
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
@@ -492,37 +525,51 @@ fun GalleryApp(
         }
 
         if (viewerIndex >= 0) {
-            ViewerScreen(
-                items = viewerItems,
-                startIndex = viewerIndex,
-                thumbBucketPx = viewer?.thumbBucketPx ?: DEFAULT_THUMB_BUCKET,
-                settings = settings,
-                writer = writer,
-                onEdit = { editing = it },
-                onRestoreFromVault = { item ->
-                    scope.launch {
-                        // Saying nothing was the real bug here: an operation
-                        // that can fail has to admit it, or it looks like a
-                        // button that does nothing at all.
-                        val entry = vaultEntries.firstOrNull { -it.id == item.id }
-                        val ok = entry != null && vaultStore.restore(entry)
-                        Toast.makeText(
-                            context,
-                            if (ok) restoredNote else restoreFailedNote,
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                },
-                // Only offered where there is an album to be the cover of.
-                onSetCover = viewer?.source?.let { source ->
-                    { itemId: Long -> scope.launch { albumStore.setCover(source, itemId) } }
-                },
-                onClose = { viewer = null },
-                // Left in composition while the editor is open so that closing
-                // the editor puts the same photo back on the same page, but not
-                // drawn: the editor covers it completely.
-                modifier = Modifier.drawWithContent { if (editing == null) drawContent() },
-            )
+            // Rebuilt once, when the photograph from another app stops being
+            // a single picture and becomes a page in its folder. A pager
+            // keeps the page it is on, and page zero of one photo is not
+            // page forty of a folder — without this the picture would change
+            // under the finger a moment after opening.
+            key(route?.resolved) {
+                ViewerScreen(
+                    items = viewerItems,
+                    startIndex = viewerIndex,
+                    thumbBucketPx = route?.thumbBucketPx ?: DEFAULT_THUMB_BUCKET,
+                    settings = settings,
+                    writer = writer,
+                    onEdit = { editing = it },
+                    onRestoreFromVault = { item ->
+                        scope.launch {
+                            // Saying nothing was the real bug here: an operation
+                            // that can fail has to admit it, or it looks like a
+                            // button that does nothing at all.
+                            val entry = vaultEntries.firstOrNull { -it.id == item.id }
+                            val ok = entry != null && vaultStore.restore(entry)
+                            Toast.makeText(
+                                context,
+                                if (ok) restoredNote else restoreFailedNote,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    },
+                    // Only offered where there is an album to be the cover of.
+                    onSetCover = route?.source?.let { source ->
+                        { itemId: Long -> scope.launch { albumStore.setCover(source, itemId) } }
+                    },
+                    onClose = {
+                        viewer = null
+                        // Closing a photograph that has not been placed yet leaves
+                        // the gallery. There is no folder behind it to go back to,
+                        // and whatever was on screen before belongs to something the
+                        // app was doing an hour ago.
+                        if (arriving != null) onFinish()
+                    },
+                    // Left in composition while the editor is open so that closing
+                    // the editor puts the same photo back on the same page, but not
+                    // drawn: the editor covers it completely.
+                    modifier = Modifier.drawWithContent { if (editing == null) drawContent() },
+                )
+            }
         } else if (folder == null && selected != 0) {
             // Back from any tab other than the first returns to the timeline
             // before it leaves the app.
@@ -555,17 +602,6 @@ fun GalleryApp(
                 },
                 onClose = { editing = null },
                 modifier = Modifier.fillMaxSize(),
-            )
-        }
-
-        // The gap between another app handing over a photo and the photo being
-        // ready. Black rather than the timeline: a flash of the gallery on the
-        // way to a picture reads as the wrong app opening.
-        if (resolvingExternal) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
             )
         }
 

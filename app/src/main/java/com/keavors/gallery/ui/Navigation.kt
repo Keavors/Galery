@@ -38,10 +38,16 @@ data class FolderRoute(
  *
  * @param source the album to page through, or null for the whole library.
  * @param items photos found ahead of the library, or null to derive them.
+ * @param resolved false while this is a photo from another app that has been
+ *   put on screen straight from its uri and has not yet been found in the
+ *   library. It becomes true exactly once per opening, and the viewer is rebuilt
+ *   when it does: a single picture at page zero and the same picture at page
+ *   forty of its folder are not the same pager.
  */
 data class ViewerRoute(
     val itemId: Long,
     val source: AlbumSource?,
     val thumbBucketPx: Int,
     val items: List<MediaItem>? = null,
+    val resolved: Boolean = true,
 )
