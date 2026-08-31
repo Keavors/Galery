@@ -92,6 +92,7 @@
     <!-- Под иконкой в нижней шторке: слово, а не предложение. -->
     <string name="bar_favorite">Избранное</string>
     <string name="bar_edit">Изменить</string>
+    <string name="bar_trim">Обрезать</string>
     <string name="action_delete">Удалить</string>
     <string name="action_restore">Восстановить</string>
     <string name="action_delete_forever">Удалить навсегда</string>
@@ -240,6 +241,10 @@
     <string name="crop_3_4" translatable="false">3:4</string>
     <string name="crop_16_9" translatable="false">16:9</string>
     <string name="crop_9_16" translatable="false">9:16</string>
+    <string name="trim_title">Обрезка видео</string>
+    <string name="trim_save">Сохранить копию</string>
+    <string name="trim_kept">Останется %1$s</string>
+    <string name="trim_working">Обработка… %1$d%%</string>
     <string name="editor_undo">Отменить</string>
     <string name="editor_redo">Вернуть</string>
     <string name="editor_straighten">Выравнивание: %1$d°</string>

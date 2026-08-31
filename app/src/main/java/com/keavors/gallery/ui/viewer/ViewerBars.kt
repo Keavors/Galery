@@ -240,17 +240,18 @@ fun ViewerBottomBar(
             onClick = onToggleFavorite,
             modifier = Modifier.weight(1f),
         )
-        // Only for stills: the editor turns and crops pixels, and a video is
-        // a different job with a different set of tools.
-        if (!item.isVideo) {
-            BarAction(
-                icon = R.drawable.ic_edit,
-                label = stringResource(R.string.bar_edit),
-                description = stringResource(R.string.editor_title),
-                onClick = onEdit,
-                modifier = Modifier.weight(1f),
-            )
-        }
+        // The same button, a different screen behind it: turning and cropping
+        // pixels and cutting the ends off a recording have nothing in common but
+        // the word, so the icon and the name say which one this is.
+        BarAction(
+            icon = if (item.isVideo) R.drawable.ic_cut else R.drawable.ic_edit,
+            label = stringResource(if (item.isVideo) R.string.bar_trim else R.string.bar_edit),
+            description = stringResource(
+                if (item.isVideo) R.string.trim_title else R.string.editor_title
+            ),
+            onClick = onEdit,
+            modifier = Modifier.weight(1f),
+        )
         BarAction(
             icon = R.drawable.ic_share,
             label = stringResource(R.string.viewer_share),

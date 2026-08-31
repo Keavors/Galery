@@ -72,6 +72,7 @@ import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.albums.AlbumsScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
 import com.keavors.gallery.ui.editor.EditorScreen
+import com.keavors.gallery.ui.editor.VideoTrimScreen
 import com.keavors.gallery.ui.lock.LockScreen
 import com.keavors.gallery.ui.permission.MediaGate
 import com.keavors.gallery.ui.photos.AlbumActions
@@ -581,28 +582,43 @@ fun GalleryApp(
         // hears the back press, so leaving the editor returns to the photo
         // instead of closing both at once.
         editing?.let { subject ->
-            EditorScreen(
-                item = subject,
-                jpegQuality = settings.jpegQuality,
-                onSaved = { keptMetadata ->
-                    editing = null
-                    // A photograph that came back without its date and place is
-                    // still saved, but it is not what was asked for either, and
-                    // finding out months later is finding out too late.
-                    Toast.makeText(
-                        context,
-                        if (keptMetadata) editorSaved else editorSavedBare,
-                        if (keptMetadata) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
-                    ).show()
-                },
-                // Left open on purpose: the edits are still there and the
-                // second attempt costs a tap.
-                onFailed = {
-                    Toast.makeText(context, editorFailed, Toast.LENGTH_LONG).show()
-                },
-                onClose = { editing = null },
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (subject.isVideo) {
+                VideoTrimScreen(
+                    item = subject,
+                    onSaved = {
+                        editing = null
+                        Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
+                    },
+                    onFailed = {
+                        Toast.makeText(context, editorFailed, Toast.LENGTH_LONG).show()
+                    },
+                    onClose = { editing = null },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                EditorScreen(
+                    item = subject,
+                    jpegQuality = settings.jpegQuality,
+                    onSaved = { keptMetadata ->
+                        editing = null
+                        // A photograph that came back without its date and place
+                        // is still saved, but it is not what was asked for
+                        // either, and finding out months later is too late.
+                        Toast.makeText(
+                            context,
+                            if (keptMetadata) editorSaved else editorSavedBare,
+                            if (keptMetadata) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                        ).show()
+                    },
+                    // Left open on purpose: the edits are still there and the
+                    // second attempt costs a tap.
+                    onFailed = {
+                        Toast.makeText(context, editorFailed, Toast.LENGTH_LONG).show()
+                    },
+                    onClose = { editing = null },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         // In front of everything else, including a photo another app sent over:

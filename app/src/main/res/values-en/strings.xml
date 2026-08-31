@@ -83,6 +83,7 @@
     <string name="action_unfavorite">Remove from favourites</string>
     <string name="bar_favorite">Favourites</string>
     <string name="bar_edit">Edit</string>
+    <string name="bar_trim">Trim</string>
     <string name="action_delete">Delete</string>
     <string name="action_restore">Restore</string>
     <string name="action_delete_forever">Delete for good</string>
@@ -224,6 +225,10 @@
     <string name="editor_reset">Reset</string>
     <string name="crop_free">Free</string>
     <string name="crop_original">As it is</string>
+    <string name="trim_title">Trimming</string>
+    <string name="trim_save">Save a copy</string>
+    <string name="trim_kept">Keeping %1$s</string>
+    <string name="trim_working">Working… %1$d%%</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
     <string name="editor_straighten">Straighten: %1$d°</string>
