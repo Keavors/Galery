@@ -79,6 +79,31 @@ private const val MAX_ZOOM = 8f
 /** Where a double tap goes and comes back from. Twice, as it has always been. */
 private const val DOUBLE_TAP_ZOOM = 2f
 
+/** Below this the picture is sitting where it opened, however the float landed. */
+private const val AT_REST = 0.01f
+
+/**
+ * What a double tap does.
+ *
+ * Twice what is on the screen, and back again. Telephoto's own cycler zooms to
+ * a multiple of the picture's own pixels, which is a different thing entirely
+ * and the reason this is written out: a photograph from a messenger or a
+ * download arrives smaller than the screen and is therefore already shown
+ * enlarged, so "twice the original size" can be less than it is being shown at
+ * already — a double tap that barely moves, or does nothing whatsoever. What is
+ * multiplied here is what is there.
+ */
+private val DOUBLE_TAP_TO_ZOOM = DoubleClickToZoomListener { state, centroid ->
+    if ((state.zoomFraction ?: 0f) > AT_REST) {
+        state.resetZoom()
+    } else {
+        state.zoomBy(DOUBLE_TAP_ZOOM, centroid)
+    }
+}
+
+/** A double tap left to mean nothing, for whoever turned it off. */
+private val DOUBLE_TAP_IGNORED = DoubleClickToZoomListener { _, _ -> }
+
 /**
  * The zoom limit, worked out from the sizes rather than fixed.
  *
@@ -352,13 +377,13 @@ fun ViewerScreen(
                 contentDescription = item.name,
                 state = imageState,
                 onClick = { chromeVisible = !chromeVisible },
+                // Told where to stop rather than left to the limit above: a
+                // double tap is meant to land on a face, not to throw the
+                // picture eight times across the screen.
                 onDoubleClick = if (settings.doubleTapZoom) {
-                    // Told where to stop rather than left to the limit above:
-                    // a double tap is meant to land on a face, not to throw the
-                    // picture eight times across the screen.
-                    DoubleClickToZoomListener.cycle(maxZoomFactor = DOUBLE_TAP_ZOOM)
+                    DOUBLE_TAP_TO_ZOOM
                 } else {
-                    DoubleClickToZoomListener { _, _ -> }
+                    DOUBLE_TAP_IGNORED
                 },
                 modifier = Modifier.fillMaxSize(),
             )
