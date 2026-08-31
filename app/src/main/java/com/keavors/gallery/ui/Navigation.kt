@@ -13,14 +13,13 @@ enum class LaunchMode { BROWSE, PICK }
 /**
  * A folder being looked at on top of the tabs.
  *
- * [fromExternal] decides what leaving it does. Arrived at from another app's
- * photo, going back leaves the gallery entirely; opened from inside the app, it
- * returns to the tabs.
+ * Leaving one always lands on the timeline, however it was arrived at — from
+ * the albums tab, or from a photograph another app sent over. Back walks one
+ * step towards the pictures and never sideways.
  */
 data class FolderRoute(
     val source: AlbumSource,
     val title: String,
-    val fromExternal: Boolean,
 )
 
 /**

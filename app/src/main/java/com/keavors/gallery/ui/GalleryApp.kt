@@ -241,11 +241,7 @@ fun GalleryApp(
         val resolved = repository.resolveExternal(open.uri, open.declaredType)
         val source = resolved.bucketId?.let { AlbumSource.Folder(it) }
         folder = source?.let {
-            FolderRoute(
-                source = it,
-                title = resolved.folderName.ifBlank { unknownFolder },
-                fromExternal = true,
-            )
+            FolderRoute(source = it, title = resolved.folderName.ifBlank { unknownFolder })
         }
         viewer = ViewerRoute(
             itemId = resolved.items.getOrNull(resolved.index)?.id ?: PROVISIONAL_ID,
@@ -320,6 +316,16 @@ fun GalleryApp(
                 vaultDeleteLauncher.launch(deleteRequestFor(context, taken.map { it.first }))
             }
         }
+    }
+
+    // Back means one thing everywhere: a step nearer the pictures. Leaving a
+    // folder therefore lands on the timeline rather than wherever the folder was
+    // opened from — including a folder arrived at from another app's photograph,
+    // which used to close the gallery instead. The timeline is the only way out,
+    // and only from there.
+    fun leaveFolder() {
+        folder = null
+        selected = Tab.PHOTOS.ordinal
     }
 
     val openItem: (MediaItem, Int) -> Unit = { item, bucket ->
@@ -459,7 +465,7 @@ fun GalleryApp(
                             vaultCount = vaultItems.size,
                             prefs = albumPrefs,
                             onOpenAlbum = { source, title ->
-                                folder = FolderRoute(source, title, fromExternal = false)
+                                folder = FolderRoute(source, title)
                             },
                             trashCount = trash.size,
                             onOpenTrash = { selected = Tab.TRASH.ordinal },
@@ -469,11 +475,7 @@ fun GalleryApp(
                                 // locking, so it is the one thing not trusted to
                                 // stay unlocked.
                                 vaultUnlocked = false
-                                folder = FolderRoute(
-                                    source = AlbumSource.Vault,
-                                    title = vaultTitle,
-                                    fromExternal = false,
-                                )
+                                folder = FolderRoute(AlbumSource.Vault, vaultTitle)
                             },
                             onTogglePin = { scope.launch { albumStore.togglePinned(it) } },
                             onSetHidden = { source, hidden ->
@@ -500,7 +502,7 @@ fun GalleryApp(
                 title = stringResource(R.string.vault_title),
                 subtitle = stringResource(R.string.vault_subtitle),
                 onUnlocked = { vaultUnlocked = true },
-                onGiveUp = { folder = null },
+                onGiveUp = ::leaveFolder,
                 modifier = Modifier.fillMaxSize(),
             )
         } else folder?.let { route ->
@@ -511,12 +513,7 @@ fun GalleryApp(
                 writer = writer,
                 albumActions = albumActions(removableFrom = route.source),
                 onHide = hideItems,
-                onBack = {
-                    // Arrived here from another app's photo: going back a second
-                    // time leaves the gallery rather than dropping into a
-                    // timeline nobody asked for.
-                    if (route.fromExternal) onFinish() else folder = null
-                },
+                onBack = ::leaveFolder,
                 onOpen = openItem,
                 modifier = Modifier
                     .fillMaxSize()
@@ -558,14 +555,7 @@ fun GalleryApp(
                     onSetCover = route?.source?.let { source ->
                         { itemId: Long -> scope.launch { albumStore.setCover(source, itemId) } }
                     },
-                    onClose = {
-                        viewer = null
-                        // Closing a photograph that has not been placed yet leaves
-                        // the gallery. There is no folder behind it to go back to,
-                        // and whatever was on screen before belongs to something the
-                        // app was doing an hour ago.
-                        if (arriving != null) onFinish()
-                    },
+                    onClose = { viewer = null },
                     // Left in composition while the editor is open so that closing
                     // the editor puts the same photo back on the same page, but not
                     // drawn: the editor covers it completely.
