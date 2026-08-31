@@ -69,8 +69,10 @@ suspend fun Context.decodeForEditing(item: MediaItem, maxPixels: Int): Bitmap? =
  * Draws a picture with the edits applied.
  *
  * Turns and mirroring first, then the tilt, then the crop, then the light and
- * colour — the same order the editor shows them in, which is what lets a crop
- * chosen on screen mean the same thing here.
+ * colour, and last of all whatever was drawn on top — the same order the editor
+ * shows them in, which is what lets a crop chosen on screen mean the same thing
+ * here. The marks come last because they are meant to be seen: a brightness
+ * slider has no business lightening somebody's pen.
  */
 fun applyOps(source: Bitmap, ops: EditOps): Bitmap {
     var current = source
@@ -142,6 +144,12 @@ fun applyOps(source: Bitmap, ops: EditOps): Bitmap {
         }
         if (current !== source) current.recycle()
         current = corrected
+    }
+
+    if (ops.marks.isNotEmpty()) {
+        val marked = current.withMarks(ops.marks, ops.crop)
+        if (marked !== current && current !== source) current.recycle()
+        current = marked
     }
 
     return current

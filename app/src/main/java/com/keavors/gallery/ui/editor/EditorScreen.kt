@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +57,8 @@ import com.keavors.gallery.data.CropRect
 import com.keavors.gallery.data.EditHistory
 import com.keavors.gallery.data.EditOps
 import com.keavors.gallery.data.EditStep
+import com.keavors.gallery.data.Mark
+import com.keavors.gallery.data.MarkPoint
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.SaveOutcome
 import com.keavors.gallery.data.applyOps
@@ -85,7 +88,7 @@ import kotlinx.coroutines.withContext
 enum class SaveMode { COPY, OVERWRITE }
 
 /** Which set of tools is open. */
-private enum class EditorTab { GEOMETRY, COLOUR, FILTERS }
+private enum class EditorTab { GEOMETRY, COLOUR, FILTERS, MARKUP }
 
 /**
  * The editor.
@@ -122,6 +125,10 @@ fun EditorScreen(
     var tab by remember { mutableStateOf(EditorTab.GEOMETRY) }
     var correction by remember { mutableStateOf(Correction.entries.first()) }
     var shape by remember(item.id) { mutableStateOf(CropShape.FREE) }
+    var brush by remember(item.id) { mutableStateOf(Brush()) }
+    // The line still under the finger. It joins the edits only when the finger
+    // comes up, so that one stroke is one thing to undo rather than two hundred.
+    var pending by remember(item.id) { mutableStateOf<Mark.Stroke?>(null) }
     // Which filter is on and how far. Kept beside the corrections rather than
     // inside them because a filter is only a way of setting them: once it has,
     // it is the corrections that are the truth, and these two are just what the
@@ -302,6 +309,27 @@ fun EditorScreen(
                     crop = ops.crop,
                     onCropChange = { change(ops.cropped(it), EditStep(EditStep.Kind.CROP)) },
                     ratio = pictureShape?.let { shape.of(it) },
+                    marks = if (comparing) {
+                        emptyList()
+                    } else {
+                        pending?.let { ops.marks + it } ?: ops.marks
+                    },
+                    onDraw = if (tab == EditorTab.MARKUP && !comparing) {
+                        { point, started ->
+                            pending = if (started) brush.strokeAt(point) else pending?.extendedTo(point)
+                        }
+                    } else {
+                        null
+                    },
+                    onDrawEnd = {
+                        pending?.let { stroke ->
+                            change(
+                                ops.marked(ops.marks + stroke),
+                                EditStep(EditStep.Kind.MARK),
+                            )
+                        }
+                        pending = null
+                    },
                     colorFilter = if (comparing) null else colours,
                     vignette = if (comparing) 0f else ops.adjustments.vignette,
                     cropVisible = tab == EditorTab.GEOMETRY && !comparing,
@@ -359,6 +387,13 @@ fun EditorScreen(
                 },
             )
 
+            EditorTab.MARKUP -> MarkupTools(
+                brush = brush,
+                onBrush = { brush = it },
+                canClear = ops.marks.isNotEmpty(),
+                onClear = { change(ops.marked(emptyList()), EditStep(EditStep.Kind.MARK, "clear")) },
+            )
+
             EditorTab.FILTERS -> FilterTools(
                 image = image,
                 chosen = filter,
@@ -406,6 +441,13 @@ fun EditorScreen(
                 label = stringResource(R.string.editor_tab_filters),
                 selected = tab == EditorTab.FILTERS,
                 onClick = { tab = EditorTab.FILTERS },
+                modifier = Modifier.weight(1f),
+            )
+            BarAction(
+                icon = R.drawable.ic_brush,
+                label = stringResource(R.string.editor_tab_markup),
+                selected = tab == EditorTab.MARKUP,
+                onClick = { tab = EditorTab.MARKUP },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -562,6 +604,155 @@ private fun ColourTools(
                 )
             }
         }
+    }
+}
+
+/**
+ * What the brush is set to.
+ *
+ * The eraser is the same brush with a different job rather than a tool of its
+ * own: it has a thickness, it follows a finger, and the only thing it does
+ * differently is take away instead of put down.
+ */
+private data class Brush(
+    val colour: Int = MARK_COLOURS.first(),
+    val width: Float = 0.012f,
+    val erasing: Boolean = false,
+) {
+    fun strokeAt(point: MarkPoint) = Mark.Stroke(
+        points = listOf(point),
+        colour = colour,
+        width = width,
+        erases = erasing,
+    )
+}
+
+/** The same stroke with one more point on the end of it. */
+private fun Mark.Stroke.extendedTo(point: MarkPoint) = copy(points = points + point)
+
+/**
+ * The colours to draw in.
+ *
+ * Nine, because a row of nine fits across a phone and because a colour picker
+ * is a screen of its own for a decision nobody agonises over. White and black
+ * first: most marks on a photograph are an arrow or a ring, and those are drawn
+ * in whichever of the two the photograph is not.
+ */
+private val MARK_COLOURS = listOf(
+    0xFFFFFFFF.toInt(),
+    0xFF000000.toInt(),
+    0xFFE53935.toInt(),
+    0xFFFB8C00.toInt(),
+    0xFFFDD835.toInt(),
+    0xFF43A047.toInt(),
+    0xFF1E88E5.toInt(),
+    0xFF8E24AA.toInt(),
+    0xFFEC407A.toInt(),
+)
+
+/** The thinnest and thickest a brush goes, as fractions of the shorter side. */
+private const val THINNEST = 0.003f
+private const val THICKEST = 0.05f
+
+/**
+ * The brush, the eraser, the colours and the thickness.
+ *
+ * No preview of the brush anywhere: the photograph is the preview, and a stroke
+ * that turns out too thick is one undo away.
+ */
+@Composable
+private fun MarkupTools(
+    brush: Brush,
+    onBrush: (Brush) -> Unit,
+    canClear: Boolean,
+    onClear: () -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            CorrectionChip(
+                label = stringResource(R.string.markup_brush),
+                selected = !brush.erasing,
+                touched = false,
+                onClick = { onBrush(brush.copy(erasing = false)) },
+            )
+            CorrectionChip(
+                label = stringResource(R.string.markup_eraser),
+                selected = brush.erasing,
+                touched = false,
+                onClick = { onBrush(brush.copy(erasing = true)) },
+            )
+            if (canClear) {
+                CorrectionChip(
+                    label = stringResource(R.string.markup_clear),
+                    selected = false,
+                    touched = false,
+                    onClick = onClear,
+                )
+            }
+        }
+
+        // The colours are hidden while erasing, because an eraser has none and a
+        // row of swatches that changes nothing is a row of swatches that lies.
+        if (!brush.erasing) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 8.dp),
+            ) {
+                MARK_COLOURS.forEach { colour ->
+                    Swatch(
+                        colour = colour,
+                        selected = colour == brush.colour,
+                        onClick = { onBrush(brush.copy(colour = colour)) },
+                    )
+                }
+            }
+        }
+
+        WhiteSlider(
+            value = brush.width,
+            onValueChange = { onBrush(brush.copy(width = it)) },
+            range = THINNEST..THICKEST,
+        )
+    }
+}
+
+/**
+ * One colour to draw in.
+ *
+ * A ring around the chosen one rather than a tick inside it: a tick would have
+ * to be drawn in some colour, and every colour it could be drawn in is one of
+ * the ones on offer.
+ */
+@Composable
+private fun Swatch(colour: Int, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(TOUCH_TARGET)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(if (selected) 30.dp else 26.dp)
+                .clip(CircleShape)
+                .background(Color(colour))
+                .border(
+                    width = if (selected) 3.dp else 1.dp,
+                    color = Color.White.copy(alpha = if (selected) 1f else 0.4f),
+                    shape = CircleShape,
+                )
+        )
     }
 }
 

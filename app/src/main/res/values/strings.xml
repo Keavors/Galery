@@ -252,6 +252,10 @@
     <string name="editor_tab_geometry">Геометрия</string>
     <string name="editor_tab_colour">Свет и цвет</string>
     <string name="editor_tab_filters">Фильтры</string>
+    <string name="editor_tab_markup">Разметка</string>
+    <string name="markup_brush">Кисть</string>
+    <string name="markup_eraser">Ластик</string>
+    <string name="markup_clear">Убрать всё</string>
 
     <!-- Фильтры: те же коррекции, выставленные заранее. -->
     <string name="filter_strength">Сила</string>

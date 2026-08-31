@@ -11,7 +11,7 @@ package com.keavors.gallery.data
  */
 data class EditStep(val kind: Kind, val detail: String = "") {
 
-    enum class Kind { TURN, FLIP, CROP, STRAIGHTEN, ADJUST, FILTER, RESET }
+    enum class Kind { TURN, FLIP, CROP, STRAIGHTEN, ADJUST, FILTER, MARK, RESET }
 
     /**
      * True for the things that are dragged rather than pressed.

@@ -25,7 +25,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.data.CropRect
+import com.keavors.gallery.data.Mark
+import com.keavors.gallery.data.MarkPoint
 import com.keavors.gallery.data.PixelRect
+import com.keavors.gallery.data.drawMarks
+import com.keavors.gallery.data.uncroppedArea
 import com.keavors.gallery.data.Vignette
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -67,6 +71,12 @@ fun EditorCanvas(
     vignette: Float = 0f,
     cropVisible: Boolean = true,
     ratio: Float? = null,
+    marks: List<Mark> = emptyList(),
+    // Non-null puts the canvas into drawing: a finger becomes a line rather
+    // than a crop. A finger on a photograph means one thing at a time, and
+    // which thing is decided by the tools that are open.
+    onDraw: ((MarkPoint, started: Boolean) -> Unit)? = null,
+    onDrawEnd: (() -> Unit)? = null,
 ) {
     var canvas by remember { mutableStateOf(Size.Zero) }
 
@@ -98,11 +108,29 @@ fun EditorCanvas(
     val shape by rememberUpdatedState(ratio)
     val pictureShape by rememberUpdatedState(image.width.toFloat() / image.height.toFloat())
 
+    val paint by rememberUpdatedState(onDraw)
+    val paintEnd by rememberUpdatedState(onDrawEnd)
     var grabbed by remember { mutableStateOf(Grab.NONE) }
 
     Canvas(
         modifier = modifier
             .onSizeChanged { canvas = Size(it.width.toFloat(), it.height.toFloat()) }
+            .pointerInput(onDraw != null) {
+                if (onDraw == null) return@pointerInput
+                detectDragGestures(
+                    onDragStart = { at ->
+                        paint?.invoke(pointAt(at, box, shownCrop(cropVisible, current)), true)
+                    },
+                    onDragEnd = { paintEnd?.invoke() },
+                    onDragCancel = { paintEnd?.invoke() },
+                ) { change, _ ->
+                    change.consume()
+                    paint?.invoke(
+                        pointAt(change.position, box, shownCrop(cropVisible, current)),
+                        false,
+                    )
+                }
+            }
             // Keyed on whether there is a frame to drag and on nothing else,
             // and the nothing else is deliberate. A key that changes cancels the
             // coroutine underneath and starts it again, which mid-drag means the
@@ -141,8 +169,43 @@ fun EditorCanvas(
             colorFilter = colorFilter,
         )
         if (vignette != 0f) drawVignette(frame, vignette)
+        // Placed against the whole photograph rather than the piece on screen:
+        // a mark belongs to the picture, so cropping moves the picture under it
+        // instead of dragging it along.
+        if (marks.isNotEmpty()) {
+            drawMarks(
+                marks = marks,
+                area = uncroppedArea(shownCrop(cropVisible, current), frame.width, frame.height)
+                    .translate(frame.left, frame.top),
+                clipTo = frame,
+            )
+        }
         if (cropVisible) drawCrop(frame, current)
     }
+}
+
+/**
+ * Which crop the picture on screen is showing.
+ *
+ * With the frame up, the whole photograph is on screen and nothing has been cut
+ * away yet; without it, what is on screen is the crop itself.
+ */
+internal fun shownCrop(cropVisible: Boolean, crop: CropRect): CropRect =
+    if (cropVisible) CropRect.Whole else crop
+
+/**
+ * Where a touch falls on the photograph, in the fractions marks are kept in.
+ *
+ * Measured against the whole picture even when only part of it is on screen, so
+ * that a line drawn near the edge of a crop lands where the finger was and stays
+ * there if the crop is later opened back up.
+ */
+internal fun pointAt(at: Offset, frame: Rect, crop: CropRect): MarkPoint {
+    if (frame.width <= 0f || frame.height <= 0f) return MarkPoint(0f, 0f)
+    return MarkPoint(
+        x = crop.left + (at.x - frame.left) / frame.width * crop.width,
+        y = crop.top + (at.y - frame.top) / frame.height * crop.height,
+    )
 }
 
 /**

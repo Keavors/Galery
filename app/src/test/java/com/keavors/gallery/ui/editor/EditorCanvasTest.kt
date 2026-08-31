@@ -300,3 +300,39 @@ class FixedShapeTest {
         assertEquals(crop, crop.keeping(ratio = 0f, pictureShape = 1f, grab = Grab.NONE))
     }
 }
+
+class MarkPlacementTest {
+
+    /** A photograph on screen at 800 by 600, sitting 100 down from the top. */
+    private val frame = Rect(0f, 100f, 800f, 700f)
+
+    @Test
+    fun `with nothing cropped a touch is where it looks`() {
+        val at = pointAt(Offset(400f, 400f), frame, CropRect.Whole)
+        assertEquals(0.5f, at.x, 1e-4f)
+        assertEquals(0.5f, at.y, 1e-4f)
+    }
+
+    @Test
+    fun `a touch on a cropped picture lands where it is on the whole one`() {
+        // The middle of the right-hand half of a photograph is three quarters of
+        // the way along the photograph, not halfway.
+        val at = pointAt(Offset(400f, 400f), frame, CropRect(0.5f, 0f, 1f, 1f))
+        assertEquals(0.75f, at.x, 1e-4f)
+        assertEquals(0.5f, at.y, 1e-4f)
+    }
+
+    @Test
+    fun `the crop shown is the whole picture while the frame is up`() {
+        val crop = CropRect(0.2f, 0.2f, 0.6f, 0.6f)
+        assertEquals(CropRect.Whole, shownCrop(cropVisible = true, crop = crop))
+        assertEquals(crop, shownCrop(cropVisible = false, crop = crop))
+    }
+
+    @Test
+    fun `a touch before the picture has been measured is not a divide by zero`() {
+        val at = pointAt(Offset(10f, 10f), Rect.Zero, CropRect.Whole)
+        assertEquals(0f, at.x, 0f)
+        assertEquals(0f, at.y, 0f)
+    }
+}

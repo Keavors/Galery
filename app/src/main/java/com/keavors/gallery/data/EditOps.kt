@@ -83,21 +83,23 @@ data class EditOps(
     val straighten: Float = 0f,
     val crop: CropRect = CropRect.Whole,
     val adjustments: Adjustments = Adjustments.None,
+    val marks: List<Mark> = emptyList(),
 ) {
     val isIdentity: Boolean
         get() = quarterTurns == 0 && !flipHorizontal && straighten == 0f &&
-            crop.isWhole && adjustments.isNeutral
+            crop.isWhole && adjustments.isNeutral && marks.isEmpty()
 
     /**
      * The turns and the tilt on their own.
      *
      * This is what the editor draws its preview from. The crop is a frame drawn
-     * over that preview and the colours are applied while drawing it, so baking
-     * either one in would be doing the same work twice — and in the crop's case
-     * doing it to the very picture the frame is measured against.
+     * over that preview, the colours are applied while drawing it and the marks
+     * are drawn on top of it, so baking any of them in would be doing the same
+     * work twice — and in the crop's case doing it to the very picture the frame
+     * is measured against.
      */
     val geometryOnly: EditOps
-        get() = copy(crop = CropRect.Whole, adjustments = Adjustments.None)
+        get() = copy(crop = CropRect.Whole, adjustments = Adjustments.None, marks = emptyList())
 
     /** One more right-angle turn, wrapping rather than growing without bound. */
     fun turned(): EditOps = copy(
@@ -118,6 +120,8 @@ data class EditOps(
     fun cropped(rect: CropRect): EditOps = copy(crop = rect.sane())
 
     fun adjusted(values: Adjustments): EditOps = copy(adjustments = values)
+
+    fun marked(drawn: List<Mark>): EditOps = copy(marks = drawn)
 
     companion object {
         val None = EditOps()
