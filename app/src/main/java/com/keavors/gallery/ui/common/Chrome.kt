@@ -61,15 +61,19 @@ fun ChromeIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     iconSize: Dp = 24.dp,
+    enabled: Boolean = true,
 ) {
     IconButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.size(TOUCH_TARGET),
     ) {
         Icon(
             painter = painterResource(icon),
             contentDescription = contentDescription,
-            tint = Color.White,
+            // Dimmed rather than hidden: a button that comes and goes moves the
+            // ones beside it, and these two are pressed by feel.
+            tint = Color.White.copy(alpha = if (enabled) 1f else 0.3f),
             modifier = Modifier.size(iconSize),
         )
     }

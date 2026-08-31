@@ -233,6 +233,8 @@
     <string name="editor_flip">Отразить</string>
     <string name="editor_reset_crop">Весь кадр</string>
     <string name="editor_reset">Сбросить</string>
+    <string name="editor_undo">Отменить</string>
+    <string name="editor_redo">Вернуть</string>
     <string name="editor_straighten">Выравнивание: %1$d°</string>
     <string name="editor_tab_geometry">Геометрия</string>
     <string name="editor_tab_colour">Свет и цвет</string>

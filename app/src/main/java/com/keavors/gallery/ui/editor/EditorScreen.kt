@@ -53,7 +53,9 @@ import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
 import com.keavors.gallery.data.Adjustments
 import com.keavors.gallery.data.CropRect
+import com.keavors.gallery.data.EditHistory
 import com.keavors.gallery.data.EditOps
+import com.keavors.gallery.data.EditStep
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.SaveOutcome
 import com.keavors.gallery.data.applyOps
@@ -109,7 +111,11 @@ fun EditorScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var ops by remember(item.id) { mutableStateOf(EditOps.None) }
+    // Everywhere the picture has been, not just where it is. The edits are a
+    // small value, so keeping all of them costs nothing worth counting.
+    var history by remember(item.id) { mutableStateOf(EditHistory()) }
+    val ops = history.present
+    var comparing by remember(item.id) { mutableStateOf(false) }
     var preview by remember(item.id) { mutableStateOf<android.graphics.Bitmap?>(null) }
     var working by remember { mutableStateOf(false) }
     var askingHow by remember { mutableStateOf(false) }
@@ -121,6 +127,13 @@ fun EditorScreen(
     // strength slider needs to be able to set them again.
     var filter by remember(item.id) { mutableStateOf(FilterPreset.NONE) }
     var strength by remember(item.id) { mutableFloatStateOf(1f) }
+
+    // One way in for every change, so that nothing can alter the picture without
+    // saying what kind of change it was — which is what keeps a slider dragged
+    // across the screen from becoming two hundred steps to undo.
+    fun change(next: EditOps, step: EditStep) {
+        history = history.with(next, step)
+    }
 
     // The preview is deliberately small: it is only ever shown at screen size,
     // and decoding a hundred megapixels to draw four hundred thousand of them
@@ -162,6 +175,12 @@ fun EditorScreen(
     // is called, so wrapping it where it is used would hand the canvas a
     // different picture on every frame of a drag.
     val image = remember(toned) { toned?.asImageBitmap() }
+
+    // The same photograph with none of the corrections on it, for the comparison
+    // held under a finger. Same geometry, though: the crop and the turns are
+    // decisions about what the picture is, and swapping those out as well would
+    // be showing a different photograph rather than the same one untouched.
+    val plain = remember(shown) { shown?.asImageBitmap() }
 
     // A matrix, not a redrawn bitmap: this is what makes the colour sliders cost
     // nothing on a photograph of any size.
@@ -230,6 +249,27 @@ fun EditorScreen(
                 color = Color.White,
                 modifier = Modifier.weight(1f),
             )
+            ChromeIconButton(
+                icon = R.drawable.ic_undo,
+                contentDescription = stringResource(R.string.editor_undo),
+                enabled = history.canUndo,
+                onClick = {
+                    history = history.undone()
+                    // The panel stops claiming a filter it may no longer be
+                    // showing. What the corrections are is the truth; the name
+                    // over them was only ever a convenience.
+                    filter = FilterPreset.NONE
+                },
+            )
+            ChromeIconButton(
+                icon = R.drawable.ic_redo,
+                contentDescription = stringResource(R.string.editor_redo),
+                enabled = history.canRedo,
+                onClick = {
+                    history = history.redone()
+                    filter = FilterPreset.NONE
+                },
+            )
             TextButton(
                 onClick = { askingHow = true },
                 enabled = !ops.isIdentity && !working && preview != null,
@@ -245,19 +285,20 @@ fun EditorScreen(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .compareWhileHeld { comparing = it },
             contentAlignment = Alignment.Center,
         ) {
             if (image == null) {
                 CircularProgressIndicator(color = Color.White)
             } else {
                 EditorCanvas(
-                    image = image,
+                    image = if (comparing) plain ?: image else image,
                     crop = ops.crop,
-                    onCropChange = { ops = ops.cropped(it) },
-                    colorFilter = colours,
-                    vignette = ops.adjustments.vignette,
-                    cropVisible = tab == EditorTab.GEOMETRY,
+                    onCropChange = { change(ops.cropped(it), EditStep(EditStep.Kind.CROP)) },
+                    colorFilter = if (comparing) null else colours,
+                    vignette = if (comparing) 0f else ops.adjustments.vignette,
+                    cropVisible = tab == EditorTab.GEOMETRY && !comparing,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -278,7 +319,7 @@ fun EditorScreen(
         }
 
         when (tab) {
-            EditorTab.GEOMETRY -> GeometryTools(ops = ops, onChange = { ops = it })
+            EditorTab.GEOMETRY -> GeometryTools(ops = ops, onChange = ::change)
 
             EditorTab.COLOUR -> ColourTools(
                 adjustments = ops.adjustments,
@@ -288,7 +329,9 @@ fun EditorScreen(
                     // Moving a slider by hand is no longer whatever the filter
                     // said, so the filter stops claiming the credit.
                     filter = FilterPreset.NONE
-                    ops = ops.adjusted(it)
+                    // Named after the correction, so that moving on to a
+                    // different one starts a step of its own.
+                    change(ops.adjusted(it), EditStep(EditStep.Kind.ADJUST, correction.name))
                 },
             )
 
@@ -299,11 +342,17 @@ fun EditorScreen(
                 onChoose = { preset ->
                     filter = preset
                     strength = 1f
-                    ops = ops.adjusted(preset.adjustments)
+                    change(
+                        ops.adjusted(preset.adjustments),
+                        EditStep(EditStep.Kind.FILTER, preset.name),
+                    )
                 },
                 onStrength = {
                     strength = it
-                    ops = ops.adjusted(filter.adjustments * it)
+                    change(
+                        ops.adjusted(filter.adjustments * it),
+                        EditStep(EditStep.Kind.FILTER, filter.name + " strength"),
+                    )
                 },
             )
         }
@@ -355,7 +404,7 @@ fun EditorScreen(
 
 /** Turns, mirroring, the crop and the horizon. */
 @Composable
-private fun GeometryTools(ops: EditOps, onChange: (EditOps) -> Unit) {
+private fun GeometryTools(ops: EditOps, onChange: (EditOps, EditStep) -> Unit) {
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
         // The same cells as the viewer's bottom bar: a quarter of the width
         // each, the whole of it answering a thumb rather than the icon in the
@@ -368,25 +417,27 @@ private fun GeometryTools(ops: EditOps, onChange: (EditOps) -> Unit) {
             BarAction(
                 icon = R.drawable.ic_rotate,
                 label = stringResource(R.string.editor_rotate),
-                onClick = { onChange(ops.turned()) },
+                onClick = { onChange(ops.turned(), EditStep(EditStep.Kind.TURN)) },
                 modifier = Modifier.weight(1f),
             )
             BarAction(
                 icon = R.drawable.ic_flip,
                 label = stringResource(R.string.editor_flip),
-                onClick = { onChange(ops.flipped()) },
+                onClick = { onChange(ops.flipped(), EditStep(EditStep.Kind.FLIP)) },
                 modifier = Modifier.weight(1f),
             )
             BarAction(
                 icon = R.drawable.ic_crop_reset,
                 label = stringResource(R.string.editor_reset_crop),
-                onClick = { onChange(ops.cropped(CropRect.Whole)) },
+                onClick = {
+                    onChange(ops.cropped(CropRect.Whole), EditStep(EditStep.Kind.CROP, "whole"))
+                },
                 modifier = Modifier.weight(1f),
             )
             BarAction(
                 icon = R.drawable.ic_restore,
                 label = stringResource(R.string.editor_reset),
-                onClick = { onChange(EditOps.None) },
+                onClick = { onChange(EditOps.None, EditStep(EditStep.Kind.RESET)) },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -398,7 +449,9 @@ private fun GeometryTools(ops: EditOps, onChange: (EditOps) -> Unit) {
         )
         WhiteSlider(
             value = ops.straighten,
-            onValueChange = { onChange(ops.straightened(it)) },
+            onValueChange = {
+                onChange(ops.straightened(it), EditStep(EditStep.Kind.STRAIGHTEN))
+            },
             range = -EditOps.MAX_STRAIGHTEN..EditOps.MAX_STRAIGHTEN,
         )
     }
