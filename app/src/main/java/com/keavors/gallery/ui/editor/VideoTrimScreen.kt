@@ -4,6 +4,8 @@
 package com.keavors.gallery.ui.editor
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +60,7 @@ import com.keavors.gallery.data.frameTimesMs
 import com.keavors.gallery.data.startAt
 import com.keavors.gallery.data.trimVideo
 import com.keavors.gallery.data.videoFrames
+import com.keavors.gallery.data.writeRequestFor
 import com.keavors.gallery.ui.common.ChromeIconButton
 import com.keavors.gallery.ui.common.TOUCH_TARGET
 import com.keavors.gallery.ui.common.opaqueToTouch
@@ -79,9 +82,11 @@ private const val TICK_MS = 60L
  * that can be undone at any point, the other is a re-encode that takes as long
  * as it takes and produces a new file at the end.
  *
- * Which is also why this only ever writes a copy. The encoder reads the source
- * while it writes, so the one file it cannot write to is the one it is reading,
- * and the button says so rather than offering a choice that cannot be honoured.
+ * The encoder reads the source for as long as it runs, so the one file it can
+ * never write into directly is the one it is reading. Every encode therefore
+ * lands in a scratch file first — which is exactly what makes the choice
+ * between a copy and a replacement honest: by the time the original is
+ * touched, the encoder is finished with it.
  */
 @Composable
 fun VideoTrimScreen(
@@ -100,6 +105,7 @@ fun VideoTrimScreen(
     var playing by remember(item.id) { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
     var progress by remember { mutableIntStateOf(0) }
+    var askingHow by remember { mutableStateOf(false) }
 
     val player = remember { ExoPlayer.Builder(context).build() }
     DisposableEffect(player) {
@@ -131,6 +137,33 @@ fun VideoTrimScreen(
 
     val frames = rememberFrames(item, duration)
 
+    // Both ways out go through here: the encode is identical, only where the
+    // finished clip lands differs.
+    fun save(overwrite: Boolean) {
+        scope.launch {
+            // The preview lets go of the video first. It holds a hardware
+            // decoder, the export is about to ask for one of the same family,
+            // and on a lean device the second request is the one that loses.
+            player.pause()
+            playing = false
+            working = true
+            progress = 0
+            val outcome = context.trimVideo(item, range, overwrite) { progress = it }
+            working = false
+            when (outcome) {
+                is TrimResult.Saved -> onSaved()
+                is TrimResult.Failed -> onFailed(outcome.reason)
+            }
+        }
+    }
+
+    val overwriteLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        // A refusal is an answer, not a failure, and needs nothing said about it.
+        if (result.resultCode == android.app.Activity.RESULT_OK) save(overwrite = true)
+    }
+
     BackHandler { onClose() }
 
     Column(
@@ -155,23 +188,12 @@ fun VideoTrimScreen(
                 modifier = Modifier.weight(1f),
             )
             TextButton(
-                onClick = {
-                    scope.launch {
-                        working = true
-                        progress = 0
-                        val outcome = context.trimVideo(item, range) { progress = it }
-                        working = false
-                        when (outcome) {
-                            is TrimResult.Saved -> onSaved()
-                            is TrimResult.Failed -> onFailed(outcome.reason)
-                        }
-                    }
-                },
+                onClick = { askingHow = true },
                 enabled = !working && !range.isWhole(duration),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
                 modifier = Modifier.heightIn(min = TOUCH_TARGET),
             ) {
-                Text(stringResource(R.string.trim_save), color = Color.White)
+                Text(stringResource(R.string.editor_save), color = Color.White)
             }
         }
 
@@ -287,6 +309,21 @@ fun VideoTrimScreen(
                 )
             }
         }
+    }
+
+    if (askingHow) {
+        SaveChoiceDialog(
+            body = stringResource(R.string.trim_save_body),
+            onCopy = {
+                askingHow = false
+                save(overwrite = false)
+            },
+            onOverwrite = {
+                askingHow = false
+                overwriteLauncher.launch(writeRequestFor(context, item))
+            },
+            onDismiss = { askingHow = false },
+        )
     }
 }
 

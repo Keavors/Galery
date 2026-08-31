@@ -19,11 +19,13 @@ fun SaveChoiceDialog(
     onCopy: () -> Unit,
     onOverwrite: () -> Unit,
     onDismiss: () -> Unit,
+    // The photo's wording by default; the video trimmer brings its own.
+    body: String = stringResource(R.string.editor_save_body),
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.editor_save)) },
-        text = { Text(stringResource(R.string.editor_save_body)) },
+        text = { Text(body) },
         confirmButton = {
             TextButton(onClick = onCopy) { Text(stringResource(R.string.editor_save_copy)) }
         },

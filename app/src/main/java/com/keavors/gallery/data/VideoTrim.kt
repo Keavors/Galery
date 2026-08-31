@@ -143,17 +143,21 @@ sealed interface TrimResult {
 }
 
 /**
- * Writes the kept piece of a video out as a new file.
+ * Writes the kept piece of a video out — beside the original, or over it.
  *
- * Always a copy, never over the original, and that is a limit rather than a
- * preference: the encoder reads the source while it writes, so the one file it
- * cannot write to is the one it is reading. What comes out is a real
- * re-encode — hardware, through Media3's Transformer — so the result is a
- * normal video rather than a container with a note in it about where to start.
+ * Either way the encode itself goes to a scratch file, and that is a limit
+ * rather than a preference: the encoder reads the source while it writes, so
+ * the one file it can never write into directly is the one it is reading.
+ * Replacing the original is a plain copy afterwards, once the encoder is done
+ * with it; the caller must already hold the system's permission for that
+ * write. What comes out is a real re-encode — hardware, through Media3's
+ * Transformer — so the result is a normal video rather than a container with a
+ * note in it about where to start.
  */
 suspend fun Context.trimVideo(
     item: MediaItem,
     range: TrimRange,
+    overwrite: Boolean,
     onProgress: (Int) -> Unit,
 ): TrimResult {
     val scratch = File(cacheDir, "trim-${item.id}-${System.currentTimeMillis()}.mp4")
@@ -177,6 +181,10 @@ suspend fun Context.trimVideo(
 
         when {
             failure != null -> TrimResult.Failed(failure)
+            overwrite -> when (replaceOriginal(item, scratch)) {
+                SaveOutcome.SAVED -> TrimResult.Saved
+                else -> TrimResult.Failed(COULD_NOT_REPLACE)
+            }
             publishTrimmed(item, scratch) == SaveOutcome.SAVED -> TrimResult.Saved
             else -> TrimResult.Failed(COULD_NOT_PUBLISH)
         }
@@ -195,6 +203,9 @@ private const val HDR_TONE_MAP = Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_
 
 /** Said when the encode worked and the library would not take the result. */
 private const val COULD_NOT_PUBLISH = "the library would not take the file"
+
+/** Said when the encode worked and the original refused the result. */
+private const val COULD_NOT_REPLACE = "the original could not be written over"
 
 /** The encoder's account of a failure, as short as it can be made. */
 private fun ExportException.describe(): String = buildString {
@@ -304,6 +315,25 @@ private suspend fun Context.exportFailure(
 
 /** How often the bar is asked to catch up, in milliseconds. */
 private const val PROGRESS_INTERVAL_MS = 200L
+
+/**
+ * Copies the finished clip over the original.
+ *
+ * Only reached after the encoder is done — it reads the source for as long as
+ * it runs, which is why the encode never lands here directly. The bytes are
+ * MP4 whatever the original's name says; on this phone recordings are MP4
+ * already, and players go by the bytes rather than the name.
+ */
+private suspend fun Context.replaceOriginal(item: MediaItem, source: File): SaveOutcome =
+    withContext(Dispatchers.IO) {
+        val written = runCatching {
+            contentResolver.openOutputStream(item.contentUri(), "wt")?.use { out ->
+                source.inputStream().use { input -> input.copyTo(out) }
+                true
+            } ?: false
+        }.onFailure { Log.w(TAG, "could not write over the original", it) }.getOrElse { false }
+        if (written) SaveOutcome.SAVED else SaveOutcome.FAILED
+    }
 
 /**
  * Moves the finished file into the library, beside the video it came from.

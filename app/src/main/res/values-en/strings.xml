@@ -226,9 +226,9 @@
     <string name="crop_free">Free</string>
     <string name="crop_original">As it is</string>
     <string name="trim_title">Trimming</string>
-    <string name="trim_save">Save a copy</string>
     <string name="trim_kept">Keeping %1$s</string>
     <string name="trim_working">Working… %1$d%%</string>
+    <string name="trim_save_body">Save the trimmed video alongside the original, or replace the original? Replacing cannot be undone.</string>
     <string name="trim_failed">Could not trim: %1$s</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
