@@ -66,6 +66,7 @@ import com.keavors.gallery.data.scaledBy
 import com.keavors.gallery.data.turnedBy
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.SaveOutcome
+import com.keavors.gallery.data.SaveResult
 import com.keavors.gallery.data.applyOps
 import com.keavors.gallery.data.carriedExif
 import com.keavors.gallery.data.times
@@ -113,7 +114,7 @@ fun EditorScreen(
     item: MediaItem,
     jpegQuality: Int,
     onSaved: (keptMetadata: Boolean) -> Unit,
-    onFailed: () -> Unit,
+    onFailed: (reason: String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -231,10 +232,10 @@ fun EditorScreen(
             working = true
             val outcome = saveEdit(context, item, ops, mode, jpegQuality)
             working = false
-            when (outcome) {
+            when (outcome.outcome) {
                 SaveOutcome.SAVED -> onSaved(true)
                 SaveOutcome.SAVED_WITHOUT_METADATA -> onSaved(false)
-                SaveOutcome.FAILED -> onFailed()
+                SaveOutcome.FAILED -> onFailed(outcome.reason)
             }
         }
     }
@@ -722,7 +723,7 @@ private data class Brush(
     val width: Float = 0.012f,
     val erasing: Boolean = false,
     val writingSize: Float = 0.07f,
-    val font: MarkFont = MarkFont.PLAIN,
+    val font: MarkFont = MarkFont.entries.first(),
     val sticker: String = STICKERS.first(),
 ) {
     /** What a finger starting to drag puts down, whichever tool is open. */
@@ -1049,10 +1050,11 @@ private fun Mark.resizedTo(size: Float): Mark = when (this) {
 private fun <T> List<T>.replacing(at: Int, with: T): List<T> =
     mapIndexed { index, existing -> if (index == at) with else existing }
 
+/** What each one is called on screen: how it reads, not what it is called. */
 private fun MarkFont.label(): Int = when (this) {
-    MarkFont.PLAIN -> R.string.markup_font_plain
+    MarkFont.MONOSPACE -> R.string.markup_font_plain
     MarkFont.SERIF -> R.string.markup_font_serif
-    MarkFont.MONOSPACE -> R.string.markup_font_mono
+    MarkFont.PLAIN -> R.string.markup_font_bold
 }
 
 /**
@@ -1266,18 +1268,19 @@ private suspend fun saveEdit(
     ops: EditOps,
     mode: SaveMode,
     quality: Int,
-): SaveOutcome = withContext(Dispatchers.IO) {
+): SaveResult = withContext(Dispatchers.IO) {
     // Read before anything is written: overwriting destroys the original, and
     // by then there is nothing left to read the date and the place off.
     val exif = context.carriedExif(item)
 
     val ceiling = maxEditablePixels(Runtime.getRuntime().maxMemory())
-    val full = context.decodeForEditing(item, ceiling) ?: return@withContext SaveOutcome.FAILED
+    val full = context.decodeForEditing(item, ceiling)
+        ?: return@withContext SaveResult(SaveOutcome.FAILED, "the photograph would not open")
     val edited = applyOps(full, ops)
 
     val outcome = when (mode) {
         SaveMode.COPY -> context.saveEditedCopy(item, edited, quality, exif)
-        SaveMode.OVERWRITE -> context.overwriteWith(item, edited, quality, exif)
+        SaveMode.OVERWRITE -> SaveResult(context.overwriteWith(item, edited, quality, exif))
     }
 
     if (edited !== full) edited.recycle()

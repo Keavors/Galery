@@ -7,6 +7,9 @@ import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val TAG = "ExifCarry"
 
@@ -110,6 +113,36 @@ private val CARRIED = listOf(
  * EXIF at all.
  */
 suspend fun Context.carriedExif(item: MediaItem): Map<String, String> =
+    withContext(Dispatchers.IO) {
+        val found = readExif(item)
+        // A photograph that never had a date inside it — a screenshot, a
+        // download, anything a messenger has stripped on the way — still has one
+        // the library knows about. It is written into the file now, because
+        // after this the file is where the date will be read from: rewriting the
+        // pixels makes the library look again, and what it finds there wins.
+        // Without this such a photograph quietly moves to today.
+        if (found.keys.none { it in DATE_TAGS } && item.takenAt > 0) {
+            val stamp = EXIF_DATE.format(Date(item.takenAt))
+            found + mapOf(
+                ExifInterface.TAG_DATETIME_ORIGINAL to stamp,
+                ExifInterface.TAG_DATETIME to stamp,
+            )
+        } else {
+            found
+        }
+    }
+
+/** The tags that say when, any one of which is enough to keep a photograph in place. */
+private val DATE_TAGS = setOf(
+    ExifInterface.TAG_DATETIME_ORIGINAL,
+    ExifInterface.TAG_DATETIME,
+    ExifInterface.TAG_DATETIME_DIGITIZED,
+)
+
+/** The one shape EXIF writes a moment in, and it is not anybody else's. */
+private val EXIF_DATE = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US)
+
+private suspend fun Context.readExif(item: MediaItem): Map<String, String> =
     withContext(Dispatchers.IO) {
         // Without setRequireOriginal the system hands over a copy with the
         // location stripped out, and the place a photograph was taken is the one

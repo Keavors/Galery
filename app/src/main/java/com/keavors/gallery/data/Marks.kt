@@ -81,8 +81,14 @@ sealed interface Mark {
     }
 }
 
-/** The three shapes of lettering on offer. Enough to choose from, few enough to choose. */
-enum class MarkFont { PLAIN, SERIF, MONOSPACE }
+/**
+ * The three shapes of lettering on offer, in the order they are offered.
+ *
+ * Named here after the typeface each one is, and named on screen after what it
+ * looks like once it is on a photograph, which are not the same words: the
+ * first is what most captions want, and the last is the heavy one.
+ */
+enum class MarkFont { MONOSPACE, SERIF, PLAIN }
 
 /**
  * Where the whole picture sits, relative to the piece of it being shown.

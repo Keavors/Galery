@@ -610,8 +610,12 @@ fun GalleryApp(
                     },
                     // Left open on purpose: the edits are still there and the
                     // second attempt costs a tap.
-                    onFailed = {
-                        Toast.makeText(context, editorFailed, Toast.LENGTH_LONG).show()
+                    onFailed = { reason ->
+                        Toast.makeText(
+                            context,
+                            editorFailed.format(reason),
+                            Toast.LENGTH_LONG,
+                        ).show()
                     },
                     onClose = { editing = null },
                     modifier = Modifier.fillMaxSize(),

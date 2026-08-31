@@ -217,7 +217,7 @@
     <string name="editor_save_copy">As a copy</string>
     <string name="editor_save_overwrite">Replace</string>
     <string name="editor_saved">Saved</string>
-    <string name="editor_save_failed">Could not save</string>
+    <string name="editor_save_failed">Could not save: %1$s</string>
     <string name="editor_saved_without_metadata">Saved, but without its camera data</string>
     <string name="editor_rotate">Rotate</string>
     <string name="editor_flip">Flip</string>
@@ -244,7 +244,7 @@
     <string name="markup_place">Place</string>
     <string name="markup_font_plain">Plain</string>
     <string name="markup_font_serif">Serif</string>
-    <string name="markup_font_mono">Monospace</string>
+    <string name="markup_font_bold">Bold</string>
     <string name="markup_blur">Blur</string>
     <string name="markup_pixelate">Pixels</string>
     <string name="markup_hide_hint">Drag across the part you want hidden</string>

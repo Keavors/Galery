@@ -12,6 +12,7 @@ import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.net.Uri
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.result.IntentSenderRequest
@@ -182,6 +183,14 @@ private fun Canvas.drawVignette(width: Int, height: Int, strength: Float) {
 enum class SaveOutcome { SAVED, SAVED_WITHOUT_METADATA, FAILED }
 
 /**
+ * How a save went, and — when it did not go — what actually stopped it.
+ *
+ * "Could not save" is no use to anybody: a save can fail for a dozen unrelated
+ * reasons and only the one it hit says what to do about it.
+ */
+data class SaveResult(val outcome: SaveOutcome, val reason: String = "")
+
+/**
  * A write request for an existing file.
  *
  * Overwriting somebody else's photo needs the system's blessing exactly as
@@ -233,54 +242,96 @@ suspend fun Context.saveEditedCopy(
     bitmap: Bitmap,
     quality: Int,
     exif: Map<String, String>,
-): SaveOutcome =
-    withContext(Dispatchers.IO) {
-        val format = formatFor(item.mimeType)
-        val extension = if (format == Bitmap.CompressFormat.PNG) "png" else "jpg"
-        val stem = item.name.substringBeforeLast('.', item.name)
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, stem + "_edit." + extension)
-            put(
-                MediaStore.MediaColumns.MIME_TYPE,
-                if (format == Bitmap.CompressFormat.PNG) "image/png" else "image/jpeg",
-            )
-            val path = item.relativePath.trim().trim('/')
-            if (path.isNotEmpty() && !item.relativePath.startsWith("/")) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "$path/")
-            }
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
+): SaveResult = withContext(Dispatchers.IO) {
+    val beside = item.relativePath.trim().trim('/')
+        .takeIf { it.isNotEmpty() && !item.relativePath.startsWith("/") }
 
-        val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val uri = runCatching { contentResolver.insert(collection, values) }
-            .onFailure { Log.w(TAG, "could not create a copy", it) }
-            .getOrNull() ?: return@withContext SaveOutcome.FAILED
-
-        val written = runCatching {
-            contentResolver.openOutputStream(uri)?.use { out ->
-                bitmap.compress(format, quality, out)
-            } ?: false
-        }.onFailure { Log.w(TAG, "writing the copy failed", it) }.getOrElse { false }
-
-        if (!written) {
-            runCatching { contentResolver.delete(uri, null, null) }
-            return@withContext SaveOutcome.FAILED
-        }
-
-        // While it is still pending, so that nothing else ever sees the copy
-        // without its history.
-        val kept = writeCarriedExif(uri, exif, bitmap.width, bitmap.height)
-
-        runCatching {
-            contentResolver.update(
-                uri,
-                ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
-                null,
-                null,
-            )
-        }
-        if (kept) SaveOutcome.SAVED else SaveOutcome.SAVED_WITHOUT_METADATA
+    // Beside the original if the library will have it there, and in Pictures if
+    // it will not. A photograph living in a messenger's own folder cannot be
+    // joined by a new one, because that folder belongs to the messenger — and
+    // "beside" is a courtesy, while saving the edit is the point.
+    val first = writeCopy(item, bitmap, quality, exif, beside)
+    if (first.outcome != SaveOutcome.FAILED || beside == null) {
+        return@withContext first
     }
+
+    val second = writeCopy(item, bitmap, quality, exif, Environment.DIRECTORY_PICTURES)
+    if (second.outcome != SaveOutcome.FAILED) {
+        second
+    } else if (second.reason == first.reason) {
+        second
+    } else {
+        second.copy(reason = "${first.reason} / ${second.reason}")
+    }
+}
+
+/**
+ * One attempt at putting a copy into the library, in [folder] or wherever the
+ * library puts things with no folder asked for.
+ *
+ * Pending first, published after, so no half-written photo ever appears in
+ * anybody's gallery.
+ */
+private suspend fun Context.writeCopy(
+    item: MediaItem,
+    bitmap: Bitmap,
+    quality: Int,
+    exif: Map<String, String>,
+    folder: String?,
+): SaveResult {
+    val format = formatFor(item.mimeType)
+    val extension = if (format == Bitmap.CompressFormat.PNG) "png" else "jpg"
+    val stem = item.name.substringBeforeLast('.', item.name)
+    val values = ContentValues().apply {
+        put(MediaStore.MediaColumns.DISPLAY_NAME, stem + "_edit." + extension)
+        put(
+            MediaStore.MediaColumns.MIME_TYPE,
+            if (format == Bitmap.CompressFormat.PNG) "image/png" else "image/jpeg",
+        )
+        if (folder != null) put(MediaStore.MediaColumns.RELATIVE_PATH, "$folder/")
+        put(MediaStore.MediaColumns.IS_PENDING, 1)
+    }
+
+    val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+    val insert = runCatching { contentResolver.insert(collection, values) }
+        .onFailure { Log.w(TAG, "could not create a copy", it) }
+    val uri = insert.getOrNull() ?: return SaveResult(
+        outcome = SaveOutcome.FAILED,
+        reason = insert.exceptionOrNull()?.describe() ?: "the library refused a new file",
+    )
+
+    val written = runCatching {
+        val out = contentResolver.openOutputStream(uri)
+        if (out == null) {
+            "the new file would not open for writing"
+        } else {
+            out.use { if (bitmap.compress(format, quality, it)) null else "the picture would not compress" }
+        }
+    }.onFailure { Log.w(TAG, "writing the copy failed", it) }.getOrElse { it.describe() }
+
+    if (written != null) {
+        runCatching { contentResolver.delete(uri, null, null) }
+        return SaveResult(SaveOutcome.FAILED, written)
+    }
+
+    // While it is still pending, so that nothing else ever sees the copy
+    // without its history.
+    val kept = writeCarriedExif(uri, exif, bitmap.width, bitmap.height)
+
+    runCatching {
+        contentResolver.update(
+            uri,
+            ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
+            null,
+            null,
+        )
+    }
+    return SaveResult(if (kept) SaveOutcome.SAVED else SaveOutcome.SAVED_WITHOUT_METADATA)
+}
+
+/** Anything's account of a failure, as short as it can be made. */
+private fun Throwable.describe(): String =
+    listOfNotNull(this::class.simpleName, message?.takeIf { it.isNotBlank() }).joinToString(": ")
 
 /**
  * The format to write back in.
