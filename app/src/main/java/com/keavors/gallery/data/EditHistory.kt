@@ -11,18 +11,19 @@ package com.keavors.gallery.data
  */
 data class EditStep(val kind: Kind, val detail: String = "") {
 
-    enum class Kind { TURN, FLIP, CROP, STRAIGHTEN, ADJUST, FILTER, MARK, RESET }
+    enum class Kind { TURN, FLIP, CROP, STRAIGHTEN, ADJUST, FILTER, MARK, HANDLE, RESET }
 
     /**
      * True for the things that are dragged rather than pressed.
      *
      * Turning twice is two steps and has to be, because both turns are
      * deliberate. Dragging a slider twice is one continuous act that happens to
-     * have been reported twice.
+     * have been reported twice. Carrying something across a photograph is the
+     * same: one act, however many times a finger reports where it has got to.
      */
     val continuous: Boolean
         get() = kind == Kind.CROP || kind == Kind.STRAIGHTEN ||
-            kind == Kind.ADJUST || kind == Kind.FILTER
+            kind == Kind.ADJUST || kind == Kind.FILTER || kind == Kind.HANDLE
 }
 
 /**

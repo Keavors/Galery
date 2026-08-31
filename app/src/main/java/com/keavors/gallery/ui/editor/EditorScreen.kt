@@ -60,6 +60,10 @@ import com.keavors.gallery.data.EditStep
 import com.keavors.gallery.data.Mark
 import com.keavors.gallery.data.MarkFont
 import com.keavors.gallery.data.MarkPoint
+import com.keavors.gallery.data.covers
+import com.keavors.gallery.data.movedBy
+import com.keavors.gallery.data.scaledBy
+import com.keavors.gallery.data.turnedBy
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.SaveOutcome
 import com.keavors.gallery.data.applyOps
@@ -135,6 +139,11 @@ fun EditorScreen(
     // acted on at once, because the words have to be typed first and the spot
     // has to still be the spot by the time they are.
     var writingAt by remember(item.id) { mutableStateOf<MarkPoint?>(null) }
+    // Which mark has been picked up, by its place in the list. An index rather
+    // than the mark itself, because the mark is about to be replaced by a
+    // changed copy of itself on every frame of a drag.
+    var picked by remember(item.id) { mutableStateOf<Int?>(null) }
+    val holding = picked?.let { ops.marks.getOrNull(it) }
     // Which filter is on and how far. Kept beside the corrections rather than
     // inside them because a filter is only a way of setting them: once it has,
     // it is the corrections that are the truth, and these two are just what the
@@ -277,6 +286,9 @@ fun EditorScreen(
                     // showing. What the corrections are is the truth; the name
                     // over them was only ever a convenience.
                     filter = FilterPreset.NONE
+                    // And nothing is being held any more: what was held may not
+                    // exist on the other side of an undo.
+                    picked = null
                 },
             )
             ChromeIconButton(
@@ -286,6 +298,7 @@ fun EditorScreen(
                 onClick = {
                     history = history.redone()
                     filter = FilterPreset.NONE
+                    picked = null
                 },
             )
             TextButton(
@@ -320,19 +333,44 @@ fun EditorScreen(
                     } else {
                         pending?.let { ops.marks + it } ?: ops.marks
                     },
-                    onPlace = if (tab == EditorTab.MARKUP && !comparing && brush.tool.isTapped) {
+                    onPlace = if (tab == EditorTab.MARKUP && !comparing) {
                         { point ->
-                            if (brush.tool == Tool.TEXT) {
-                                writingAt = point
-                            } else {
-                                change(
+                            val aspect = pictureShape ?: 1f
+                            // Whatever is under the finger comes up first. A tap
+                            // that lands on something existing is nearly always
+                            // meant for that thing rather than for the tool.
+                            val hit = ops.marks.indexOfLast { it.covers(point, aspect) }
+                            when {
+                                hit >= 0 -> picked = hit
+                                picked != null -> picked = null
+                                brush.tool == Tool.TEXT -> writingAt = point
+                                brush.tool == Tool.STICKER -> change(
                                     ops.marked(ops.marks + brush.stickerAt(point)),
                                     EditStep(EditStep.Kind.MARK, "sticker"),
                                 )
+                                else -> Unit
                             }
                         }
                     } else {
                         null
+                    },
+                    selected = holding,
+                    onTransform = picked?.let { at ->
+                        holding?.let { mark ->
+                            { panX: Float, panY: Float, zoom: Float, turn: Float ->
+                                val changed = mark
+                                    .movedBy(panX, panY)
+                                    .scaledBy(zoom)
+                                    .turnedBy(turn, pictureShape ?: 1f)
+                                change(
+                                    ops.marked(ops.marks.replacing(at, changed)),
+                                    // Named after the thing being carried, so
+                                    // that carrying it across the photograph is
+                                    // one step back and not two hundred.
+                                    EditStep(EditStep.Kind.HANDLE, at.toString()),
+                                )
+                            }
+                        }
                     },
                     onDraw = if (tab == EditorTab.MARKUP && !comparing && !brush.tool.isTapped) {
                         { point, started ->
@@ -415,7 +453,31 @@ fun EditorScreen(
                 brush = brush,
                 onBrush = { brush = it },
                 canClear = ops.marks.isNotEmpty(),
-                onClear = { change(ops.marked(emptyList()), EditStep(EditStep.Kind.MARK, "clear")) },
+                onClear = {
+                    picked = null
+                    change(ops.marked(emptyList()), EditStep(EditStep.Kind.MARK, "clear"))
+                },
+                holding = holding,
+                onDrop = { picked = null },
+                onDelete = {
+                    val at = picked
+                    picked = null
+                    if (at != null) {
+                        change(
+                            ops.marked(ops.marks.filterIndexed { index, _ -> index != at }),
+                            EditStep(EditStep.Kind.MARK, "delete"),
+                        )
+                    }
+                },
+                onResize = { size ->
+                    val at = picked
+                    if (at != null && holding != null) {
+                        change(
+                            ops.marked(ops.marks.replacing(at, holding.resizedTo(size))),
+                            EditStep(EditStep.Kind.HANDLE, at.toString()),
+                        )
+                    }
+                },
             )
 
             EditorTab.FILTERS -> FilterTools(
@@ -770,8 +832,50 @@ private fun MarkupTools(
     onBrush: (Brush) -> Unit,
     canClear: Boolean,
     onClear: () -> Unit,
+    holding: Mark?,
+    onDrop: () -> Unit,
+    onDelete: () -> Unit,
+    onResize: (Float) -> Unit,
 ) {
     val erasing = brush.tool == Tool.BRUSH && brush.erasing
+
+    // With something in hand the tools step aside. Every touch on the picture
+    // belongs to the thing being held until it is put down, so offering a brush
+    // at the same time would be offering something that cannot happen.
+    if (holding != null) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+            Text(
+                text = stringResource(R.string.markup_holding),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.8f),
+            )
+            holding.ownSize()?.let { size ->
+                WhiteSlider(
+                    value = size,
+                    onValueChange = onResize,
+                    range = MIN_HELD_SIZE..MAX_HELD_SIZE,
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                CorrectionChip(
+                    label = stringResource(R.string.markup_delete),
+                    selected = false,
+                    touched = false,
+                    onClick = onDelete,
+                )
+                CorrectionChip(
+                    label = stringResource(R.string.markup_done),
+                    selected = true,
+                    touched = false,
+                    onClick = onDrop,
+                )
+            }
+        }
+        return
+    }
 
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
         Row(
@@ -918,6 +1022,32 @@ private fun MarkupTools(
 /** The smallest and largest writing, as fractions of the shorter side. */
 private const val SMALLEST_WRITING = 0.03f
 private const val LARGEST_WRITING = 0.2f
+
+/** How far the slider goes for something already on the picture. */
+private const val MIN_HELD_SIZE = 0.005f
+private const val MAX_HELD_SIZE = 0.6f
+
+/**
+ * The size a held mark can be given by a slider, if it has one.
+ *
+ * A hidden region has none — it is as large as the rectangle it was dragged out
+ * to — so its slider is left off rather than left doing nothing.
+ */
+private fun Mark.ownSize(): Float? = when (this) {
+    is Mark.Text -> size
+    is Mark.Stroke -> width
+    is Mark.Obscured -> null
+}
+
+private fun Mark.resizedTo(size: Float): Mark = when (this) {
+    is Mark.Text -> copy(size = size)
+    is Mark.Stroke -> copy(width = size)
+    is Mark.Obscured -> this
+}
+
+/** The same list with one thing swapped for another. */
+private fun <T> List<T>.replacing(at: Int, with: T): List<T> =
+    mapIndexed { index, existing -> if (index == at) with else existing }
 
 private fun MarkFont.label(): Int = when (this) {
     MarkFont.PLAIN -> R.string.markup_font_plain

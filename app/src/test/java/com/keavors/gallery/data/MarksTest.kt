@@ -175,3 +175,96 @@ class CoarsenTest {
         assertEquals(14 * 9, coarsen(pixels, 500, 400, across = 14, down = 9).size)
     }
 }
+
+class HeldMarkTest {
+
+    private val words = Mark.Text(
+        text = "hello",
+        at = MarkPoint(0.5f, 0.5f),
+        colour = -1,
+        size = 0.1f,
+    )
+
+    private val line = Mark.Stroke(
+        points = listOf(MarkPoint(0.2f, 0.2f), MarkPoint(0.4f, 0.4f)),
+        colour = -1,
+        width = 0.01f,
+    )
+
+    @Test
+    fun `moving a mark moves all of it`() {
+        val shifted = line.movedBy(0.1f, -0.05f) as Mark.Stroke
+        assertEquals(0.3f, shifted.points.first().x, 1e-5f)
+        assertEquals(0.15f, shifted.points.first().y, 1e-5f)
+        assertEquals(0.5f, shifted.points.last().x, 1e-5f)
+    }
+
+    @Test
+    fun `growing writing leaves it where it was`() {
+        // The thing that makes a pinch feel right: what is under the fingers
+        // stays under the fingers while it changes size.
+        val bigger = (words.scaledBy(2f) as Mark.Text)
+        assertEquals(0.2f, bigger.size, 1e-5f)
+        assertEquals(words.at, bigger.at)
+    }
+
+    @Test
+    fun `growing a line grows it about its own middle`() {
+        val bigger = line.scaledBy(2f) as Mark.Stroke
+        assertEquals(line.centre.x, bigger.centre.x, 1e-5f)
+        assertEquals(line.centre.y, bigger.centre.y, 1e-5f)
+        assertEquals(0.02f, bigger.width, 1e-5f)
+        // Twice as long as it was, about that middle.
+        assertEquals(0.1f, bigger.points.first().x, 1e-5f)
+    }
+
+    @Test
+    fun `nothing can be shrunk to nothing`() {
+        val tiny = words.scaledBy(0.00001f) as Mark.Text
+        assertTrue(tiny.size > 0f)
+    }
+
+    @Test
+    fun `turning writing is an angle, turning a line is its points`() {
+        val turned = words.turnedBy(30f, aspect = 1f) as Mark.Text
+        assertEquals(30f, turned.angle, 1e-5f)
+
+        val bent = line.turnedBy(90f, aspect = 1f) as Mark.Stroke
+        // A quarter turn about the middle swaps the two ends across the middle.
+        assertEquals(line.centre.x, bent.centre.x, 1e-4f)
+        assertEquals(line.centre.y, bent.centre.y, 1e-4f)
+        assertTrue(kotlin.math.abs(bent.points.first().x - line.points.first().x) > 0.05f)
+    }
+
+    @Test
+    fun `a quarter turn on a wide photograph is still a quarter turn`() {
+        // Turned in a space where the picture is square and brought back out,
+        // or a ring drawn on a wide photograph would come back an ellipse.
+        val flat = Mark.Stroke(
+            points = listOf(MarkPoint(0.5f, 0.5f), MarkPoint(0.6f, 0.5f)),
+            colour = -1,
+            width = 0.01f,
+        )
+        val turned = flat.turnedBy(90f, aspect = 2f) as Mark.Stroke
+        // It turns about its own middle, at 0.55. The far end sat a twentieth
+        // of the width to the right of that; a quarter turn puts it a tenth of
+        // the height below — which on a picture twice as wide as it is tall is
+        // the very same distance.
+        assertEquals(0.55f, turned.points.last().x, 1e-3f)
+        assertEquals(0.6f, turned.points.last().y, 1e-3f)
+    }
+
+    @Test
+    fun `a finger near a mark picks it up and one far away does not`() {
+        assertTrue(words.covers(MarkPoint(0.5f, 0.5f), aspect = 1f))
+        assertTrue(words.covers(MarkPoint(0.53f, 0.52f), aspect = 1f))
+        assertFalse(words.covers(MarkPoint(0.1f, 0.1f), aspect = 1f))
+    }
+
+    @Test
+    fun `a hidden region is picked up anywhere inside it`() {
+        val region = Mark.Obscured(MarkPoint(0.2f, 0.2f), MarkPoint(0.6f, 0.5f), pixelated = true)
+        assertTrue(region.covers(MarkPoint(0.4f, 0.35f), aspect = 1f))
+        assertFalse(region.covers(MarkPoint(0.9f, 0.9f), aspect = 1f))
+    }
+}

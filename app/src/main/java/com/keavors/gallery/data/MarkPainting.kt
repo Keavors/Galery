@@ -154,10 +154,23 @@ private fun DrawScope.drawWriting(writing: Mark.Text, area: Rect) {
     val first = centre.y - (lines.size - 1) * step / 2f + height / 3f
 
     drawIntoCanvas { canvas ->
+        // Turned about the spot it was put at rather than about the corner of
+        // the picture, which is the only place a turn makes sense to whoever
+        // turned it.
+        canvas.save()
+        if (writing.angle != 0f) canvas.rotateAround(writing.angle, centre)
         lines.forEachIndexed { index, line ->
             canvas.nativeCanvas.drawText(line, centre.x, first + index * step, paint)
         }
+        canvas.restore()
     }
+}
+
+/** Turns the canvas about a point rather than about its own corner. */
+private fun androidx.compose.ui.graphics.Canvas.rotateAround(degrees: Float, at: Offset) {
+    translate(at.x, at.y)
+    rotate(degrees)
+    translate(-at.x, -at.y)
 }
 
 /** How far apart lines of a caption sit, as a multiple of their height. */
@@ -182,6 +195,9 @@ private fun DrawScope.drawObscured(mark: Mark.Obscured, area: Rect, under: Under
     val dst = mark.bounds.on(area)
     if (dst.width < 1f || dst.height < 1f) return
 
+    // The upright rectangle around the region, which for a turned one takes in
+    // a little more than will be covered. It is being blurred: a little more of
+    // it in the average changes nothing anybody can see.
     val cut = sourcePixels(dst, under.occupies, under.image.width, under.image.height)
     if (cut.width < 1 || cut.height < 1) return
 
@@ -204,15 +220,23 @@ private fun DrawScope.drawObscured(mark: Mark.Obscured, area: Rect, under: Under
         .createBitmap(blocks, across, down, android.graphics.Bitmap.Config.ARGB_8888)
         .asImageBitmap()
 
-    drawImage(
-        image = coarse,
-        srcOffset = IntOffset.Zero,
-        srcSize = IntSize(across, down),
-        dstOffset = IntOffset(dst.left.toInt(), dst.top.toInt()),
-        dstSize = IntSize(dst.width.toInt().coerceAtLeast(1), dst.height.toInt().coerceAtLeast(1)),
-        // The one difference between the two: squares or no squares.
-        filterQuality = if (mark.pixelated) FilterQuality.None else FilterQuality.High,
-    )
+    drawIntoCanvas { canvas ->
+        canvas.save()
+        if (mark.angle != 0f) canvas.rotateAround(mark.angle, dst.center)
+        drawImage(
+            image = coarse,
+            srcOffset = IntOffset.Zero,
+            srcSize = IntSize(across, down),
+            dstOffset = IntOffset(dst.left.toInt(), dst.top.toInt()),
+            dstSize = IntSize(
+                dst.width.toInt().coerceAtLeast(1),
+                dst.height.toInt().coerceAtLeast(1),
+            ),
+            // The one difference between the two: squares or no squares.
+            filterQuality = if (mark.pixelated) FilterQuality.None else FilterQuality.High,
+        )
+        canvas.restore()
+    }
 }
 
 /** Where a point of a mark falls on the picture. */

@@ -3,6 +3,7 @@ package com.keavors.gallery.ui.editor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +32,7 @@ import com.keavors.gallery.data.MarkPoint
 import com.keavors.gallery.data.PixelRect
 import com.keavors.gallery.data.Underneath
 import com.keavors.gallery.data.drawMarks
+import com.keavors.gallery.data.extent
 import com.keavors.gallery.data.uncroppedArea
 import com.keavors.gallery.data.Vignette
 import kotlin.math.abs
@@ -82,6 +84,16 @@ fun EditorCanvas(
     // A tap rather than a drag: words and stickers are put down in one place
     // instead of being trailed across the picture.
     onPlace: ((MarkPoint) -> Unit)? = null,
+    // Non-null while something already drawn is picked up. It takes over the
+    // whole canvas — one finger moves it, two turn and resize it — because a
+    // picked-up object is what the touches are about until it is put down.
+    // The pan arrives already measured in fractions of the whole photograph,
+    // because only the canvas knows where the photograph is: it is letterboxed
+    // inside whatever space is left, and dividing a drag by the canvas instead
+    // would leave a mark trailing behind the finger that is carrying it.
+    onTransform: ((panX: Float, panY: Float, zoom: Float, turn: Float) -> Unit)? = null,
+    // The one that is picked up, outlined so it is obvious which it is.
+    selected: Mark? = null,
 ) {
     var canvas by remember { mutableStateOf(Size.Zero) }
 
@@ -116,19 +128,35 @@ fun EditorCanvas(
     val paint by rememberUpdatedState(onDraw)
     val paintEnd by rememberUpdatedState(onDrawEnd)
     val place by rememberUpdatedState(onPlace)
+    val transform by rememberUpdatedState(onTransform)
     var grabbed by remember { mutableStateOf(Grab.NONE) }
 
     Canvas(
         modifier = modifier
             .onSizeChanged { canvas = Size(it.width.toFloat(), it.height.toFloat()) }
+            .pointerInput(onTransform != null) {
+                if (onTransform == null) return@pointerInput
+                detectTransformGestures(panZoomLock = false) { _, pan, zoom, turn ->
+                    val over = uncroppedArea(
+                        shownCrop(cropVisible, current),
+                        box.width,
+                        box.height,
+                    )
+                    if (over.width > 0f && over.height > 0f) {
+                        transform?.invoke(pan.x / over.width, pan.y / over.height, zoom, turn)
+                    }
+                }
+            }
             .pointerInput(onPlace != null) {
                 if (onPlace == null) return@pointerInput
                 detectTapGestures { at ->
                     place?.invoke(pointAt(at, box, shownCrop(cropVisible, current)))
                 }
             }
-            .pointerInput(onDraw != null) {
-                if (onDraw == null) return@pointerInput
+            .pointerInput(onDraw != null, onTransform != null) {
+                // Nothing is drawn while something is picked up: the finger is
+                // busy carrying it.
+                if (onDraw == null || onTransform != null) return@pointerInput
                 detectDragGestures(
                     onDragStart = { at ->
                         paint?.invoke(pointAt(at, box, shownCrop(cropVisible, current)), true)
@@ -196,6 +224,11 @@ fun EditorCanvas(
                 // from, since it is reading the picture rather than the screen.
                 under = Underneath(image, whole),
             )
+        }
+        selected?.let { mark ->
+            val whole = uncroppedArea(shownCrop(cropVisible, current), frame.width, frame.height)
+                .translate(frame.left, frame.top)
+            drawPickedUp(mark, whole, image.width.toFloat() / image.height.toFloat())
         }
         if (cropVisible) drawCrop(frame, current)
     }
@@ -396,6 +429,38 @@ internal fun CropRect.moved(grab: Grab, dx: Float, dy: Float): CropRect = when (
         } else {
             bottom
         },
+    )
+}
+
+/**
+ * A box around whatever has been picked up.
+ *
+ * Two lines, one dark under one light, so the box shows up on a white sky and
+ * on a black coat alike — the same trick the crop frame would need if it were
+ * ever drawn over anything but its own dimming.
+ */
+private fun DrawScope.drawPickedUp(mark: Mark, area: Rect, aspect: Float) {
+    val around = mark.extent(aspect).on(area)
+    val outset = 6.dp.toPx()
+    val box = Rect(
+        left = around.left - outset,
+        top = around.top - outset,
+        right = around.right + outset,
+        bottom = around.bottom + outset,
+    )
+    if (box.width <= 0f || box.height <= 0f) return
+
+    drawRect(
+        color = Color.Black.copy(alpha = 0.55f),
+        topLeft = box.topLeft,
+        size = box.size,
+        style = Stroke(width = 4.dp.toPx()),
+    )
+    drawRect(
+        color = Color.White,
+        topLeft = box.topLeft,
+        size = box.size,
+        style = Stroke(width = 2.dp.toPx()),
     )
 }
 

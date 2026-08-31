@@ -264,6 +264,9 @@
     <string name="markup_blur">Размыть</string>
     <string name="markup_pixelate">Пиксели</string>
     <string name="markup_hide_hint">Обведите пальцем участок, который надо скрыть</string>
+    <string name="markup_holding">Перетащите пальцем, двумя — поверните и измените размер</string>
+    <string name="markup_delete">Удалить</string>
+    <string name="markup_done">Готово</string>
     <string name="markup_clear">Убрать всё</string>
 
     <!-- Фильтры: те же коррекции, выставленные заранее. -->
