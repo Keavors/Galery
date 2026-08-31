@@ -261,12 +261,12 @@ private suspend fun Context.exportFailure(
                 })
                 .build()
 
-            val edited = EditedMediaItem.Builder(clipped)
-                // Samsung records slow motion as an ordinary file with a note
-                // in it about which part is slow. Without this the note is
-                // dropped and the clip comes out at the wrong speed.
-                .setFlattenForSlowMotion(true)
-                .build()
+            // Slow motion is deliberately not flattened here. The library
+            // refuses the combination outright — "Slow motion flattening is not
+            // supported when clipping is requested", it says, and throws — and
+            // this whole screen is clipping. A slow-motion recording keeps its
+            // own note about which part is slow, and players keep honouring it.
+            val edited = EditedMediaItem.Builder(clipped).build()
 
             // The colour mode lives on the composition rather than on the
             // transformer, which is why a single clip is wrapped in one.
@@ -277,7 +277,19 @@ private suspend fun Context.exportFailure(
                 .build()
 
             transformer = encoder
-            encoder.start(composition, target.absolutePath)
+            try {
+                encoder.start(composition, target.absolutePath)
+            } catch (refused: RuntimeException) {
+                // Thrown here, before the encoder has even begun: an impossible
+                // request rather than a failed attempt. It has to become a
+                // message like any other failure — left to fly it takes the
+                // whole app down, which is exactly what the slow-motion flag
+                // above used to do on every single trim.
+                Log.w(TAG, "the encoder refused the job", refused)
+                if (continuation.isActive) {
+                    continuation.resume(refused.message ?: refused.javaClass.simpleName)
+                }
+            }
 
             continuation.invokeOnCancellation {
                 // Cancellation can arrive on any thread; the encoder may only be
