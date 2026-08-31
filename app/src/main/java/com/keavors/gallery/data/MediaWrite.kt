@@ -1,8 +1,13 @@
 package com.keavors.gallery.data
 
+import android.content.ContentValues
 import android.content.Context
 import android.provider.MediaStore
+import android.util.Log
 import androidx.activity.result.IntentSenderRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.math.ceil
 
 /**
@@ -64,6 +69,60 @@ class MediaWriter(
         )
     }
 }
+
+/**
+ * Tells the library the day a file was taken, after its bytes have been
+ * replaced.
+ *
+ * Belt and braces, deliberately. The day is already written inside the file
+ * where a scan would find it — but a scan is the library's business and happens
+ * when the library decides, and a photograph that has quietly moved to today has
+ * already been lost among things it has nothing to do with. So the row is told
+ * as well, and the two agree, so whichever of them is believed is right.
+ *
+ * The taken date rather than the modified date, because the modified date
+ * belongs to the file system and because the taken date is the one every gallery
+ * prefers, this one included.
+ */
+suspend fun Context.keepTakenAt(item: MediaItem): Boolean = withContext(Dispatchers.IO) {
+    if (item.takenAt <= 0L) return@withContext true
+
+    // Written more than once, and read back each time. Replacing a file's bytes
+    // makes the library look at that file again on a schedule of its own, and a
+    // look that lands after this has written the date can undo it.
+    repeat(DATE_ATTEMPTS) {
+        runCatching {
+            contentResolver.update(
+                item.contentUri(),
+                ContentValues().apply {
+                    put(MediaStore.MediaColumns.DATE_TAKEN, item.takenAt)
+                },
+                null,
+                null,
+            )
+        }.onFailure { Log.w("MediaWrite", "could not put the date back", it) }
+
+        delay(DATE_SETTLE_MS)
+        val stored = runCatching {
+            contentResolver.query(
+                item.contentUri(),
+                arrayOf(MediaStore.MediaColumns.DATE_TAKEN),
+                null,
+                null,
+                null,
+            )?.use { row -> if (row.moveToFirst() && !row.isNull(0)) row.getLong(0) else null }
+        }.getOrNull()
+
+        if (stored == item.takenAt) return@withContext true
+    }
+    false
+}
+
+/** How many times the date is put back before leaving it to the file. */
+private const val DATE_ATTEMPTS = 3
+
+/** How long the library is given to change its mind, in milliseconds. */
+private const val DATE_SETTLE_MS = 250L
 
 /**
  * A permanent-delete request the caller launches itself.

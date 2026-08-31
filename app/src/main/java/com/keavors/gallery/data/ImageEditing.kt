@@ -9,6 +9,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.media.MediaScannerConnection
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.net.Uri
@@ -18,7 +19,10 @@ import java.io.File
 import android.util.Log
 import androidx.activity.result.IntentSenderRequest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.min
@@ -251,11 +255,21 @@ suspend fun Context.overwriteWith(
             }
         }.onFailure { Log.w(TAG, "overwrite failed", it) }.getOrElse { it.describe() }
 
-        when {
-            copied != null -> SaveResult(SaveOutcome.FAILED, copied)
-            kept -> SaveResult(SaveOutcome.SAVED)
-            else -> SaveResult(SaveOutcome.SAVED_WITHOUT_METADATA)
-        }
+        if (copied != null) return@withContext SaveResult(SaveOutcome.FAILED, copied)
+
+        // Read again now, rather than whenever the library gets round to it.
+        // The file on the disk is the honest answer — it carries the date, the
+        // camera and the place — and this is what makes the library go and look
+        // at it instead of keeping whatever it decided while the file was being
+        // written.
+        rescan(item)
+
+        // And told outright as well, for the case where the look above changed
+        // nothing: on a card, or on a phone that keeps its own counsel. The two
+        // agree, so whichever is believed is right.
+        keepTakenAt(item)
+
+        if (kept) SaveResult(SaveOutcome.SAVED) else SaveResult(SaveOutcome.SAVED_WITHOUT_METADATA)
     } finally {
         runCatching { scratch.delete() }
     }
@@ -358,6 +372,38 @@ private suspend fun Context.writeCopy(
     }
     return SaveResult(if (kept) SaveOutcome.SAVED else SaveOutcome.SAVED_WITHOUT_METADATA)
 }
+
+/**
+ * Asks the system to read a file again, and waits until it has.
+ *
+ * Waiting is the point. What follows this puts the date on the row by hand, and
+ * a scan that landed afterwards would undo it — so the scan is given its turn
+ * first, and if it does the job properly there is nothing left to undo.
+ *
+ * A file that cannot be found by path — one on a memory card, say — is simply
+ * not scanned, and the writing that follows carries the day on its own.
+ */
+private suspend fun Context.rescan(item: MediaItem) {
+    val onDisk = runCatching {
+        File(
+            Environment.getExternalStorageDirectory(),
+            item.relativePath.trim('/') + "/" + item.name,
+        ).takeIf { it.exists() }
+    }.getOrNull() ?: return
+
+    withTimeoutOrNull(SCAN_PATIENCE_MS) {
+        suspendCancellableCoroutine { waiting ->
+            MediaScannerConnection.scanFile(
+                this@rescan,
+                arrayOf(onDisk.absolutePath),
+                arrayOf(item.mimeType),
+            ) { _, _ -> if (waiting.isActive) waiting.resume(Unit) }
+        }
+    }
+}
+
+/** How long the system is given to look at one file before giving up on it. */
+private const val SCAN_PATIENCE_MS = 3_000L
 
 /** Anything's account of a failure, as short as it can be made. */
 private fun Throwable.describe(): String =
