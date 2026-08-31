@@ -91,7 +91,7 @@ private const val TICK_MS = 60L
 @Composable
 fun VideoTrimScreen(
     item: MediaItem,
-    onSaved: () -> Unit,
+    onSaved: (keptDate: Boolean) -> Unit,
     onFailed: (String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -151,7 +151,7 @@ fun VideoTrimScreen(
             val outcome = context.trimVideo(item, range, overwrite) { progress = it }
             working = false
             when (outcome) {
-                is TrimResult.Saved -> onSaved()
+                is TrimResult.Saved -> onSaved(outcome.keptDate)
                 is TrimResult.Failed -> onFailed(outcome.reason)
             }
         }

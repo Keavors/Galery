@@ -139,7 +139,14 @@ private const val FRAME_HEIGHT_PX = 200
  * dozen unrelated reasons and only the one it actually hit is any use.
  */
 sealed interface TrimResult {
-    data object Saved : TrimResult
+    /**
+     * [keptDate] is false when the clip is safely saved but the library has
+     * re-dated it to today. Worth saying out loud: the file is fine and the
+     * work is not lost, but it has been filed under the wrong day, and a
+     * recording that quietly moves to the top of the timeline is one nobody
+     * will find again where they left it.
+     */
+    data class Saved(val keptDate: Boolean) : TrimResult
     data class Failed(val reason: String) : TrimResult
 }
 
@@ -180,12 +187,22 @@ suspend fun Context.trimVideo(
                 }
         }
 
-        val landing = when {
-            failure != null -> failure
-            overwrite -> replaceOriginal(item, scratch)
+        when {
+            failure != null -> TrimResult.Failed(failure)
+            overwrite -> {
+                val replaced = replaceOriginal(item, scratch)
+                if (replaced.failure != null) {
+                    TrimResult.Failed(replaced.failure)
+                } else {
+                    TrimResult.Saved(replaced.keptDate)
+                }
+            }
             else -> publishTrimmed(item, scratch)
+                ?.let { TrimResult.Failed(it) }
+                // A new file was made rather than an old one changed, so its
+                // date was set when it was created and nothing can have moved it.
+                ?: TrimResult.Saved(keptDate = true)
         }
-        if (landing == null) TrimResult.Saved else TrimResult.Failed(landing)
     } finally {
         // The scratch file goes whatever happened, including a cancellation:
         // a cache full of half-written videos is its own bug.
@@ -320,7 +337,7 @@ private const val PROGRESS_INTERVAL_MS = 200L
  * MP4 whatever the original's name says; on this phone recordings are MP4
  * already, and players go by the bytes rather than the name.
  */
-private suspend fun Context.replaceOriginal(item: MediaItem, source: File): String? =
+private suspend fun Context.replaceOriginal(item: MediaItem, source: File): Replaced =
     withContext(Dispatchers.IO) {
         val failure = runCatching {
             val out = contentResolver.openOutputStream(item.contentUri(), "wt")
@@ -336,9 +353,14 @@ private suspend fun Context.replaceOriginal(item: MediaItem, source: File): Stri
         // The bytes are new, so the library now believes the recording was made
         // today. It was not, and a trimmed video that jumps to the top of the
         // timeline has been filed under the wrong day.
-        if (failure == null) keepTakenAt(item)
-        failure
+        Replaced(
+            failure = failure,
+            keptDate = failure != null || keepTakenAt(item),
+        )
     }
+
+/** What became of an attempt to write over the original. */
+private data class Replaced(val failure: String?, val keptDate: Boolean)
 
 /**
  * Moves the finished file into the library, beside the video it came from.
