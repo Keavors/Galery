@@ -204,10 +204,12 @@ suspend fun Context.overwriteWith(
 
     if (!written) {
         SaveOutcome.FAILED
-    } else if (writeCarriedExif(item.contentUri(), exif, bitmap.width, bitmap.height)) {
-        SaveOutcome.SAVED
     } else {
-        SaveOutcome.SAVED_WITHOUT_METADATA
+        val carried = writeCarriedExif(item.contentUri(), exif, bitmap.width, bitmap.height)
+        // Last, and for both outcomes: the file has just been rewritten, so
+        // whatever the library thought its date was, it now thinks it is today.
+        keepTakenAt(item)
+        if (carried) SaveOutcome.SAVED else SaveOutcome.SAVED_WITHOUT_METADATA
     }
 }
 

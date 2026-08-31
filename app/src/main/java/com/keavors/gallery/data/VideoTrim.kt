@@ -6,6 +6,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -179,15 +180,12 @@ suspend fun Context.trimVideo(
                 }
         }
 
-        when {
-            failure != null -> TrimResult.Failed(failure)
-            overwrite -> when (replaceOriginal(item, scratch)) {
-                SaveOutcome.SAVED -> TrimResult.Saved
-                else -> TrimResult.Failed(COULD_NOT_REPLACE)
-            }
-            publishTrimmed(item, scratch) == SaveOutcome.SAVED -> TrimResult.Saved
-            else -> TrimResult.Failed(COULD_NOT_PUBLISH)
+        val landing = when {
+            failure != null -> failure
+            overwrite -> replaceOriginal(item, scratch)
+            else -> publishTrimmed(item, scratch)
         }
+        if (landing == null) TrimResult.Saved else TrimResult.Failed(landing)
     } finally {
         // The scratch file goes whatever happened, including a cancellation:
         // a cache full of half-written videos is its own bug.
@@ -201,11 +199,9 @@ private const val HDR_KEEP = Composition.HDR_MODE_KEEP_HDR
 /** Bring it down to ordinary colour, which every phone can encode. */
 private const val HDR_TONE_MAP = Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL
 
-/** Said when the encode worked and the library would not take the result. */
-private const val COULD_NOT_PUBLISH = "the library would not take the file"
-
-/** Said when the encode worked and the original refused the result. */
-private const val COULD_NOT_REPLACE = "the original could not be written over"
+/** Anything else's account of a failure, as short as it can be made. */
+private fun Throwable.describe(): String =
+    listOfNotNull(this::class.simpleName, message?.takeIf { it.isNotBlank() }).joinToString(": ")
 
 /** The encoder's account of a failure, as short as it can be made. */
 private fun ExportException.describe(): String = buildString {
@@ -324,15 +320,24 @@ private const val PROGRESS_INTERVAL_MS = 200L
  * MP4 whatever the original's name says; on this phone recordings are MP4
  * already, and players go by the bytes rather than the name.
  */
-private suspend fun Context.replaceOriginal(item: MediaItem, source: File): SaveOutcome =
+private suspend fun Context.replaceOriginal(item: MediaItem, source: File): String? =
     withContext(Dispatchers.IO) {
-        val written = runCatching {
-            contentResolver.openOutputStream(item.contentUri(), "wt")?.use { out ->
-                source.inputStream().use { input -> input.copyTo(out) }
-                true
-            } ?: false
-        }.onFailure { Log.w(TAG, "could not write over the original", it) }.getOrElse { false }
-        if (written) SaveOutcome.SAVED else SaveOutcome.FAILED
+        val failure = runCatching {
+            val out = contentResolver.openOutputStream(item.contentUri(), "wt")
+            if (out == null) {
+                "the original would not open for writing"
+            } else {
+                out.use { source.inputStream().use { input -> input.copyTo(it) } }
+                null
+            }
+        }.onFailure { Log.w(TAG, "could not write over the original", it) }
+            .getOrElse { it.describe() }
+
+        // The bytes are new, so the library now believes the recording was made
+        // today. It was not, and a trimmed video that jumps to the top of the
+        // timeline has been filed under the wrong day.
+        if (failure == null) keepTakenAt(item)
+        failure
     }
 
 /**
@@ -341,47 +346,73 @@ private suspend fun Context.replaceOriginal(item: MediaItem, source: File): Save
  * Pending first, published after, so no half-copied video ever appears in
  * anybody's gallery — the same order the photo editor writes in.
  */
-private suspend fun Context.publishTrimmed(item: MediaItem, source: File): SaveOutcome =
+private suspend fun Context.publishTrimmed(item: MediaItem, source: File): String? =
     withContext(Dispatchers.IO) {
-        val stem = item.name.substringBeforeLast('.', item.name)
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, stem + "_trim.mp4")
-            put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
-            val path = item.relativePath.trim().trim('/')
-            if (path.isNotEmpty() && !item.relativePath.startsWith("/")) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "$path/")
-            }
-            // A video has no EXIF to carry, but it does have the one thing that
-            // matters most: when it was taken. Without this the clip sorts to
-            // today and is lost among things it has nothing to do with.
-            if (item.takenAt > 0) put(MediaStore.Video.Media.DATE_TAKEN, item.takenAt)
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
+        val beside = item.relativePath.trim().trim('/')
+            .takeIf { it.isNotEmpty() && !item.relativePath.startsWith("/") }
 
-        val collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val uri = runCatching { contentResolver.insert(collection, values) }
-            .onFailure { Log.w(TAG, "could not create the trimmed copy", it) }
-            .getOrNull() ?: return@withContext SaveOutcome.FAILED
+        // Beside the original first. If the library will not have it there it is
+        // put in Movies instead, because "beside" is a courtesy and the clip is
+        // not: a video that lives in a messenger's own folder cannot be joined
+        // by a new one, since that folder belongs to the messenger.
+        val first = writeCopy(item, source, beside) ?: return@withContext null
+        if (beside == null) return@withContext first
 
-        val copied = runCatching {
-            contentResolver.openOutputStream(uri)?.use { out ->
-                source.inputStream().use { input -> input.copyTo(out) }
-                true
-            } ?: false
-        }.onFailure { Log.w(TAG, "could not write the trimmed copy", it) }.getOrElse { false }
-
-        if (!copied) {
-            runCatching { contentResolver.delete(uri, null, null) }
-            return@withContext SaveOutcome.FAILED
-        }
-
-        runCatching {
-            contentResolver.update(
-                uri,
-                ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
-                null,
-                null,
-            )
-        }
-        SaveOutcome.SAVED
+        val second = writeCopy(item, source, Environment.DIRECTORY_MOVIES)
+            ?: return@withContext null
+        if (second == first) first else "$first / $second"
     }
+
+/**
+ * One attempt at putting the clip into the library, in [folder] or wherever the
+ * library puts things with no folder asked for.
+ *
+ * Pending first, published after, so no half-copied video ever appears in
+ * anybody's gallery — the same order the photo editor writes in. Answers with
+ * what went wrong, or null if nothing did.
+ */
+private fun Context.writeCopy(item: MediaItem, source: File, folder: String?): String? {
+    val stem = item.name.substringBeforeLast('.', item.name)
+    val values = ContentValues().apply {
+        put(MediaStore.MediaColumns.DISPLAY_NAME, stem + "_trim.mp4")
+        put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+        if (folder != null) put(MediaStore.MediaColumns.RELATIVE_PATH, "$folder/")
+        // A video has no EXIF to carry, but it does have the one thing that
+        // matters most: when it was taken. Without this the clip sorts to today
+        // and is lost among things it has nothing to do with.
+        if (item.takenAt > 0) put(MediaStore.MediaColumns.DATE_TAKEN, item.takenAt)
+        put(MediaStore.MediaColumns.IS_PENDING, 1)
+    }
+
+    val collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+    val insert = runCatching { contentResolver.insert(collection, values) }
+        .onFailure { Log.w(TAG, "could not create the trimmed copy", it) }
+    val uri = insert.getOrNull()
+        ?: return insert.exceptionOrNull()?.describe() ?: "the library refused a new file"
+
+    val copied = runCatching {
+        val out = contentResolver.openOutputStream(uri)
+        if (out == null) {
+            "the new file would not open for writing"
+        } else {
+            out.use { source.inputStream().use { input -> input.copyTo(it) } }
+            null
+        }
+    }.onFailure { Log.w(TAG, "could not write the trimmed copy", it) }
+        .getOrElse { it.describe() }
+
+    if (copied != null) {
+        runCatching { contentResolver.delete(uri, null, null) }
+        return copied
+    }
+
+    runCatching {
+        contentResolver.update(
+            uri,
+            ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
+            null,
+            null,
+        )
+    }
+    return null
+}

@@ -1,8 +1,12 @@
 package com.keavors.gallery.data
 
+import android.content.ContentValues
 import android.content.Context
 import android.provider.MediaStore
+import android.util.Log
 import androidx.activity.result.IntentSenderRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.ceil
 
 /**
@@ -63,6 +67,36 @@ class MediaWriter(
             ).request()
         )
     }
+}
+
+/**
+ * Puts the day a file was taken back, after its bytes have been replaced.
+ *
+ * Writing over a file moves its modification date to now, and for most videos —
+ * and for screenshots, and for anything downloaded — that date is the only one
+ * the library has. A camera writes the day into the file itself; a screen
+ * recorder does not. So without this, editing a video quietly moves it to
+ * today: to the top of the timeline, away from the day it belongs to and away
+ * from everything it was taken alongside.
+ *
+ * The taken date is written rather than the modification date because that is
+ * the one that can be written at all — the modification date belongs to the
+ * file system — and because it is the one every gallery prefers when it is
+ * there, this one included.
+ */
+suspend fun Context.keepTakenAt(item: MediaItem): Boolean = withContext(Dispatchers.IO) {
+    // Nothing to put back: a file the library never had a date for is one this
+    // cannot invent one for either.
+    if (item.takenAt <= 0L) return@withContext true
+
+    runCatching {
+        contentResolver.update(
+            item.contentUri(),
+            ContentValues().apply { put(MediaStore.MediaColumns.DATE_TAKEN, item.takenAt) },
+            null,
+            null,
+        ) > 0
+    }.onFailure { Log.w("MediaWrite", "could not put the date back", it) }.getOrElse { false }
 }
 
 /**
