@@ -177,6 +177,7 @@ fun GalleryApp(
     val editorSaved = stringResource(R.string.editor_saved)
     val editorFailed = stringResource(R.string.editor_save_failed)
     val editorSavedBare = stringResource(R.string.editor_saved_without_metadata)
+    val trimFailed = stringResource(R.string.trim_failed)
     val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
 
@@ -589,8 +590,15 @@ fun GalleryApp(
                         editing = null
                         Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
                     },
-                    onFailed = {
-                        Toast.makeText(context, editorFailed, Toast.LENGTH_LONG).show()
+                    onFailed = { reason ->
+                        // The encoder's own words. An export can fail for a
+                        // dozen unrelated reasons and only the one it hit is any
+                        // use to whoever has to decide what to do next.
+                        Toast.makeText(
+                            context,
+                            trimFailed.format(reason),
+                            Toast.LENGTH_LONG,
+                        ).show()
                     },
                     onClose = { editing = null },
                     modifier = Modifier.fillMaxSize(),

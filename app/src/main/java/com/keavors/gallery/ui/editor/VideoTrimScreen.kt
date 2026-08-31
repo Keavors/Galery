@@ -50,8 +50,8 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.keavors.gallery.R
 import com.keavors.gallery.data.MediaItem
-import com.keavors.gallery.data.SaveOutcome
 import com.keavors.gallery.data.TrimRange
+import com.keavors.gallery.data.TrimResult
 import com.keavors.gallery.data.contentUri
 import com.keavors.gallery.data.endAt
 import com.keavors.gallery.data.frameTimesMs
@@ -87,7 +87,7 @@ private const val TICK_MS = 60L
 fun VideoTrimScreen(
     item: MediaItem,
     onSaved: () -> Unit,
-    onFailed: () -> Unit,
+    onFailed: (String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -161,7 +161,10 @@ fun VideoTrimScreen(
                         progress = 0
                         val outcome = context.trimVideo(item, range) { progress = it }
                         working = false
-                        if (outcome == SaveOutcome.FAILED) onFailed() else onSaved()
+                        when (outcome) {
+                            is TrimResult.Saved -> onSaved()
+                            is TrimResult.Failed -> onFailed(outcome.reason)
+                        }
                     }
                 },
                 enabled = !working && !range.isWhole(duration),

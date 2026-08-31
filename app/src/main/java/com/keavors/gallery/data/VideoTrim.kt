@@ -13,6 +13,7 @@ import android.util.Log
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
@@ -129,6 +130,19 @@ suspend fun Context.videoFrames(item: MediaItem, times: List<Long>): List<Bitmap
 private const val FRAME_HEIGHT_PX = 200
 
 /**
+ * How a trim went, and — when it did not go — what stopped it.
+ *
+ * The reason is the encoder's own account of itself, error code and all. It is
+ * not a pretty thing to put in front of somebody, but "could not save" on a
+ * screen that just spent a minute working is worse: an export can fail for a
+ * dozen unrelated reasons and only the one it actually hit is any use.
+ */
+sealed interface TrimResult {
+    data object Saved : TrimResult
+    data class Failed(val reason: String) : TrimResult
+}
+
+/**
  * Writes the kept piece of a video out as a new file.
  *
  * Always a copy, never over the original, and that is a limit rather than a
@@ -141,13 +155,30 @@ suspend fun Context.trimVideo(
     item: MediaItem,
     range: TrimRange,
     onProgress: (Int) -> Unit,
-): SaveOutcome {
+): TrimResult {
     val scratch = File(cacheDir, "trim-${item.id}-${System.currentTimeMillis()}.mp4")
     return try {
-        if (!exportClip(item, range, scratch, onProgress)) {
-            SaveOutcome.FAILED
+        // Keeping the colour the camera recorded is worth one attempt, and the
+        // fallback is worth having because phones that record HDR outnumber
+        // phones that can re-encode it. This one records HDR10+ by default and
+        // there is no way to ask it, before trying, whether it can read its own
+        // recording back — so it is tried, and the picture is brought down to
+        // ordinary colour only if that fails.
+        val keepingColour = exportFailure(item, range, scratch, HDR_KEEP, onProgress)
+        val failure = if (keepingColour == null) {
+            null
         } else {
-            publishTrimmed(item, scratch)
+            withContext(Dispatchers.IO) { scratch.delete() }
+            exportFailure(item, range, scratch, HDR_TONE_MAP, onProgress)
+                ?.let { second ->
+                    if (second == keepingColour) second else "$keepingColour / $second"
+                }
+        }
+
+        when {
+            failure != null -> TrimResult.Failed(failure)
+            publishTrimmed(item, scratch) == SaveOutcome.SAVED -> TrimResult.Saved
+            else -> TrimResult.Failed(COULD_NOT_PUBLISH)
         }
     } finally {
         // The scratch file goes whatever happened, including a cancellation:
@@ -156,19 +187,36 @@ suspend fun Context.trimVideo(
     }
 }
 
+/** Keep the camera's own colour, if this phone can encode it. */
+private const val HDR_KEEP = Composition.HDR_MODE_KEEP_HDR
+
+/** Bring it down to ordinary colour, which every phone can encode. */
+private const val HDR_TONE_MAP = Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL
+
+/** Said when the encode worked and the library would not take the result. */
+private const val COULD_NOT_PUBLISH = "the library would not take the file"
+
+/** The encoder's account of a failure, as short as it can be made. */
+private fun ExportException.describe(): String = buildString {
+    append(errorCodeName)
+    message?.takeIf { it.isNotBlank() }?.let { append(": ").append(it) }
+    cause?.message?.takeIf { it.isNotBlank() }?.let { append(" — ").append(it) }
+}
+
 /**
- * The encode itself.
+ * The encode itself. Answers with what went wrong, or null if nothing did.
  *
  * Transformer talks on the thread it was built on and expects that thread to
  * have a looper, so all of this happens on the main one. None of the work does:
  * that is on the codec.
  */
-private suspend fun Context.exportClip(
+private suspend fun Context.exportFailure(
     item: MediaItem,
     range: TrimRange,
     target: File,
+    hdrMode: Int,
     onProgress: (Int) -> Unit,
-): Boolean = withContext(Dispatchers.Main) {
+): String? = withContext(Dispatchers.Main) {
     val clipped = Media3Item.Builder()
         .setUri(item.contentUri())
         .setClippingConfiguration(
@@ -196,10 +244,10 @@ private suspend fun Context.exportClip(
 
     try {
         suspendCancellableCoroutine { continuation ->
-            val encoder = Transformer.Builder(this@exportClip)
+            val encoder = Transformer.Builder(this@exportFailure)
                 .addListener(object : Transformer.Listener {
                     override fun onCompleted(composition: Composition, result: ExportResult) {
-                        continuation.resume(true)
+                        continuation.resume(null)
                     }
 
                     override fun onError(
@@ -208,13 +256,28 @@ private suspend fun Context.exportClip(
                         exception: ExportException,
                     ) {
                         Log.w(TAG, "could not write the trimmed video", exception)
-                        continuation.resume(false)
+                        continuation.resume(exception.describe())
                     }
                 })
                 .build()
 
+            val edited = EditedMediaItem.Builder(clipped)
+                // Samsung records slow motion as an ordinary file with a note
+                // in it about which part is slow. Without this the note is
+                // dropped and the clip comes out at the wrong speed.
+                .setFlattenForSlowMotion(true)
+                .build()
+
+            // The colour mode lives on the composition rather than on the
+            // transformer, which is why a single clip is wrapped in one.
+            val composition = Composition.Builder(
+                EditedMediaItemSequence.withAudioAndVideoFrom(listOf(edited))
+            )
+                .setHdrMode(hdrMode)
+                .build()
+
             transformer = encoder
-            encoder.start(EditedMediaItem.Builder(clipped).build(), target.absolutePath)
+            encoder.start(composition, target.absolutePath)
 
             continuation.invokeOnCancellation {
                 // Cancellation can arrive on any thread; the encoder may only be
