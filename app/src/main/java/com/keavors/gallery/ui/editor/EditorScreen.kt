@@ -121,6 +121,7 @@ fun EditorScreen(
     var askingHow by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(EditorTab.GEOMETRY) }
     var correction by remember { mutableStateOf(Correction.entries.first()) }
+    var shape by remember(item.id) { mutableStateOf(CropShape.FREE) }
     // Which filter is on and how far. Kept beside the corrections rather than
     // inside them because a filter is only a way of setting them: once it has,
     // it is the corrections that are the truth, and these two are just what the
@@ -181,6 +182,10 @@ fun EditorScreen(
     // decisions about what the picture is, and swapping those out as well would
     // be showing a different photograph rather than the same one untouched.
     val plain = remember(shown) { shown?.asImageBitmap() }
+
+    // The picture's own width against its height. A crop is fractions of the
+    // photograph, so this is what turns "square" into a rectangle of fractions.
+    val pictureShape = image?.let { it.width.toFloat() / it.height.toFloat() }
 
     // A matrix, not a redrawn bitmap: this is what makes the colour sliders cost
     // nothing on a photograph of any size.
@@ -296,6 +301,7 @@ fun EditorScreen(
                     image = if (comparing) plain ?: image else image,
                     crop = ops.crop,
                     onCropChange = { change(ops.cropped(it), EditStep(EditStep.Kind.CROP)) },
+                    ratio = pictureShape?.let { shape.of(it) },
                     colorFilter = if (comparing) null else colours,
                     vignette = if (comparing) 0f else ops.adjustments.vignette,
                     cropVisible = tab == EditorTab.GEOMETRY && !comparing,
@@ -319,7 +325,25 @@ fun EditorScreen(
         }
 
         when (tab) {
-            EditorTab.GEOMETRY -> GeometryTools(ops = ops, onChange = ::change)
+            EditorTab.GEOMETRY -> GeometryTools(
+                ops = ops,
+                shape = shape,
+                onShape = { chosen ->
+                    shape = chosen
+                    // Applied there and then rather than waiting for the frame
+                    // to be touched: a shape that does nothing until the next
+                    // drag looks like a button that did nothing.
+                    if (pictureShape != null) {
+                        chosen.of(pictureShape)?.let { wanted ->
+                            change(
+                                ops.cropped(ops.crop.keeping(wanted, pictureShape, Grab.NONE)),
+                                EditStep(EditStep.Kind.CROP, "shape"),
+                            )
+                        }
+                    }
+                },
+                onChange = ::change,
+            )
 
             EditorTab.COLOUR -> ColourTools(
                 adjustments = ops.adjustments,
@@ -404,7 +428,12 @@ fun EditorScreen(
 
 /** Turns, mirroring, the crop and the horizon. */
 @Composable
-private fun GeometryTools(ops: EditOps, onChange: (EditOps, EditStep) -> Unit) {
+private fun GeometryTools(
+    ops: EditOps,
+    shape: CropShape,
+    onShape: (CropShape) -> Unit,
+    onChange: (EditOps, EditStep) -> Unit,
+) {
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
         // The same cells as the viewer's bottom bar: a quarter of the width
         // each, the whole of it answering a thumb rather than the icon in the
@@ -440,6 +469,25 @@ private fun GeometryTools(ops: EditOps, onChange: (EditOps, EditStep) -> Unit) {
                 onClick = { onChange(EditOps.None, EditStep(EditStep.Kind.RESET)) },
                 modifier = Modifier.weight(1f),
             )
+        }
+
+        // The shapes a crop can be held to. Scrolled rather than shared out
+        // evenly: there are seven of them, and no reason for the commonest to be
+        // as narrow as the rarest.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            CropShape.entries.forEach { entry ->
+                CorrectionChip(
+                    label = stringResource(entry.label),
+                    selected = entry == shape,
+                    touched = false,
+                    onClick = { onShape(entry) },
+                )
+            }
         }
 
         Text(
@@ -634,6 +682,24 @@ private fun WhiteSlider(
             inactiveTrackColor = Color.White.copy(alpha = 0.3f),
         ),
     )
+}
+
+/**
+ * The shapes a crop can be held to.
+ *
+ * Each one answers with the width-to-height it wants, given the shape of the
+ * photograph, or null for no answer at all — which is what "free" is. "As it
+ * is" needs the picture to know what it means, which is why these are questions
+ * rather than numbers.
+ */
+private enum class CropShape(val label: Int, val of: (Float) -> Float?) {
+    FREE(R.string.crop_free, { null }),
+    ORIGINAL(R.string.crop_original, { it }),
+    SQUARE(R.string.crop_square, { 1f }),
+    WIDE_4_3(R.string.crop_4_3, { 4f / 3f }),
+    TALL_3_4(R.string.crop_3_4, { 3f / 4f }),
+    WIDE_16_9(R.string.crop_16_9, { 16f / 9f }),
+    TALL_9_16(R.string.crop_9_16, { 9f / 16f }),
 }
 
 /**

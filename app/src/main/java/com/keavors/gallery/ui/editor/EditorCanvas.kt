@@ -66,6 +66,7 @@ fun EditorCanvas(
     colorFilter: ColorFilter? = null,
     vignette: Float = 0f,
     cropVisible: Boolean = true,
+    ratio: Float? = null,
 ) {
     var canvas by remember { mutableStateOf(Size.Zero) }
 
@@ -94,6 +95,8 @@ fun EditorCanvas(
     val report by rememberUpdatedState(onCropChange)
     val box by rememberUpdatedState(frame)
     val reach by rememberUpdatedState(with(LocalDensity.current) { HANDLE_REACH.toPx() })
+    val shape by rememberUpdatedState(ratio)
+    val pictureShape by rememberUpdatedState(image.width.toFloat() / image.height.toFloat())
 
     var grabbed by remember { mutableStateOf(Grab.NONE) }
 
@@ -121,7 +124,11 @@ fun EditorCanvas(
                     change.consume()
                     val over = box
                     if (over.width <= 0f || over.height <= 0f) return@detectDragGestures
-                    report(current.moved(grabbed, drag.x / over.width, drag.y / over.height))
+                    val moved = current.moved(grabbed, drag.x / over.width, drag.y / over.height)
+                    val wanted = shape
+                    report(
+                        if (wanted == null) moved else moved.keeping(wanted, pictureShape, grabbed)
+                    )
                 }
             },
     ) {
@@ -229,6 +236,57 @@ internal fun grabFor(point: Offset, crop: CropRect, frame: Rect, reach: Float): 
     if (closest != Grab.NONE) return closest
 
     return if (on.contains(point)) Grab.WHOLE else Grab.NONE
+}
+
+/**
+ * The same frame pulled to a fixed shape.
+ *
+ * A crop is fractions of the picture, so the shape it comes out as depends on
+ * the shape of the picture: half the width of a wide photograph is not the same
+ * rectangle as half the width of a tall one. All of that lives here.
+ *
+ * It only ever shrinks. A locked shape that grew could push the frame off the
+ * edge of the photograph, and a frame that leaves the picture is a crop of
+ * nothing. [grab] says what to hold still while it shrinks: the corner or side
+ * opposite the one being dragged, so the frame moves under the finger rather
+ * than away from it.
+ */
+internal fun CropRect.keeping(ratio: Float, pictureShape: Float, grab: Grab): CropRect {
+    if (ratio <= 0f || pictureShape <= 0f) return this
+
+    // What the wanted shape is, in fractions rather than in pixels.
+    val shape = ratio / pictureShape
+
+    var high = min(height, width / shape)
+    var wide = high * shape
+    // A long thin shape on a long thin photograph can ask to be both narrower
+    // than a crop is allowed to be and wider than the picture, so both floors
+    // are put in, smallest last.
+    if (high < CropRect.MIN_SIDE) {
+        high = CropRect.MIN_SIDE
+        wide = high * shape
+    }
+    if (wide > 1f) {
+        wide = 1f
+        high = wide / shape
+    }
+    if (high > 1f) {
+        high = 1f
+        wide = high * shape
+    }
+
+    val left = when {
+        grab.movesLeft -> right - wide
+        grab.movesRight -> left
+        else -> (left + right) / 2f - wide / 2f
+    }.coerceIn(0f, 1f - wide)
+    val top = when {
+        grab.movesTop -> bottom - high
+        grab.movesBottom -> top
+        else -> (top + bottom) / 2f - high / 2f
+    }.coerceIn(0f, 1f - high)
+
+    return CropRect(left, top, left + wide, top + high)
 }
 
 /**

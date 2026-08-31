@@ -236,3 +236,67 @@ class MovedTest {
         assertEquals(crop, crop.moved(Grab.NONE, dx = 0.5f, dy = 0.5f))
     }
 }
+
+class FixedShapeTest {
+
+    /** A photograph half again as wide as it is tall. */
+    private val wide = 3f / 2f
+
+    @Test
+    fun `a square crop of a wide photograph is not square in fractions`() {
+        // The trap this function exists for: a crop is fractions of the picture,
+        // so equal fractions on a 3:2 photograph are a 3:2 rectangle, not a
+        // square.
+        val square = CropRect.Whole.keeping(ratio = 1f, pictureShape = wide, grab = Grab.NONE)
+        assertEquals(1f, square.width * wide / square.height, 1e-4f)
+    }
+
+    @Test
+    fun `a shape only ever shrinks the frame`() {
+        val fitted = CropRect.Whole.keeping(ratio = 1f, pictureShape = wide, grab = Grab.NONE)
+        assertTrue(fitted.width <= 1f && fitted.height <= 1f)
+        assertTrue(fitted.left >= 0f && fitted.top >= 0f)
+        assertTrue(fitted.right <= 1f && fitted.bottom <= 1f)
+    }
+
+    @Test
+    fun `with nothing being dragged it shrinks about the middle`() {
+        val fitted = CropRect.Whole.keeping(ratio = 1f, pictureShape = wide, grab = Grab.NONE)
+        assertEquals(0.5f, (fitted.left + fitted.right) / 2f, 1e-4f)
+        assertEquals(0.5f, (fitted.top + fitted.bottom) / 2f, 1e-4f)
+    }
+
+    @Test
+    fun `the corner being dragged stays under the finger`() {
+        // Held by the opposite corner: the one being pulled is where the finger
+        // is, and a frame that jumps out from under it is unusable.
+        val crop = CropRect(0.1f, 0.1f, 0.9f, 0.9f)
+        val fitted = crop.keeping(ratio = 1f, pictureShape = wide, grab = Grab.TOP_LEFT)
+        assertEquals(0.9f, fitted.right, 1e-4f)
+        assertEquals(0.9f, fitted.bottom, 1e-4f)
+    }
+
+    @Test
+    fun `dragging a side holds the side opposite`() {
+        val crop = CropRect(0.1f, 0.1f, 0.9f, 0.9f)
+        val fitted = crop.keeping(ratio = 1f, pictureShape = wide, grab = Grab.RIGHT)
+        assertEquals(0.1f, fitted.left, 1e-4f)
+        // And centres what the drag was not touching.
+        assertEquals(0.5f, (fitted.top + fitted.bottom) / 2f, 1e-4f)
+    }
+
+    @Test
+    fun `a shape that would be thinner than a crop may be is widened to fit`() {
+        val thin = CropRect(0.4f, 0.4f, 0.42f, 0.42f)
+        val fitted = thin.keeping(ratio = 16f / 9f, pictureShape = wide, grab = Grab.NONE)
+        assertTrue(fitted.width >= CropRect.MIN_SIDE || fitted.height >= CropRect.MIN_SIDE)
+        assertTrue(fitted.left >= 0f && fitted.right <= 1f)
+    }
+
+    @Test
+    fun `a shape asked of a picture with no size changes nothing`() {
+        val crop = CropRect(0.2f, 0.2f, 0.8f, 0.8f)
+        assertEquals(crop, crop.keeping(ratio = 1f, pictureShape = 0f, grab = Grab.NONE))
+        assertEquals(crop, crop.keeping(ratio = 0f, pictureShape = 1f, grab = Grab.NONE))
+    }
+}

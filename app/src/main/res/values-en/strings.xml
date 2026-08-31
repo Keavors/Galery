@@ -222,6 +222,8 @@
     <string name="editor_flip">Flip</string>
     <string name="editor_reset_crop">Whole frame</string>
     <string name="editor_reset">Reset</string>
+    <string name="crop_free">Free</string>
+    <string name="crop_original">As it is</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
     <string name="editor_straighten">Straighten: %1$d°</string>

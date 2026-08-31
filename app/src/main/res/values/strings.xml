@@ -233,6 +233,13 @@
     <string name="editor_flip">Отразить</string>
     <string name="editor_reset_crop">Весь кадр</string>
     <string name="editor_reset">Сбросить</string>
+    <string name="crop_free">Свободно</string>
+    <string name="crop_original">Как есть</string>
+    <string name="crop_square" translatable="false">1:1</string>
+    <string name="crop_4_3" translatable="false">4:3</string>
+    <string name="crop_3_4" translatable="false">3:4</string>
+    <string name="crop_16_9" translatable="false">16:9</string>
+    <string name="crop_9_16" translatable="false">9:16</string>
     <string name="editor_undo">Отменить</string>
     <string name="editor_redo">Вернуть</string>
     <string name="editor_straighten">Выравнивание: %1$d°</string>
