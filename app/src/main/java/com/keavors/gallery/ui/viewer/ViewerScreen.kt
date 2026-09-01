@@ -160,6 +160,7 @@ fun ViewerScreen(
     onEdit: (MediaItem) -> Unit,
     pip: PipHolder,
     inPip: Boolean,
+    pipEnabled: Boolean,
     onSetCover: ((itemId: Long) -> Unit)?,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -257,12 +258,17 @@ fun ViewerScreen(
     // Where the video being left behind got to. Written when the page changes,
     // when the viewer closes and when the app goes away — the three ways a video
     // stops being watched, and none of them is a moment the player announces.
-    val watching by rememberUpdatedState(current)
-    DisposableEffect(watching.id) {
+    DisposableEffect(current.id) {
+        // The video being left behind, held from the moment this page became the
+        // one on screen. Reading it at the end instead would read whichever
+        // photograph had arrived by then, and file the position under its id:
+        // the video actually watched would never be remembered, and the one
+        // swiped to would be told it had been.
+        val leaving = current
         onDispose {
             val playing = player ?: return@onDispose
-            if (watching.isVideo && playing.duration > 0) {
-                onWatched(watching.id, playing.currentPosition, playing.duration)
+            if (leaving.isVideo && playing.duration > 0) {
+                onWatched(leaving.id, playing.currentPosition, playing.duration)
             }
         }
     }
@@ -280,9 +286,9 @@ fun ViewerScreen(
     // beforehand that this screen may go there, and to have said what shape it
     // is and where on the screen it currently sits so the shrink has something
     // to shrink from.
-    LaunchedEffect(current.id, current.isVideo, settings.pictureInPicture, inPip) {
+    LaunchedEffect(current.id, current.isVideo, pipEnabled, inPip) {
         val activity = view.context as Activity
-        val wanted = settings.pictureInPicture && current.isVideo && !inPip
+        val wanted = pipEnabled && current.isVideo && !inPip
         val ratio = Rational(
             current.width.coerceAtLeast(1),
             current.height.coerceAtLeast(1),
@@ -304,14 +310,18 @@ fun ViewerScreen(
 
     // A video left running while the phone is locked or the app is switched away
     // keeps decoding for no one.
+    // The opposite case, and the opposite tool: this observer outlives every
+    // page change, so it has to be told which photograph is current now rather
+    // than remembering the one it was born with.
+    val onScreen by rememberUpdatedState(current)
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
                 player?.pause()
                 player?.let { playing ->
-                    if (current.isVideo && playing.duration > 0) {
-                        onWatched(current.id, playing.currentPosition, playing.duration)
+                    if (onScreen.isVideo && playing.duration > 0) {
+                        onWatched(onScreen.id, playing.currentPosition, playing.duration)
                     }
                 }
             }

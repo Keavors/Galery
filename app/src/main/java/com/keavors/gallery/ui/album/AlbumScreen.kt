@@ -44,7 +44,7 @@ fun AlbumScreen(
     onExportOut: (List<MediaItem>) -> Unit,
     onUndoableDelete: (List<MediaItem>) -> Unit,
     onBack: () -> Unit,
-    onOpen: (item: MediaItem, thumbBucketPx: Int, from: Rect) -> Unit,
+    onOpen: (item: MediaItem, thumbBucketPx: Int, from: Rect, among: List<MediaItem>?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BackHandler { onBack() }

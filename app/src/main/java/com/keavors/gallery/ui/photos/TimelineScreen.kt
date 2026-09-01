@@ -58,7 +58,9 @@ import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.TimelineRow
+import com.keavors.gallery.data.TileShape
 import com.keavors.gallery.data.ZoomLevel
+import com.keavors.gallery.data.tileAspect
 import com.keavors.gallery.data.buildTimeline
 import com.keavors.gallery.data.matching
 import com.keavors.gallery.data.parseSearch
@@ -93,7 +95,13 @@ fun TimelineScreen(
     onHide: (List<MediaItem>) -> Unit,
     onExportOut: (List<MediaItem>) -> Unit,
     onUndoableDelete: (List<MediaItem>) -> Unit,
-    onOpen: (item: MediaItem, thumbBucketPx: Int, from: Rect) -> Unit,
+    /**
+     * @param among the photographs to page through from here, or null to page
+     *   through whatever the library holds. Non-null while a search is on: the
+     *   neighbours of a photograph found by searching are the other results, not
+     *   the five thousand pictures the search was narrowing.
+     */
+    onOpen: (item: MediaItem, thumbBucketPx: Int, from: Rect, among: List<MediaItem>?) -> Unit,
     modifier: Modifier = Modifier,
     /** Whether the list carries a search box at the top of it. */
     searchable: Boolean = false,
@@ -193,7 +201,8 @@ fun TimelineScreen(
         val density = LocalDensity.current
         val tileSize = (maxWidth - tileGap * (level.columns - 1)) / level.columns
         val bucket = with(density) { thumbnailBucketPx(tileSize.roundToPx()) }
-        val tilePitchPx = with(density) { (tileSize + tileGap).toPx() }
+        val rowWidthPx = with(density) { maxWidth.toPx() }
+        val gapPx = with(density) { tileGap.toPx() }
 
         // Which photo is under a finger, worked out from the list's own layout
         // rather than by hit-testing tiles: dragging across a selection has to
@@ -202,9 +211,25 @@ fun TimelineScreen(
             listState.layoutInfo.visibleItemsInfo
                 .firstOrNull { offset.y >= it.offset && offset.y < it.offset + it.size }
                 ?.let { info ->
-                    (currentRows.getOrNull(info.index) as? TimelineRow.Photos)?.items?.getOrNull(
-                        (offset.x / tilePitchPx).toInt().coerceIn(0, level.columns - 1)
-                    )
+                    val row = currentRows.getOrNull(info.index) as? TimelineRow.Photos
+                    row?.let {
+                        // The same arithmetic that placed the tiles, rather than
+                        // a column width: in a mosaic no two tiles are the same
+                        // width and dividing by one is a guess that gets the
+                        // wrong photograph.
+                        val rects = rowTileRects(
+                            count = it.items.size,
+                            columns = level.columns,
+                            widthPx = rowWidthPx,
+                            gapPx = gapPx,
+                            aspects = if (settings.tileShape == TileShape.MOSAIC) {
+                                it.items.map { item -> item.tileAspect() }
+                            } else {
+                                null
+                            },
+                        )
+                        it.items.getOrNull(tileAt(rects, offset.x, offset.y - info.offset))
+                    }
                 }
         }
 
@@ -288,7 +313,7 @@ fun TimelineScreen(
                             selecting = selected.isNotEmpty(),
                             onOpen = { item, from ->
                                 if (selected.isEmpty()) {
-                                    onOpen(item, bucket, from)
+                                    onOpen(item, bucket, from, found.takeIf { terms.isEmpty.not() })
                                 } else {
                                     selected = if (item.id in selected) {
                                         selected - item.id

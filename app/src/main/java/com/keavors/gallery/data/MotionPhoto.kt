@@ -108,3 +108,15 @@ suspend fun Context.motionVideoOf(item: MediaItem): File? = withContext(Dispatch
         kept
     }.onFailure { Log.w(TAG, "could not keep the video of ${item.name}", it) }.getOrNull()
 }
+
+/**
+ * Throws away the videos pulled out of motion photos.
+ *
+ * They are copies of something already on the phone, so losing them costs one
+ * extraction each — but a few hundred of them are the largest thing in the
+ * cache, and the settings screen offers to empty it.
+ */
+fun Context.clearMotionCache() {
+    runCatching { File(cacheDir, "motion").deleteRecursively() }
+        .onFailure { Log.w(TAG, "could not empty the motion cache", it) }
+}

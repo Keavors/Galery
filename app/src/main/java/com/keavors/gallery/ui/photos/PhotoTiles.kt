@@ -234,6 +234,11 @@ private fun rememberRowBitmaps(items: List<MediaItem>, bucketPx: Int): State<Map
     val found = remember { mutableStateMapOf<Long, ImageBitmap>() }
 
     LaunchedEffect(items, bucketPx) {
+        // A row's slot in the list is reused for other rows as the grid scrolls,
+        // and the pictures it held would otherwise pile up in here for as long
+        // as the slot lives. Only what this row draws is kept.
+        found.keys.retainAll(items.mapTo(HashSet(items.size)) { it.id })
+
         // The lookup of what is already in memory happens away from the main
         // thread — twenty-five entries per row, on every row that scrolls in.
         val missing = withContext(Dispatchers.Default) {

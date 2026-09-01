@@ -82,6 +82,7 @@ import com.keavors.gallery.data.writeRequestFor
 import com.keavors.gallery.data.inAlbum
 import com.keavors.gallery.data.visibleIn
 import com.keavors.gallery.data.indexOfId
+import com.keavors.gallery.data.clearMotionCache
 import com.keavors.gallery.data.mediaAccess
 import com.keavors.gallery.data.mediaPermissions
 import com.keavors.gallery.data.provisionalItem
@@ -552,7 +553,7 @@ fun GalleryApp(
         }
     }
 
-    val openItem: (MediaItem, Int, Rect) -> Unit = { item, bucket, from ->
+    val openItem: (MediaItem, Int, Rect, List<MediaItem>?) -> Unit = { item, bucket, from, among ->
         if (launchMode == LaunchMode.PICK) {
             onPicked(item)
         } else {
@@ -560,9 +561,12 @@ fun GalleryApp(
             // cancels that departure rather than being taken down with it.
             closing = false
             viewer = ViewerRoute(
+                // A search narrows what is on the screen, and paging away from
+                // one of its results has to stay inside it.
                 itemId = item.id,
-                source = folder?.source,
+                source = if (among == null) folder?.source else null,
                 thumbBucketPx = bucket,
+                items = among,
                 origin = from,
             )
         }
@@ -680,6 +684,9 @@ fun GalleryApp(
                         onClearCache = {
                             SingletonImageLoader.get(context).memoryCache?.clear()
                             SingletonImageLoader.get(context).diskCache?.clear()
+                            // The videos pulled out of motion photos live in the
+                            // cache too, and are the largest thing in it.
+                            context.clearMotionCache()
                             cacheSummary = ""
                             // It empties instantly and looks like nothing
                             // happened, which is how a button gets pressed four
@@ -825,6 +832,10 @@ fun GalleryApp(
                     onEdit = { editing = it },
                     pip = pip,
                     inPip = inPip,
+                    // Not from behind the editor: what would go to the corner is
+                    // the photograph underneath it, which is not what anybody is
+                    // looking at.
+                    pipEnabled = settings.pictureInPicture && editing == null,
                     resumeAt = { id -> watched.of(id) },
                     onWatched = { id, position, duration ->
                         scope.launch { watchStore.remember(id, position, duration) }

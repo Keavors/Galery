@@ -11,11 +11,10 @@ android {
         applicationId = "com.keavors.gallery"
         minSdk = 33
         targetSdk = 36
-        // 0.1 was the empty four tabs of the very first stage and never moved.
-        // Everything through the editor is done, and the polish and the video
-        // player are what is left before this is a one.
-        versionCode = 2
-        versionName = "0.9"
+        // Every stage in the specification is finished and the app has replaced
+        // the one it was written to replace. That is what a one means.
+        versionCode = 3
+        versionName = "1.0"
     }
 
     buildTypes {
