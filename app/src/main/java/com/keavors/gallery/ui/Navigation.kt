@@ -1,6 +1,7 @@
 package com.keavors.gallery.ui
 
 import android.net.Uri
+import androidx.compose.ui.geometry.Rect
 import com.keavors.gallery.data.AlbumSource
 import com.keavors.gallery.data.MediaItem
 
@@ -62,4 +63,10 @@ data class ViewerRoute(
      * photograph is being read from is work nobody is waiting for, and it waits.
      */
     val fromOutside: Boolean = false,
+    /**
+     * The tile this was opened from, in window coordinates, so the viewer can
+     * grow out of it. Null when nothing was tapped — a photograph from another
+     * app has no tile anywhere on the screen to have come from.
+     */
+    val origin: Rect? = null,
 )

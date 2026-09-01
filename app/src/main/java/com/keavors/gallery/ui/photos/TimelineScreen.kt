@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -90,7 +91,7 @@ fun TimelineScreen(
     onHide: (List<MediaItem>) -> Unit,
     onExportOut: (List<MediaItem>) -> Unit,
     onUndoableDelete: (List<MediaItem>) -> Unit,
-    onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
+    onOpen: (item: MediaItem, thumbBucketPx: Int, from: Rect) -> Unit,
     modifier: Modifier = Modifier,
     /** Whether the list carries a search box at the top of it. */
     searchable: Boolean = false,
@@ -284,9 +285,9 @@ fun TimelineScreen(
                             badges = settings.tileBadges,
                             selectedIds = selected,
                             selecting = selected.isNotEmpty(),
-                        ) { item ->
+                        ) { item, from ->
                             if (selected.isEmpty()) {
-                                onOpen(item, bucket)
+                                onOpen(item, bucket, from)
                             } else {
                                 selected = if (item.id in selected) {
                                     selected - item.id
@@ -543,7 +544,7 @@ private fun PhotoRow(
     selectedIds: Set<Long>,
     selecting: Boolean,
     modifier: Modifier = Modifier,
-    onOpen: (MediaItem) -> Unit,
+    onOpen: (MediaItem, Rect) -> Unit,
 ) {
     // A mosaic row is as tall as its pictures need to be once they have been
     // laid side by side and made to fill the width: the widths are in proportion
@@ -567,7 +568,7 @@ private fun PhotoRow(
                 selected = item.id in selectedIds,
                 dimmed = selecting && item.id !in selectedIds,
                 badges = badges,
-                onClick = { onOpen(item) },
+                onClick = { from -> onOpen(item, from) },
                 modifier = if (shape == TileShape.MOSAIC) {
                     Modifier
                         .weight(aspects[index])

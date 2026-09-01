@@ -16,6 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -45,7 +48,11 @@ fun Thumbnail(
     item: MediaItem,
     tileSize: Dp,
     corner: Dp,
-    onClick: () -> Unit,
+    /**
+     * Given where the tile is on the screen, so that opening it can look like
+     * the tile itself growing rather than a new screen arriving from nowhere.
+     */
+    onClick: (Rect) -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     dimmed: Boolean = false,
@@ -63,13 +70,19 @@ fun Thumbnail(
         previewRequest(context, item, bucket)
     }
 
+    // Where this tile is, kept in a plain holder rather than in state: it is
+    // written on every layout pass of every visible tile, and a state write there
+    // would recompose the grid for a number nothing draws.
+    val bounds = remember { TileBounds() }
+
     Box(
         modifier = modifier
             .then(if (tileSize >= CLIP_MIN_TILE) Modifier.clip(RoundedCornerShape(corner)) else Modifier)
             // A placeholder tone under every tile: scrolling fast through a
             // thousand photos should look like a grid filling in, not like holes.
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(onClick = onClick),
+            .onGloballyPositioned { bounds.rect = it.boundsInWindow() }
+            .clickable { onClick(bounds.rect) },
     ) {
         AsyncImage(
             model = request,
@@ -156,3 +169,8 @@ internal fun formatDuration(millis: Long): String {
 }
 
 private fun Long.pad(): String = if (this < 10) "0$this" else toString()
+
+/** Somewhere to put a rectangle that changes constantly and is read once. */
+private class TileBounds {
+    var rect: Rect = Rect.Zero
+}

@@ -8,6 +8,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -39,6 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.drawWithContent
@@ -98,6 +102,9 @@ import com.keavors.gallery.ui.settings.SettingsScreen
 import com.keavors.gallery.ui.trash.TrashScreen
 import com.keavors.gallery.ui.viewer.ViewerScreen
 import kotlinx.coroutines.launch
+
+/** How long a tile takes to become a photograph, ms. */
+private const val OPEN_MS = 260
 
 /** Duration of the cross-fade between tabs, ms. Kept short: tabs are cheap. */
 private const val TAB_FADE_IN = 220
@@ -543,7 +550,7 @@ fun GalleryApp(
         }
     }
 
-    val openItem: (MediaItem, Int) -> Unit = { item, bucket ->
+    val openItem: (MediaItem, Int, Rect) -> Unit = { item, bucket, from ->
         if (launchMode == LaunchMode.PICK) {
             onPicked(item)
         } else {
@@ -551,6 +558,7 @@ fun GalleryApp(
                 itemId = item.id,
                 source = folder?.source,
                 thumbBucketPx = bucket,
+                origin = from,
             )
         }
     }
@@ -795,6 +803,24 @@ fun GalleryApp(
             // keeps the page it is on, and page zero of one photo is not
             // page forty of a folder — without this the picture would change
             // under the finger a moment after opening.
+            // The tile growing into the photograph.
+            //
+            // Not a shared element in the framework's sense — the photograph is
+            // one composable throughout, and only the box it lives in moves. It
+            // starts exactly the size and place of the tile that was tapped and
+            // ends exactly filling the window, so the two ends are right whatever
+            // happens in between, and the black backdrop grows with it instead of
+            // covering the grid before the picture has arrived.
+            val origin = route?.origin
+            val grow = remember(route?.itemId, viewerEpoch) {
+                Animatable(if (origin == null || !settings.animations) 1f else 0f)
+            }
+            LaunchedEffect(grow) {
+                if (grow.value < 1f) {
+                    grow.animateTo(1f, tween(settings.animationSpeed * OPEN_MS / 100))
+                }
+            }
+
             key(route?.resolved, viewerEpoch) {
                 ViewerScreen(
                     items = viewerItems,
@@ -826,7 +852,24 @@ fun GalleryApp(
                     // Left in composition while the editor is open so that closing
                     // the editor puts the same photo back on the same page, but not
                     // drawn: the editor covers it completely.
-                    modifier = Modifier.drawWithContent { if (editing == null) drawContent() },
+                    modifier = Modifier
+                        .graphicsLayer {
+                            val opened = grow.value
+                            if (origin == null || opened >= 1f || size.minDimension <= 0f) {
+                                return@graphicsLayer
+                            }
+                            val fromX = (origin.width / size.width).coerceIn(0f, 1f)
+                            val fromY = (origin.height / size.height).coerceIn(0f, 1f)
+                            scaleX = fromX + (1f - fromX) * opened
+                            scaleY = fromY + (1f - fromY) * opened
+                            // Pinned to where the tile was, so the growth starts
+                            // from the picture somebody actually touched.
+                            transformOrigin = TransformOrigin(
+                                pivotFractionX = (origin.center.x / size.width).coerceIn(0f, 1f),
+                                pivotFractionY = (origin.center.y / size.height).coerceIn(0f, 1f),
+                            )
+                        }
+                        .drawWithContent { if (editing == null) drawContent() },
                 )
             }
         } else if (folder == null && selected != 0) {

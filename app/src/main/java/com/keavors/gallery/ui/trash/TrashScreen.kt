@@ -217,7 +217,9 @@ private fun TrashTile(
             item = item,
             tileSize = 120.dp,
             corner = 3.dp,
-            onClick = onToggle,
+            // Nothing in the trash opens into the viewer, so where the tile is
+            // does not matter here.
+            onClick = { onToggle() },
             modifier = Modifier.fillMaxSize(),
         )
 
