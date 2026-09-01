@@ -29,7 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.keavors.gallery.R
+import com.keavors.gallery.data.BadgeKind
 import com.keavors.gallery.data.MediaItem
+import com.keavors.gallery.data.badgeKind
 import com.keavors.gallery.data.previewRequest
 import com.keavors.gallery.data.thumbnailBucketPx
 
@@ -90,6 +92,22 @@ fun Thumbnail(
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
+
+        // A word rather than an icon: "RAW" and "GIF" are what they are called,
+        // and a picture of them would have to be learned.
+        if (showBadges) {
+            item.badgeKind()?.let { kind ->
+                Text(
+                    text = if (kind == BadgeKind.GIF) "GIF" else "RAW",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(5.dp),
+                )
+            }
+        }
 
         if (showBadges && item.isVideo) {
             Row(

@@ -120,3 +120,32 @@ fun List<MediaItem>.summarize(): LibrarySummary {
         newest = newest.takeIf { it != Long.MIN_VALUE },
     )
 }
+
+/**
+ * The kinds of file a tile puts a word on.
+ *
+ * Only what the file already says about itself: the mime type is in the library
+ * row, so this costs nothing per tile. A motion photo is deliberately absent —
+ * telling one from an ordinary JPEG means reading the file to the end, which is
+ * six hundred file reads for one screenful of grid, and it is why the badge for
+ * it is not here.
+ */
+fun MediaItem.badgeKind(): BadgeKind? = when {
+    isVideo -> null
+    mimeType.endsWith("/gif", ignoreCase = true) -> BadgeKind.GIF
+    RAW_TYPES.any { mimeType.endsWith(it, ignoreCase = true) } -> BadgeKind.RAW
+    RAW_EXTENSIONS.any { name.endsWith(it, ignoreCase = true) } -> BadgeKind.RAW
+    else -> null
+}
+
+enum class BadgeKind { GIF, RAW }
+
+private val RAW_TYPES = listOf("/x-adobe-dng", "/x-sony-arw", "/x-canon-cr2", "/x-nikon-nef", "/raw")
+
+/**
+ * The extensions worth checking when the mime type says nothing.
+ *
+ * MediaStore often files a raw photograph under a plain image type and leaves it
+ * at that, and the name is then the only thing that knows.
+ */
+private val RAW_EXTENSIONS = listOf(".dng", ".arw", ".cr2", ".cr3", ".nef", ".orf", ".rw2", ".raf")

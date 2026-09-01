@@ -119,3 +119,32 @@ class FormatTest {
         assertEquals("512", formatCount(512, locale))
     }
 }
+
+/** What a tile says about a file, from what the library already knows. */
+class BadgeKindTest {
+
+    @Test
+    fun `an ordinary photograph says nothing`() {
+        assertEquals(null, testItem(1).badgeKind())
+    }
+
+    @Test
+    fun `a gif is named by its type`() {
+        assertEquals(BadgeKind.GIF, testItem(1).copy(mimeType = "image/gif").badgeKind())
+    }
+
+    @Test
+    fun `a raw photograph is named by its type or by its name`() {
+        assertEquals(BadgeKind.RAW, testItem(1).copy(mimeType = "image/x-adobe-dng").badgeKind())
+        assertEquals(
+            BadgeKind.RAW,
+            testItem(1).copy(mimeType = "image/*", name = "DSC_0001.NEF").badgeKind(),
+        )
+    }
+
+    @Test
+    fun `a video is left to the badge it already has`() {
+        // Videos carry their length, which is a more useful thing to say.
+        assertEquals(null, testItem(1, isVideo = true).copy(mimeType = "video/mp4").badgeKind())
+    }
+}
