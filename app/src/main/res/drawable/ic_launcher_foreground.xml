@@ -9,15 +9,15 @@
         landscape reaches the edge and never shows a gap.
     -->
     <path
-        android:fillColor="#F5A623"
+        android:fillColor="#FAD000"
         android:pathData="M29,38 A11,11 0 1 1 51,38 A11,11 0 1 1 29,38 Z" />
     <path
-        android:fillColor="#9BC98F"
+        android:fillColor="#84C972"
         android:pathData="M-10,112 L46,50 L118,112 Z" />
     <path
-        android:fillColor="#4E9A6B"
+        android:fillColor="#289A54"
         android:pathData="M28,112 L78,62 L128,112 Z" />
     <path
-        android:fillColor="#2F6B52"
+        android:fillColor="#116B46"
         android:pathData="M-20,112 L22,74 L66,112 Z" />
 </vector>

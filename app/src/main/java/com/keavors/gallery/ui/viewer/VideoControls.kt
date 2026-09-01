@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package com.keavors.gallery.ui.viewer
 
 import androidx.compose.foundation.layout.Arrangement

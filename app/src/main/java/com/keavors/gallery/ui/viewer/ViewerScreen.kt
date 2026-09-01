@@ -1,6 +1,9 @@
 package com.keavors.gallery.ui.viewer
 
 import android.app.Activity
+import android.app.PictureInPictureParams
+import android.graphics.Rect
+import android.util.Rational
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -268,6 +271,35 @@ fun ViewerScreen(
     DisposableEffect(current.id, current.isVideo) {
         pip.video = current.takeIf { it.isVideo }
         onDispose { pip.video = null }
+    }
+
+    // Told to the system in advance rather than at the moment of leaving.
+    //
+    // A swipe home is not a moment an app gets asked anything: with the gesture
+    // navigation everybody uses, the only way into the corner is to have said
+    // beforehand that this screen may go there, and to have said what shape it
+    // is and where on the screen it currently sits so the shrink has something
+    // to shrink from.
+    LaunchedEffect(current.id, current.isVideo, settings.pictureInPicture, inPip) {
+        val activity = view.context as Activity
+        val wanted = settings.pictureInPicture && current.isVideo && !inPip
+        val ratio = Rational(
+            current.width.coerceAtLeast(1),
+            current.height.coerceAtLeast(1),
+        ).takeIf { current.width > 0 && current.height > 0 && it.toFloat() in 0.42f..2.39f }
+            ?: Rational(16, 9)
+
+        runCatching {
+            activity.setPictureInPictureParams(
+                PictureInPictureParams.Builder()
+                    .setAutoEnterEnabled(wanted)
+                    .setAspectRatio(ratio)
+                    .setSourceRectHint(
+                        Rect(0, 0, view.width.coerceAtLeast(1), view.height.coerceAtLeast(1))
+                    )
+                    .build()
+            )
+        }
     }
 
     // A video left running while the phone is locked or the app is switched away
