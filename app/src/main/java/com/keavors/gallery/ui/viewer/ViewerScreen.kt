@@ -363,11 +363,17 @@ fun ViewerScreen(
             val zoomableState = rememberZoomableState(zoomSpec = VIEWER_ZOOM)
             val imageState = rememberZoomableImageState(zoomableState)
 
-            val request = remember(item.id, thumbBucketPx) {
+            // The uri as well as the id: a photograph that arrived from another
+            // app and has not been found in the library yet has no id to tell it
+            // apart from the last one that arrived the same way.
+            val request = remember(item.id, item.uri, thumbBucketPx) {
                 ImageRequest.Builder(context)
                     .data(item.contentUri())
                     // The grid tile is already in memory, so the full photo can
-                    // fade in over it instead of over a black rectangle.
+                    // fade in over it instead of over a black rectangle. This is
+                    // also what a photograph opened from another app is shown as
+                    // for its first tenth of a second, which is why the id is
+                    // read straight out of the incoming uri.
                     .placeholderMemoryCacheKey(thumbnailCacheKey(item.id, thumbBucketPx))
                     .build()
             }

@@ -63,6 +63,16 @@ suspend fun Context.probeExternal(uri: Uri, declaredType: String?): ExternalRef 
     }
 
 /**
+ * The id of a photograph nobody has identified yet.
+ *
+ * A file from another app's private storage has no MediaStore row and never
+ * will; one that has only just arrived may have a row nobody has looked up yet.
+ * Both are this, and both mean the same downstream: there is no number to ask
+ * the library about.
+ */
+const val UNKNOWN_ID = -1L
+
+/**
  * The photo as it can be known before anything has been asked of anybody.
  *
  * Opening a picture from another app used to wait for the database: probe the
@@ -73,6 +83,12 @@ suspend fun Context.probeExternal(uri: Uri, declaredType: String?): ExternalRef 
  * the database replaces it when it comes.
  */
 fun provisionalItem(uri: Uri, declaredType: String?): MediaItem = ExternalRef(
+    // Reading the row number out of the uri costs a string split, and it is what
+    // decides whether the photograph is on screen in the first frame: with the
+    // number, the thumbnail the grid drew a moment ago is found in memory and
+    // put up at once. Without it there is nothing to show until the file has
+    // been decoded, which is a tenth of a second of black.
+    mediaStoreId = uri.mediaStoreId(),
     name = uri.lastPathSegment?.substringAfterLast('/'),
     isVideo = looksLikeVideo(declaredType, uri.toString()),
     mimeType = declaredType.orEmpty(),
@@ -99,13 +115,15 @@ private val VIDEO_EXTENSIONS = setOf(
 )
 
 /**
- * Builds a stand-in for a file that is not in the library.
+ * Builds a stand-in for a file the library has not placed.
  *
- * Everything works on it except moving to a neighbour, because it genuinely has
- * none — it is sitting in some other app's private storage.
+ * Either it is not in the library at all — sitting in some other app's private
+ * storage, with no neighbours to move to — or it has not been looked for yet.
+ * Whatever the uri gave away is kept, the row number above all: that number is
+ * how everything downstream recognises the same photograph again.
  */
 fun ExternalRef.asStandaloneItem(): MediaItem = MediaItem(
-    id = -1,
+    id = mediaStoreId ?: UNKNOWN_ID,
     uri = uri,
     name = name.orEmpty(),
     mimeType = mimeType,

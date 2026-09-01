@@ -4,11 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Size
 import coil3.ImageLoader
+import coil3.SingletonImageLoader
 import coil3.asImage
 import coil3.decode.DataSource
 import coil3.fetch.FetchResult
 import coil3.fetch.Fetcher
 import coil3.fetch.ImageFetchResult
+import coil3.request.ImageRequest
 import coil3.request.Options
 import coil3.size.pxOrElse
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +34,15 @@ data class MediaThumb(val id: Long, val isVideo: Boolean)
  * means zooming reuses what is already in memory.
  */
 private val THUMB_BUCKETS = intArrayOf(96, 192, 384, 768)
+
+/**
+ * The bucket to load at when nothing on screen has been measured yet.
+ *
+ * A photograph opened from another app has no tile behind it to take a size
+ * from, and the grid's own default zoom lands here — so a thumbnail cached for
+ * one is the thumbnail wanted by the other.
+ */
+const val DEFAULT_THUMB_BUCKET = 384
 
 /** The bucket a tile of [tilePx] should load at. */
 fun thumbnailBucketPx(tilePx: Int): Int =
@@ -96,7 +107,7 @@ class MediaThumbnailFetcher(
 
     private companion object {
         /** Used when the layout has not measured the tile yet. */
-        const val FALLBACK_PX = 384
+        const val FALLBACK_PX = DEFAULT_THUMB_BUCKET
     }
 }
 
@@ -122,4 +133,48 @@ private fun Bitmap.fitShortestEdgeTo(target: Int): Bitmap {
     // rather than waiting on the collector with the rest of the grid in flight.
     if (scaled !== this) recycle()
     return scaled
+}
+
+/**
+ * Puts a photograph's thumbnail in memory, where the viewer looks for something
+ * to show while the full-size file is still being read.
+ *
+ * The viewer asks the memory cache for its placeholder exactly once, when its
+ * own request runs, so a thumbnail that arrives a moment after that arrives too
+ * late to be seen at all. These two exist to make sure it is there by then:
+ * [startPreview] from the instant an intent arrives, before there is any screen
+ * to show it on, and [awaitPreview] before the viewer is rebuilt on the folder
+ * the photograph turned out to live in.
+ *
+ * Neither costs anything when the grid has already drawn the photograph, which
+ * is the usual case: it is the same request under the same name, so it is
+ * answered out of memory and no file is touched.
+ */
+fun Context.startPreview(item: MediaItem, bucketPx: Int) {
+    val request = previewRequest(item, bucketPx) ?: return
+    SingletonImageLoader.get(this).enqueue(request)
+}
+
+/** As [startPreview], but waits for the thumbnail to be in memory. */
+suspend fun Context.awaitPreview(item: MediaItem, bucketPx: Int) {
+    val request = previewRequest(item, bucketPx) ?: return
+    SingletonImageLoader.get(this).execute(request)
+}
+
+/**
+ * The request both of those make, or null when there is no thumbnail to be had.
+ *
+ * Only MediaStore keeps thumbnails, so a file in the app's own storage or one
+ * whose uri named no row has none to warm: for those the file itself is the
+ * only picture there is, and the viewer decodes it.
+ */
+private fun Context.previewRequest(item: MediaItem, bucketPx: Int): ImageRequest? {
+    if (item.isPrivate || item.id == UNKNOWN_ID) return null
+    return ImageRequest.Builder(applicationContext)
+        .data(MediaThumb(item.id, item.isVideo))
+        .size(bucketPx)
+        // The grid's own name for it, so warming it here and drawing it there
+        // are one cached bitmap rather than two.
+        .memoryCacheKey(thumbnailCacheKey(item.id, bucketPx))
+        .build()
 }

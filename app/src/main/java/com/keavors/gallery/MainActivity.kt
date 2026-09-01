@@ -16,7 +16,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.keavors.gallery.data.GallerySettings
 import androidx.core.net.toUri
+import com.keavors.gallery.data.DEFAULT_THUMB_BUCKET
 import com.keavors.gallery.data.contentUri
+import com.keavors.gallery.data.provisionalItem
+import com.keavors.gallery.data.startPreview
 import com.keavors.gallery.ui.ExternalOpen
 import com.keavors.gallery.ui.GalleryApp
 import com.keavors.gallery.ui.LaunchMode
@@ -120,6 +123,17 @@ class MainActivity : ComponentActivity() {
                 launchMode = LaunchMode.BROWSE
                 val uri = intent.data ?: intent.dataString?.toUri()
                 pendingOpen = uri?.let { ExternalOpen(it, intent.type) }
+
+                // The picture is started here rather than where it is shown,
+                // because this is the earliest instant the app knows which
+                // photograph is wanted — before the screen that will show it has
+                // been composed, laid out or drawn. Reading a thumbnail takes
+                // longer than all three, so the head start is the whole
+                // difference between the photo arriving with the interface and
+                // arriving after it.
+                uri?.let {
+                    startPreview(provisionalItem(it, intent.type), DEFAULT_THUMB_BUCKET)
+                }
             }
 
             Intent.ACTION_PICK, Intent.ACTION_GET_CONTENT -> {

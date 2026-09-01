@@ -68,6 +68,9 @@ import com.keavors.gallery.data.indexOfId
 import com.keavors.gallery.data.mediaAccess
 import com.keavors.gallery.data.mediaPermissions
 import com.keavors.gallery.data.provisionalItem
+import com.keavors.gallery.data.awaitPreview
+import com.keavors.gallery.data.DEFAULT_THUMB_BUCKET
+import com.keavors.gallery.data.UNKNOWN_ID
 import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.albums.AlbumsScreen
 import com.keavors.gallery.ui.common.PlaceholderScreen
@@ -86,12 +89,6 @@ import kotlinx.coroutines.launch
 /** Duration of the cross-fade between tabs, ms. Kept short: tabs are cheap. */
 private const val TAB_FADE_IN = 220
 private const val TAB_FADE_OUT = 140
-
-/** Used until a tile has been measured and can say which size it wants. */
-private const val DEFAULT_THUMB_BUCKET = 384
-
-/** The id of a photograph that has arrived from outside and not been placed yet. */
-private const val PROVISIONAL_ID = -1L
 
 @Composable
 fun GalleryApp(
@@ -225,11 +222,12 @@ fun GalleryApp(
     // photograph.
     val arriving = remember(pendingOpen) {
         pendingOpen?.let { open ->
+            val item = provisionalItem(open.uri, open.declaredType)
             ViewerRoute(
-                itemId = PROVISIONAL_ID,
+                itemId = item.id,
                 source = null,
                 thumbBucketPx = DEFAULT_THUMB_BUCKET,
-                items = listOf(provisionalItem(open.uri, open.declaredType)),
+                items = listOf(item),
                 resolved = false,
             )
         }
@@ -243,12 +241,21 @@ fun GalleryApp(
         val open = pendingOpen ?: return@LaunchedEffect
 
         val resolved = repository.resolveExternal(open.uri, open.declaredType)
+        val found = resolved.items.getOrNull(resolved.index)
+
+        // Placing the photograph rebuilds the viewer on its folder, and a rebuilt
+        // page reads its placeholder out of memory once and never asks again. So
+        // the thumbnail has to be in memory before that happens, not after —
+        // otherwise a uri that named no row goes black at the very moment the
+        // neighbours arrive. It is free whenever the picture is already up.
+        found?.let { context.awaitPreview(it, DEFAULT_THUMB_BUCKET) }
+
         val source = resolved.bucketId?.let { AlbumSource.Folder(it) }
         folder = source?.let {
             FolderRoute(source = it, title = resolved.folderName.ifBlank { unknownFolder })
         }
         viewer = ViewerRoute(
-            itemId = resolved.items.getOrNull(resolved.index)?.id ?: PROVISIONAL_ID,
+            itemId = found?.id ?: UNKNOWN_ID,
             source = source,
             thumbBucketPx = DEFAULT_THUMB_BUCKET,
             items = resolved.items,

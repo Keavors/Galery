@@ -144,3 +144,40 @@ class ProvisionalGuessTest {
         assertFalse(looksLikeVideo(null, "content://com.example.files/document/42"))
     }
 }
+
+class StandaloneItemTest {
+
+    @Test
+    fun `a photograph that named a row keeps its number`() {
+        // The number is what finds the thumbnail the grid already drew, which is
+        // what puts the picture on screen in the same frame as the interface
+        // rather than a decode later.
+        val item = ExternalRef(
+            mediaStoreId = 42,
+            name = "IMG_0042.jpg",
+            uri = "content://media/external/images/media/42",
+        ).asStandaloneItem()
+
+        assertEquals(42L, item.id)
+    }
+
+    @Test
+    fun `a photograph from somebody else's storage admits it has no number`() {
+        val item = ExternalRef(
+            name = "photo.jpg",
+            uri = "content://org.telegram.messenger.provider/media/photo.jpg",
+        ).asStandaloneItem()
+
+        assertEquals(UNKNOWN_ID, item.id)
+    }
+
+    @Test
+    fun `the library is asked about the number a standalone item carries`() {
+        // Both halves of the same rule: what asStandaloneItem puts in the id is
+        // what matchExternal looks the photograph up by.
+        val library = listOf(testItem(7))
+        val ref = ExternalRef(mediaStoreId = 7)
+
+        assertEquals(ref.asStandaloneItem().id, library.matchExternal(ref)?.id)
+    }
+}
