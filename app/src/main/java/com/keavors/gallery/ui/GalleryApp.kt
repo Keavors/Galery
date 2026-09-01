@@ -252,7 +252,13 @@ fun GalleryApp(
 
         val source = resolved.bucketId?.let { AlbumSource.Folder(it) }
         folder = source?.let {
-            FolderRoute(source = it, title = resolved.folderName.ifBlank { unknownFolder })
+            FolderRoute(
+                source = it,
+                title = resolved.folderName.ifBlank { unknownFolder },
+                // The stack an intent builds is two steps and no more: the
+                // photograph, the folder it lives in, and then out.
+                leavesTo = null,
+            )
         }
         viewer = ViewerRoute(
             itemId = found?.id ?: UNKNOWN_ID,
@@ -329,14 +335,16 @@ fun GalleryApp(
         }
     }
 
-    // Back means one thing everywhere: a step nearer the pictures. Leaving a
-    // folder therefore lands on the timeline rather than wherever the folder was
-    // opened from — including a folder arrived at from another app's photograph,
-    // which used to close the gallery instead. The timeline is the only way out,
-    // and only from there.
+    // Back undoes exactly one thing, whatever that thing was: the photograph,
+    // then the folder, then the tab, then the app. So leaving a folder returns
+    // to the tab it was opened from — the albums tab, for every folder anybody
+    // navigated to — and lands on the timeline only for a folder that was
+    // reached from the timeline. A folder with no way in at all was built by an
+    // intent from another app, and there back leaves the gallery.
     fun leaveFolder() {
+        val leavesTo = folder?.leavesTo
         folder = null
-        selected = Tab.PHOTOS.ordinal
+        if (leavesTo == null) onFinish() else selected = leavesTo.ordinal
     }
 
     // The one way out of either editor, for every kind of save on every kind
@@ -492,7 +500,7 @@ fun GalleryApp(
                             vaultCount = vaultItems.size,
                             prefs = albumPrefs,
                             onOpenAlbum = { source, title ->
-                                folder = FolderRoute(source, title)
+                                folder = FolderRoute(source, title, leavesTo = Tab.ALBUMS)
                             },
                             trashCount = trash.size,
                             onOpenTrash = { selected = Tab.TRASH.ordinal },
@@ -502,7 +510,11 @@ fun GalleryApp(
                                 // locking, so it is the one thing not trusted to
                                 // stay unlocked.
                                 vaultUnlocked = false
-                                folder = FolderRoute(AlbumSource.Vault, vaultTitle)
+                                folder = FolderRoute(
+                                    source = AlbumSource.Vault,
+                                    title = vaultTitle,
+                                    leavesTo = Tab.ALBUMS,
+                                )
                             },
                             onTogglePin = { scope.launch { albumStore.togglePinned(it) } },
                             onSetHidden = { source, hidden ->

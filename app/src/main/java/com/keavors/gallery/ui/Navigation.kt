@@ -13,13 +13,18 @@ enum class LaunchMode { BROWSE, PICK }
 /**
  * A folder being looked at on top of the tabs.
  *
- * Leaving one always lands on the timeline, however it was arrived at — from
- * the albums tab, or from a photograph another app sent over. Back walks one
- * step towards the pictures and never sideways.
+ * Back retraces the way in, one step at a time: a folder opened from the albums
+ * tab goes back to the albums tab, and only from the first tab does the gallery
+ * leave the screen. [leavesTo] is what remembers the way in — null for a folder
+ * nobody navigated to, which is the two-step stack an intent from another app
+ * builds: the photograph, the folder it lives in, and then out of the app, as
+ * the specification has it.
  */
 data class FolderRoute(
     val source: AlbumSource,
     val title: String,
+    /** The tab back returns to, or null to leave the gallery altogether. */
+    val leavesTo: Tab?,
 )
 
 /**
