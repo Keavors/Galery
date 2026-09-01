@@ -51,6 +51,7 @@ import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.contentUri
+import com.keavors.gallery.data.motionVideoOf
 import com.keavors.gallery.data.previewCacheKey
 import com.keavors.gallery.data.previewRequest
 import com.keavors.gallery.ui.common.ConfirmDialog
@@ -190,6 +191,8 @@ fun ViewerScreen(
 
     var chromeVisible by remember { mutableStateOf(settings.chromeOnOpen) }
     var slideshow by remember { mutableStateOf(false) }
+    // The video hiding inside the photograph on screen, while it is playing.
+    var motion by remember { mutableStateOf<java.io.File?>(null) }
     var detailsVisible by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -330,7 +333,10 @@ fun ViewerScreen(
     // to let go. Everything about the dismiss animation is driven from it.
     val dismissProgress = (abs(dragY.value) / dismissThresholdPx).coerceIn(0f, 1f)
 
-    LaunchedEffect(pagerState.currentPage) { dragY.snapTo(0f) }
+    LaunchedEffect(pagerState.currentPage) {
+        dragY.snapTo(0f)
+        motion = null
+    }
 
     Box(
         modifier = modifier
@@ -438,7 +444,22 @@ fun ViewerScreen(
                     state = imageState,
                     onClick = {
                         slideshow = false
+                        motion = null
                         chromeVisible = !chromeVisible
+                    },
+                    // A motion photo is an ordinary photograph with a second of
+                    // video hidden in the same file. Nothing announces it, so it
+                    // is looked for on the press rather than on every photograph
+                    // that goes past, and an ordinary photograph simply has
+                    // nothing to find.
+                    onLongClick = {
+                        scope.launch {
+                            val found = context.motionVideoOf(item)
+                            if (found != null) {
+                                chromeVisible = false
+                                motion = found
+                            }
+                        }
                     },
                     // Told where to stop rather than left to the limit above: a
                     // double tap is meant to land on a face, not to throw the
@@ -450,6 +471,17 @@ fun ViewerScreen(
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
+
+                // Over the photograph, exactly where it is, and gone the moment
+                // it ends or anything is touched.
+                if (motion != null && page == pagerState.currentPage) {
+                    MotionClip(
+                        file = motion!!,
+                        muted = !settings.videoSound,
+                        onFinished = { motion = null },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
 
             // A page left zoomed in would come back zoomed when swiped past and
