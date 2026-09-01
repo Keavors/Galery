@@ -118,6 +118,20 @@ sealed interface TimelineRow {
     data class Photos(val items: List<MediaItem>) : TimelineRow {
         override val key: String get() = "p${items.first().id}"
     }
+
+    /**
+     * The search box.
+     *
+     * A row of the list rather than a bar above it, for two reasons. It scrolls
+     * away with the photographs, so it costs nothing at all once somebody is
+     * looking at pictures. And every other piece of machinery here — the anchor
+     * of a zoom, the photo under a dragging finger, the scrollbar — counts rows,
+     * so a box that is a row is counted correctly by all of them without any of
+     * them being told about it.
+     */
+    data object Search : TimelineRow {
+        override val key: String get() = "search"
+    }
 }
 
 /**
@@ -131,10 +145,14 @@ fun buildTimeline(
     items: List<MediaItem>,
     level: ZoomLevel,
     zone: ZoneId,
+    withSearch: Boolean = false,
 ): List<TimelineRow> {
-    if (items.isEmpty()) return emptyList()
-
     val rows = ArrayList<TimelineRow>(items.size / level.columns + 16)
+    // Before the emptiness check, deliberately: a search that finds nothing must
+    // still leave the box on the screen, or there is no way to change it.
+    if (withSearch) rows += TimelineRow.Search
+    if (items.isEmpty()) return rows
+
     var sectionStart = 0
     var current = DateBucket.of(items[0].takenAt, level.grouping, zone)
 
@@ -207,6 +225,7 @@ fun List<TimelineRow>.sectionItems(headerIndex: Int): List<MediaItem> {
         when (val row = this[index]) {
             is TimelineRow.Photos -> items += row.items
             is TimelineRow.Header -> break
+            TimelineRow.Search -> Unit
         }
     }
     return items

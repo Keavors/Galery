@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,6 +45,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
@@ -53,6 +55,8 @@ import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.TimelineRow
 import com.keavors.gallery.data.ZoomLevel
 import com.keavors.gallery.data.buildTimeline
+import com.keavors.gallery.data.matching
+import com.keavors.gallery.data.parseSearch
 import com.keavors.gallery.data.canBeHidden
 import com.keavors.gallery.data.firstItemFrom
 import com.keavors.gallery.data.rowOf
@@ -77,6 +81,8 @@ private const val MAX_LIVE_SCALE = 1.9f
 fun TimelineScreen(
     items: List<MediaItem>,
     settings: GallerySettings,
+    /** Whether the list carries a search box at the top of it. */
+    searchable: Boolean = false,
     writer: MediaWriter,
     albumActions: AlbumActions,
     onHide: (List<MediaItem>) -> Unit,
@@ -98,7 +104,15 @@ fun TimelineScreen(
         mutableIntStateOf(settings.defaultZoom.ordinal)
     }
     val level = ZoomLevel.entries[levelOrdinal]
-    val rows = remember(items, level) { buildTimeline(items, level, zone) }
+
+    // Kept across a rotation but not across a visit: coming back to the tab is
+    // coming back to the pictures, not to what somebody was looking for once.
+    var query by remember { mutableStateOf("") }
+    val terms = remember(query, locale) { parseSearch(query, locale) }
+    val found = remember(items, terms, zone) { items.matching(terms, zone) }
+    val rows = remember(found, level, searchable) {
+        buildTimeline(found, level, zone, withSearch = searchable)
+    }
 
     // The level keys the gesture handler, but the rows can also change under it
     // when the library reloads mid-pinch, and that must not rebuild the handler.
@@ -238,6 +252,19 @@ fun TimelineScreen(
                         )
                     }
 
+                    TimelineRow.Search -> item(key = row.key, contentType = "search") {
+                        SearchField(
+                            query = query,
+                            onQueryChange = { query = it },
+                            modifier = Modifier.padding(
+                                start = 12.dp,
+                                end = 12.dp,
+                                top = 8.dp,
+                                bottom = 4.dp,
+                            ),
+                        )
+                    }
+
                     is TimelineRow.Photos -> item(key = row.key, contentType = "photos") {
                         PhotoRow(
                             row = row,
@@ -262,6 +289,21 @@ fun TimelineScreen(
                     }
                 }
             }
+        }
+
+        // Said plainly rather than left as an empty grid: an empty grid looks
+        // like a library with nothing in it, which is a different and much more
+        // alarming thing than a search that found nothing.
+        if (found.isEmpty() && query.isNotBlank()) {
+            Text(
+                text = stringResource(R.string.search_nothing),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 40.dp),
+            )
         }
 
         FastScroller(
@@ -502,3 +544,42 @@ private fun PhotoRow(
 
 /** Which errand the folder picker is being opened for. */
 private enum class FolderErrand { MOVE, COPY }
+
+/**
+ * The box at the top of the list.
+ *
+ * One line, no button to press: the library narrows as the letters arrive, so
+ * there is no moment where something has been typed and nothing has happened.
+ */
+@Composable
+private fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        singleLine = true,
+        placeholder = { Text(stringResource(R.string.search_hint)) },
+        leadingIcon = {
+            Icon(
+                painter = painterResource(R.drawable.ic_search),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_close),
+                        contentDescription = stringResource(R.string.action_cancel),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        modifier = modifier.fillMaxWidth(),
+    )
+}

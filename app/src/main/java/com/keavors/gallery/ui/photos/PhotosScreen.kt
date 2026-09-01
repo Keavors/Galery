@@ -53,6 +53,7 @@ fun PhotosScreen(
         else -> TimelineScreen(
             items = items,
             settings = settings,
+            searchable = true,
             writer = writer,
             albumActions = albumActions,
             onHide = onHide,

@@ -288,4 +288,6 @@
     <string name="folder_bad_name">A folder cannot be called that</string>
     <string name="folder_delete_title">Delete this album?</string>
     <string name="folder_delete_body">Files inside: %1$d. They go to the trash, where they can be had back for 30 days.</string>
+    <string name="search_hint">Name, folder, date, kind</string>
+    <string name="search_nothing">Nothing found</string>
 </resources>

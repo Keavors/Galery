@@ -79,6 +79,7 @@ fun AlbumScreen(
         TimelineScreen(
             items = items,
             settings = settings,
+            searchable = true,
             writer = writer,
             albumActions = albumActions,
             onHide = onHide,
