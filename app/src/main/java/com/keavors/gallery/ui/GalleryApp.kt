@@ -63,6 +63,12 @@ import com.keavors.gallery.data.VaultStore
 import com.keavors.gallery.data.canAuthenticate
 import com.keavors.gallery.data.deleteRequestFor
 import com.keavors.gallery.data.canManageMedia
+import com.keavors.gallery.data.folderAlbums
+import com.keavors.gallery.data.isAlreadyIn
+import com.keavors.gallery.data.moveItemsTo
+import com.keavors.gallery.data.copyItemsTo
+import com.keavors.gallery.data.renamedFolderPath
+import com.keavors.gallery.data.writeRequestFor
 import com.keavors.gallery.data.inAlbum
 import com.keavors.gallery.data.indexOfId
 import com.keavors.gallery.data.mediaAccess
@@ -143,6 +149,10 @@ fun GalleryApp(
         rawItems.filteredFor(settings).sortedFor(settings.sortBy, settings.sortOrder)
     }
 
+    // Every folder on the device, worked out once: the albums screen draws them
+    // and the timeline offers them as somewhere to send photographs.
+    val folders = remember(libraryItems) { libraryItems.folderAlbums() }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
@@ -183,6 +193,14 @@ fun GalleryApp(
     val trimFailed = stringResource(R.string.trim_failed)
     val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
+    val movedNote = stringResource(R.string.folder_moved)
+    val moveFailedNote = stringResource(R.string.folder_move_failed)
+    val copiedNote = stringResource(R.string.folder_copied)
+    val copyFailedNote = stringResource(R.string.folder_copy_failed)
+    val renamedNote = stringResource(R.string.folder_renamed)
+    val renameFailedNote = stringResource(R.string.folder_rename_failed)
+    val refusedNote = stringResource(R.string.folder_refused)
+    val badNameNote = stringResource(R.string.folder_bad_name)
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -308,11 +326,98 @@ fun GalleryApp(
         if (viewerItems.none { it.id == shown.itemId }) -1 else viewerItems.indexOfId(shown.itemId)
     } ?: -1
 
+    // Moving files the app does not own needs the system's permission first, so
+    // every move is in two halves: ask, and then — if the answer was yes — do it.
+    // What is waiting is held here in between.
+    var pendingMove by remember { mutableStateOf<PendingMove?>(null) }
+    val moveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val errand = pendingMove
+        pendingMove = null
+        if (errand == null) return@rememberLauncherForActivityResult
+
+        if (result.resultCode != Activity.RESULT_OK) {
+            Toast.makeText(context, refusedNote, Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
+
+        scope.launch {
+            val outcome = context.moveItemsTo(errand.items, errand.path)
+            // The library is re-read before anything is said about it, so the
+            // grid underneath the message already agrees with the message.
+            repository.reloadNow()
+
+            val renamed = errand.renaming
+            if (renamed != null && outcome.done > 0) {
+                // A folder's bucket id is worked out from its path, so renaming
+                // one makes a folder the preferences have never heard of. What
+                // was thought about the old one — pinned, hidden, its cover —
+                // is carried across to it by hand.
+                val moved = (repository.state.value as? LibraryState.Ready)?.items.orEmpty()
+                    .firstOrNull { isAlreadyIn(it, errand.path) }
+                moved?.let { albumStore.moveOpinions(renamed, AlbumSource.Folder(it.bucketId)) }
+            }
+
+            val message = when {
+                outcome.whole && renamed != null -> renamedNote
+                outcome.whole -> movedNote.format(outcome.done)
+                renamed != null -> renameFailedNote.format(
+                    outcome.done,
+                    outcome.done + outcome.failed,
+                    outcome.reason,
+                )
+                else -> moveFailedNote.format(
+                    outcome.done,
+                    outcome.done + outcome.failed,
+                    outcome.reason,
+                )
+            }
+            Toast.makeText(
+                context,
+                message,
+                if (outcome.whole) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
+    fun startMove(items: List<MediaItem>, path: String, renaming: AlbumSource.Folder? = null) {
+        val movable = items.filterNot { it.isPrivate }
+        if (movable.isEmpty()) return
+        pendingMove = PendingMove(movable, path, renaming)
+        moveLauncher.launch(writeRequestFor(context, movable))
+    }
+
+    fun startCopy(items: List<MediaItem>, path: String) {
+        val copyable = items.filterNot { it.isPrivate }
+        if (copyable.isEmpty()) return
+        scope.launch {
+            val outcome = context.copyItemsTo(copyable, path)
+            repository.reloadNow()
+            Toast.makeText(
+                context,
+                if (outcome.whole) {
+                    copiedNote.format(outcome.done)
+                } else {
+                    copyFailedNote.format(
+                        outcome.done,
+                        outcome.done + outcome.failed,
+                        outcome.reason,
+                    )
+                },
+                if (outcome.whole) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
     // Album actions for the timeline. The remove action is filled in only when
     // the grid on screen is an album someone made — a photo cannot be removed
     // from a folder, only moved out of it, which is a different thing entirely.
     fun albumActions(removableFrom: AlbumSource?) = AlbumActions(
         userAlbums = albumPrefs.userAlbums,
+        folders = folders,
+        onMoveTo = { path, items -> startMove(items, path) },
+        onCopyTo = { path, items -> startCopy(items, path) },
         onAddTo = { albumId, ids -> scope.launch { albumStore.addToUserAlbum(albumId, ids) } },
         onCreateWith = { name, ids -> scope.launch { albumStore.createUserAlbum(name, ids) } },
         onRemoveFrom = (removableFrom as? AlbumSource.User)?.let { album ->
@@ -506,6 +611,7 @@ fun GalleryApp(
                     ) {
                         AlbumsScreen(
                             items = libraryItems,
+                            folders = folders,
                             vaultCount = vaultItems.size,
                             prefs = albumPrefs,
                             onOpenAlbum = { source, title ->
@@ -532,10 +638,47 @@ fun GalleryApp(
                             onCreateAlbum = { name ->
                                 scope.launch { albumStore.createUserAlbum(name) }
                             },
-                            onRenameAlbum = { id, name ->
-                                scope.launch { albumStore.renameUserAlbum(id, name) }
+                            onRenameAlbum = { source, name ->
+                                when (source) {
+                                    is AlbumSource.User ->
+                                        scope.launch { albumStore.renameUserAlbum(source.albumId, name) }
+
+                                    // Renaming a folder is moving every file in
+                                    // it: there is no other way to say it to
+                                    // MediaStore, and it is the truth anyway —
+                                    // the folder is where the files are.
+                                    is AlbumSource.Folder -> {
+                                        val inside = libraryItems.inAlbum(source)
+                                        val path = inside.firstOrNull()
+                                            ?.let { renamedFolderPath(it.relativePath, name) }
+                                        if (path == null) {
+                                            Toast.makeText(
+                                                context,
+                                                badNameNote,
+                                                Toast.LENGTH_LONG,
+                                            ).show()
+                                        } else {
+                                            startMove(inside, path, renaming = source)
+                                        }
+                                    }
+
+                                    else -> Unit
+                                }
                             },
-                            onDeleteAlbum = { id -> scope.launch { albumStore.deleteUserAlbum(id) } },
+                            onDeleteAlbum = { source ->
+                                when (source) {
+                                    is AlbumSource.User ->
+                                        scope.launch { albumStore.deleteUserAlbum(source.albumId) }
+
+                                    // Into the system trash, where they can be
+                                    // had back for thirty days. The folder goes
+                                    // when the last file in it does.
+                                    else -> writer.setTrashed(
+                                        libraryItems.inAlbum(source, albumPrefs.userAlbums),
+                                        trashed = true,
+                                    )
+                                }
+                            },
                         )
                     }
 
@@ -693,4 +836,17 @@ private fun appSettingsIntent(packageName: String) = Intent(
 private fun manageMediaIntent(packageName: String) = Intent(
     Settings.ACTION_REQUEST_MANAGE_MEDIA,
     Uri.fromParts("package", packageName, null),
+)
+
+/**
+ * A move that has been asked about and not yet carried out.
+ *
+ * [renaming] is set when the move is a folder being renamed rather than
+ * photographs being sent somewhere, which changes both what is said afterwards
+ * and what has to be carried across to the folder's new name.
+ */
+private data class PendingMove(
+    val items: List<MediaItem>,
+    val path: String,
+    val renaming: AlbumSource.Folder? = null,
 )

@@ -30,10 +30,32 @@ data class AlbumPreferences(
 }
 
 /**
+ * Carries what was decided about one album over to another.
+ *
+ * For renaming a folder, which is not a rename at all as far as the phone is
+ * concerned: a folder's id is worked out from its path, so a renamed folder is a
+ * folder nothing has ever heard of, and pinning it, hiding it or choosing its
+ * cover would otherwise have to be done again.
+ */
+fun AlbumPreferences.movedTo(from: AlbumSource, to: AlbumSource): AlbumPreferences {
+    val old = from.key
+    val new = to.key
+    if (old == new) return this
+    return copy(
+        pinned = if (old in pinned) pinned - old + new else pinned,
+        hidden = if (old in hidden) hidden - old + new else hidden,
+        covers = covers[old]?.let { covers - old + (new to it) } ?: covers,
+    )
+}
+
+/**
  * A stable name for an album.
  *
- * Folders are keyed by their bucket id rather than their name, so renaming one
- * on the phone does not lose whether it was pinned.
+ * Folders are keyed by their bucket id, which Android works out from the path —
+ * so a folder renamed anywhere, here or in a file manager, arrives under a new
+ * key. Renaming from inside the app carries the old key's opinions across; a
+ * rename done elsewhere is a folder this app has never seen before, and there is
+ * nothing to be done about that.
  */
 val AlbumSource.key: String
     get() = when (this) {

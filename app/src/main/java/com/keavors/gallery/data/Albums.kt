@@ -53,6 +53,13 @@ data class FolderAlbum(
     val count: Int,
     val cover: MediaItem,
     val newestAt: Long,
+    /**
+     * Where the folder actually is, as MediaStore says it: "DCIM/Camera/".
+     *
+     * Carried rather than derived from the name, because the name is only the
+     * last part of it and two folders in different places may share one.
+     */
+    val path: String,
 )
 
 /**
@@ -79,6 +86,7 @@ fun List<MediaItem>.folderAlbums(): List<FolderAlbum> {
             count = counts[bucketId] ?: 0,
             cover = cover,
             newestAt = cover.takenAt,
+            path = cover.relativePath,
         )
     }.sortedByDescending { it.newestAt }
 }

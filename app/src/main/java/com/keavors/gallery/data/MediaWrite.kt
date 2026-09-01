@@ -177,6 +177,33 @@ private val GUARD_LOOKS_MS = listOf(1_000L, 3_000L, 8_000L)
 private val dateGuardScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 /**
+ * Permission to change files the app does not own.
+ *
+ * Editing somebody else's photograph — writing over it, or moving it to another
+ * folder — needs the system's blessing exactly as deleting does, and with media
+ * management granted it is given without anybody being asked.
+ */
+fun writeRequestFor(context: Context, item: MediaItem): IntentSenderRequest =
+    writeRequestFor(context, listOf(item))
+
+/** As above, for a batch: one request for the lot rather than one each. */
+fun writeRequestFor(context: Context, items: List<MediaItem>): IntentSenderRequest =
+    MediaStore.createWriteRequest(
+        context.contentResolver,
+        items.filterNot { it.isPrivate }.map { it.contentUri() },
+    ).request()
+
+/**
+ * Anything's account of a failure, as short as it can be made.
+ *
+ * Every operation here can fail for a dozen unrelated reasons and only the one
+ * it hit is any use to whoever has to decide what to do next, so the exception
+ * is passed on rather than swallowed for a sentence of our own.
+ */
+internal fun Throwable.describe(): String =
+    listOfNotNull(this::class.simpleName, message?.takeIf { it.isNotBlank() }).joinToString(": ")
+
+/**
  * A permanent-delete request the caller launches itself.
  *
  * Used where the outcome matters: moving a file into the vault has to know

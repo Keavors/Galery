@@ -44,14 +44,16 @@ import coil3.request.ImageRequest
 import com.keavors.gallery.R
 import com.keavors.gallery.data.AlbumPreferences
 import com.keavors.gallery.data.AlbumSource
+import com.keavors.gallery.data.FolderAlbum
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaThumb
-import com.keavors.gallery.data.folderAlbums
 import com.keavors.gallery.data.inAlbum
 import com.keavors.gallery.data.key
 import com.keavors.gallery.data.pinnedFirst
+import com.keavors.gallery.data.isRenamableFolder
 import com.keavors.gallery.data.thumbnailCacheKey
 import com.keavors.gallery.data.withoutHidden
+import com.keavors.gallery.ui.common.ConfirmDialog
 import com.keavors.gallery.ui.common.TextPromptDialog
 
 /** Cover art is asked for at this size whatever the screen width. */
@@ -85,6 +87,7 @@ private data class AlbumCardModel(
 @Composable
 fun AlbumsScreen(
     items: List<MediaItem>,
+    folders: List<FolderAlbum>,
     trashCount: Int,
     vaultCount: Int,
     prefs: AlbumPreferences,
@@ -94,13 +97,14 @@ fun AlbumsScreen(
     onTogglePin: (AlbumSource) -> Unit,
     onSetHidden: (AlbumSource, Boolean) -> Unit,
     onCreateAlbum: (String) -> Unit,
-    onRenameAlbum: (Long, String) -> Unit,
-    onDeleteAlbum: (Long) -> Unit,
+    onRenameAlbum: (AlbumSource, String) -> Unit,
+    onDeleteAlbum: (AlbumSource) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showHidden by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
-    var renaming by remember { mutableStateOf<Pair<Long, String>?>(null) }
+    var renaming by remember { mutableStateOf<AlbumCardModel?>(null) }
+    var deleting by remember { mutableStateOf<AlbumCardModel?>(null) }
 
     val byId = remember(items) { items.associateBy { it.id } }
     fun coverFor(source: AlbumSource, fallback: MediaItem?): MediaItem? =
@@ -139,7 +143,7 @@ fun AlbumsScreen(
         )
     }
 
-    val folderCards = items.folderAlbums()
+    val folderCards = folders
         .withoutHidden(prefs, showHidden)
         .pinnedFirst(prefs)
         .map { folder ->
@@ -150,6 +154,12 @@ fun AlbumsScreen(
                 count = folder.count,
                 cover = coverFor(source, folder.cover),
                 fallbackIcon = R.drawable.ic_tab_albums,
+                // A folder is a place on the disk, so both of these really
+                // happen: renaming one moves every file in it, and deleting one
+                // sends every file in it to the trash. The card says so before
+                // either goes ahead.
+                renamable = isRenamableFolder(folder.path),
+                deletable = true,
             )
         }
 
@@ -202,13 +212,16 @@ fun AlbumsScreen(
                     onOpen = { onOpenAlbum(card.source, card.title) },
                     onTogglePin = { onTogglePin(card.source) },
                     onToggleHidden = { onSetHidden(card.source, !prefs.isHidden(card.source)) },
-                    onRename = {
-                        (card.source as? AlbumSource.User)?.let {
-                            renaming = it.albumId to card.title
-                        }
-                    },
+                    onRename = { renaming = card },
+                    // An album someone made is a list of ids: deleting one loses
+                    // nothing that cannot be made again in a minute. A folder is
+                    // files, so that one is asked about.
                     onDelete = {
-                        (card.source as? AlbumSource.User)?.let { onDeleteAlbum(it.albumId) }
+                        if (card.source is AlbumSource.User) {
+                            onDeleteAlbum(card.source)
+                        } else {
+                            deleting = card
+                        }
                     },
                 )
             }
@@ -271,16 +284,29 @@ fun AlbumsScreen(
         )
     }
 
-    renaming?.let { (albumId, currentName) ->
+    renaming?.let { card ->
         TextPromptDialog(
             title = stringResource(R.string.albums_rename),
-            initial = currentName,
+            initial = card.title,
             confirm = stringResource(R.string.albums_rename_confirm),
             onConfirm = {
                 renaming = null
-                onRenameAlbum(albumId, it)
+                onRenameAlbum(card.source, it)
             },
             onDismiss = { renaming = null },
+        )
+    }
+
+    deleting?.let { card ->
+        ConfirmDialog(
+            title = stringResource(R.string.folder_delete_title),
+            body = stringResource(R.string.folder_delete_body, card.count),
+            confirm = stringResource(R.string.action_delete),
+            onConfirm = {
+                deleting = null
+                onDeleteAlbum(card.source)
+            },
+            onDismiss = { deleting = null },
         )
     }
 }

@@ -275,4 +275,17 @@
     <string name="adjust_vignette">Vignette</string>
 
     <string name="set_jpeg_quality">JPEG quality when saving</string>
+    <string name="folder_move_to">Move to folder</string>
+    <string name="folder_copy_to">Copy to folder</string>
+    <string name="folder_new">New folder</string>
+    <string name="folder_moved">Moved: %1$d</string>
+    <string name="folder_move_failed">Moved %1$d of %2$d — %3$s</string>
+    <string name="folder_copied">Copied: %1$d</string>
+    <string name="folder_copy_failed">Copied %1$d of %2$d — %3$s</string>
+    <string name="folder_renamed">Folder renamed</string>
+    <string name="folder_rename_failed">Moved %1$d of %2$d — %3$s</string>
+    <string name="folder_refused">The system would not allow those files to be changed</string>
+    <string name="folder_bad_name">A folder cannot be called that</string>
+    <string name="folder_delete_title">Delete this album?</string>
+    <string name="folder_delete_body">Files inside: %1$d. They go to the trash, where they can be had back for 30 days.</string>
 </resources>

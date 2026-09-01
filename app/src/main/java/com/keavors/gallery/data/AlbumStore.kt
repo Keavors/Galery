@@ -53,6 +53,9 @@ class AlbumStore(private val context: Context) {
         )
     }
 
+    /** Moves what was decided about one album onto another. See [movedTo]. */
+    suspend fun moveOpinions(from: AlbumSource, to: AlbumSource) = update { it.movedTo(from, to) }
+
     /** Returns the new album so the caller can open it straight away. */
     suspend fun createUserAlbum(name: String, members: Set<Long> = emptySet()): UserAlbum {
         // Ids come from the clock rather than a counter: nothing else has to be

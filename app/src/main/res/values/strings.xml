@@ -293,4 +293,17 @@
     <string name="adjust_vignette">Виньетка</string>
 
     <string name="set_jpeg_quality">Качество JPEG при сохранении</string>
+    <string name="folder_move_to">Переместить в папку</string>
+    <string name="folder_copy_to">Копировать в папку</string>
+    <string name="folder_new">Новая папка</string>
+    <string name="folder_moved">Перемещено: %1$d</string>
+    <string name="folder_move_failed">Перемещено %1$d из %2$d — %3$s</string>
+    <string name="folder_copied">Скопировано: %1$d</string>
+    <string name="folder_copy_failed">Скопировано %1$d из %2$d — %3$s</string>
+    <string name="folder_renamed">Папка переименована</string>
+    <string name="folder_rename_failed">Перенесено %1$d файлов из %2$d — %3$s</string>
+    <string name="folder_refused">Система не разрешила изменить эти файлы</string>
+    <string name="folder_bad_name">Так папку назвать нельзя</string>
+    <string name="folder_delete_title">Удалить альбом?</string>
+    <string name="folder_delete_body">Файлов в нём: %1$d. Они отправятся в корзину, откуда их можно вернуть в течение 30 дней.</string>
 </resources>

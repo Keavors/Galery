@@ -17,7 +17,6 @@ import android.os.Environment
 import android.provider.MediaStore
 import java.io.File
 import android.util.Log
-import androidx.activity.result.IntentSenderRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -194,18 +193,6 @@ enum class SaveOutcome { SAVED, SAVED_WITHOUT_METADATA, FAILED }
  * reasons and only the one it hit says what to do about it.
  */
 data class SaveResult(val outcome: SaveOutcome, val reason: String = "")
-
-/**
- * A write request for an existing file.
- *
- * Overwriting somebody else's photo needs the system's blessing exactly as
- * deleting does, and with media management granted it is given without asking.
- */
-fun writeRequestFor(context: Context, item: MediaItem): IntentSenderRequest =
-    MediaStore.createWriteRequest(
-        context.contentResolver,
-        listOf(item.contentUri()),
-    ).let { IntentSenderRequest.Builder(it.intentSender).build() }
 
 /**
  * Writes the edited picture over the original.
@@ -406,10 +393,6 @@ private suspend fun Context.rescan(item: MediaItem) {
 
 /** How long the system is given to look at one file before giving up on it. */
 private const val SCAN_PATIENCE_MS = 3_000L
-
-/** Anything's account of a failure, as short as it can be made. */
-private fun Throwable.describe(): String =
-    listOfNotNull(this::class.simpleName, message?.takeIf { it.isNotBlank() }).joinToString(": ")
 
 /**
  * The format to write back in.

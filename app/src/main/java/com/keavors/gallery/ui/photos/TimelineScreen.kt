@@ -117,6 +117,10 @@ fun TimelineScreen(
     var choosingAlbum by remember { mutableStateOf(false) }
     var confirmHide by remember { mutableStateOf(false) }
     var namingAlbum by remember { mutableStateOf(false) }
+    // Which of the two folder errands is being run, or null while nobody is
+    // choosing a folder. One piece of state rather than two booleans that could
+    // both be true.
+    var folderErrand by remember { mutableStateOf<FolderErrand?>(null) }
 
     // Files can vanish from under a selection — deleted here, or by another app
     // entirely — and a count of things nobody can point at helps no one.
@@ -287,6 +291,18 @@ fun TimelineScreen(
                 },
                 onShare = { context.shareMedia(chosen, shareTitle) },
                 onAddToAlbum = { choosingAlbum = true },
+                // Both absent for anything not in the library: a file in the
+                // vault is in no folder, and a folder is what these choose.
+                onMoveToFolder = if (chosen.all { canBeHidden(it) }) {
+                    ({ folderErrand = FolderErrand.MOVE })
+                } else {
+                    null
+                },
+                onCopyToFolder = if (chosen.all { canBeHidden(it) }) {
+                    ({ folderErrand = FolderErrand.COPY })
+                } else {
+                    null
+                },
                 onHide = if (chosen.all { canBeHidden(it) }) ({ confirmHide = true }) else null,
                 onRemoveFromAlbum = albumActions.onRemoveFrom?.let { remove ->
                     {
@@ -323,6 +339,24 @@ fun TimelineScreen(
                 namingAlbum = true
             },
             onDismiss = { choosingAlbum = false },
+        )
+    }
+
+    folderErrand?.let { errand ->
+        ChooseFolderDialog(
+            title = stringResource(
+                if (errand == FolderErrand.MOVE) R.string.folder_move_to else R.string.folder_copy_to
+            ),
+            folders = albumActions.folders,
+            onChoose = { path ->
+                folderErrand = null
+                when (errand) {
+                    FolderErrand.MOVE -> albumActions.onMoveTo(path, chosen)
+                    FolderErrand.COPY -> albumActions.onCopyTo(path, chosen)
+                }
+                selected = emptySet()
+            },
+            onDismiss = { folderErrand = null },
         )
     }
 
@@ -465,3 +499,6 @@ private fun PhotoRow(
         }
     }
 }
+
+/** Which errand the folder picker is being opened for. */
+private enum class FolderErrand { MOVE, COPY }

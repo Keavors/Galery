@@ -229,10 +229,6 @@ private fun datedMuxer(momentMs: Long): Muxer.Factory =
         entries.add(Mp4TimestampData(stamp, stamp))
     }
 
-/** Anything else's account of a failure, as short as it can be made. */
-private fun Throwable.describe(): String =
-    listOfNotNull(this::class.simpleName, message?.takeIf { it.isNotBlank() }).joinToString(": ")
-
 /** The encoder's account of a failure, as short as it can be made. */
 private fun ExportException.describe(): String = buildString {
     append(errorCodeName)
