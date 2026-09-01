@@ -56,15 +56,17 @@ private const val PREVIEW_SETTLE_MS = 90L
 /**
  * How big the frame over the bar is.
  *
- * Three times what it was, which on anything wider than it is tall means the
- * width runs out first — so it is bounded both ways and fitted inside, and a
- * portrait video gets the full height while a landscape one gets the full width.
+ * Bounded both ways and fitted inside, so a portrait video is limited by the
+ * height and a landscape one by the width. The two numbers are what they are
+ * because the same box holds both: at nine by sixteen this is a little under
+ * twice the size it started at, and at sixteen by nine it is a little over —
+ * which is as large as a landscape frame can be without becoming the screen.
  */
-private val PREVIEW_HEIGHT = 264.dp
-private const val PREVIEW_WIDTH_FRACTION = 0.92f
+private val PREVIEW_HEIGHT = 150.dp
+private const val PREVIEW_WIDTH_FRACTION = 0.58f
 
 /** What the frame is fetched at. Enough pixels for the box above, and no more. */
-private const val PREVIEW_HEIGHT_PX = 720
+private const val PREVIEW_HEIGHT_PX = 540
 
 /** The speeds the button walks through, as percentages of ordinary. */
 private val SPEEDS = intArrayOf(50, 75, 100, 150, 200)

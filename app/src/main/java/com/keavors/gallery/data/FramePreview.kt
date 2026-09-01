@@ -16,7 +16,7 @@ private const val TAG = "FramePreview"
  * the video's own resolution would decode eight million pixels to show half a
  * million, once for every position a dragging finger settles on.
  */
-private const val PREVIEW_WIDTH = 960
+private const val PREVIEW_WIDTH = 720
 
 /**
  * Reads one frame out of a video, for showing above the scrub bar.
