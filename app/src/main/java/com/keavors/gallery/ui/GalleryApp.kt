@@ -130,6 +130,10 @@ fun GalleryApp(
     // underneath it shifts.
     var viewerEpoch by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<MediaItem?>(null) }
+    // True while a photograph is shrinking back into its tile. The viewer stays
+    // on screen for those two hundred milliseconds, and everything that hides
+    // behind it — the grid, the folder — has to come back before it lands.
+    var closing by remember { mutableStateOf(false) }
 
 
     val activity = LocalActivity.current
@@ -546,6 +550,9 @@ fun GalleryApp(
         if (launchMode == LaunchMode.PICK) {
             onPicked(item)
         } else {
+            // A photograph tapped while the last one is still shrinking away
+            // cancels that departure rather than being taken down with it.
+            closing = false
             viewer = ViewerRoute(
                 itemId = item.id,
                 source = folder?.source,
@@ -562,7 +569,7 @@ fun GalleryApp(
             // position, but there is no point drawing a thousand tiles under
             // something opaque.
             modifier = Modifier.drawWithContent {
-                if (folder == null && viewerIndex < 0) drawContent()
+                if (folder == null && (viewerIndex < 0 || closing)) drawContent()
             },
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
@@ -763,7 +770,7 @@ fun GalleryApp(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
                     .safeDrawingPadding()
-                    .drawWithContent { if (viewerIndex < 0) drawContent() },
+                    .drawWithContent { if (viewerIndex < 0 || closing) drawContent() },
             )
         }
 
@@ -786,9 +793,19 @@ fun GalleryApp(
                 Animatable(if (origin == null || !settings.animations) 1f else 0f)
             }
             LaunchedEffect(grow) {
-                if (grow.value < 1f) {
+                if (grow.value < 1f && !closing) {
                     grow.animateTo(1f, tween(settings.animationSpeed * OPEN_MS / 100))
                 }
+            }
+
+            // And the same journey backwards. The viewer is only let go of at
+            // the end of it, which is why closing is a state rather than a call:
+            // for the length of the animation the photograph is still there.
+            LaunchedEffect(closing) {
+                if (!closing) return@LaunchedEffect
+                grow.animateTo(0f, tween(settings.animationSpeed * OPEN_MS / 100))
+                viewer = null
+                closing = false
             }
 
             key(route?.resolved, viewerEpoch) {
@@ -818,7 +835,12 @@ fun GalleryApp(
                     onSetCover = route?.source?.let { source ->
                         { itemId: Long -> scope.launch { albumStore.setCover(source, itemId) } }
                     },
-                    onClose = { viewer = null },
+                    onClose = {
+                        // Back into the tile it came out of, when there is a
+                        // tile to go back to: a photograph opened from another
+                        // app came from nowhere and has nowhere to return.
+                        if (origin != null && settings.animations) closing = true else viewer = null
+                    },
                     // Left in composition while the editor is open so that closing
                     // the editor puts the same photo back on the same page, but not
                     // drawn: the editor covers it completely.
