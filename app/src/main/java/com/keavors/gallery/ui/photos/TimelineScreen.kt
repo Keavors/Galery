@@ -279,28 +279,30 @@ fun TimelineScreen(
                     }
 
                     is TimelineRow.Photos -> item(key = row.key, contentType = "photos") {
-                        PhotoRow(
-                            row = row,
+                        PhotoRowCanvas(
+                            items = row.items,
                             columns = level.columns,
                             shape = settings.tileShape,
                             rowWidth = maxWidth,
-                            tileSize = tileSize,
                             gap = tileGap,
                             corner = tileCorner,
+                            bucketPx = bucket,
                             badges = settings.tileBadges,
+                            tileSize = tileSize,
                             selectedIds = selected,
                             selecting = selected.isNotEmpty(),
-                        ) { item, from ->
-                            if (selected.isEmpty()) {
-                                onOpen(item, bucket, from)
-                            } else {
-                                selected = if (item.id in selected) {
-                                    selected - item.id
+                            onOpen = { item, from ->
+                                if (selected.isEmpty()) {
+                                    onOpen(item, bucket, from)
                                 } else {
-                                    selected + item.id
+                                    selected = if (item.id in selected) {
+                                        selected - item.id
+                                    } else {
+                                        selected + item.id
+                                    }
                                 }
-                            }
-                        }
+                            },
+                        )
                     }
                 }
             }
@@ -495,68 +497,6 @@ private fun SectionHeader(
                     },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun PhotoRow(
-    row: TimelineRow.Photos,
-    columns: Int,
-    shape: TileShape,
-    rowWidth: Dp,
-    tileSize: Dp,
-    gap: Dp,
-    corner: Dp,
-    badges: Boolean,
-    selectedIds: Set<Long>,
-    selecting: Boolean,
-    modifier: Modifier = Modifier,
-    onOpen: (MediaItem, Rect) -> Unit,
-) {
-    // A mosaic row is as tall as its pictures need to be once they have been
-    // laid side by side and made to fill the width: the widths are in proportion
-    // to the pictures, and what is left over after the gaps decides the height.
-    //
-    // Worked out only for a mosaic. A square grid has no use for it, and this
-    // runs for every row that scrolls into view, which at speed is a hundred
-    // times a second.
-    val aspects = if (shape == TileShape.MOSAIC) row.items.map { it.tileAspect() } else null
-    val height = if (aspects != null) {
-        (rowWidth - gap * (row.items.size - 1)) / aspects.sum()
-    } else {
-        tileSize
-    }
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(gap),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        row.items.forEachIndexed { index, item ->
-            Thumbnail(
-                item = item,
-                tileSize = height,
-                corner = corner,
-                selected = item.id in selectedIds,
-                dimmed = selecting && item.id !in selectedIds,
-                badges = badges,
-                onClick = { from -> onOpen(item, from) },
-                modifier = if (aspects != null) {
-                    Modifier
-                        .weight(aspects[index])
-                        .height(height)
-                } else {
-                    Modifier
-                        .weight(1f)
-                        .aspectRatio(1f)
-                },
-            )
-        }
-        // A short last row must keep its tiles the same size as every other row,
-        // so the missing ones are held open rather than letting the rest stretch.
-        // A mosaic has no such thing: its last row is short by being shorter.
-        if (shape == TileShape.SQUARE) {
-            repeat(columns - row.items.size) { Spacer(Modifier.weight(1f)) }
         }
     }
 }

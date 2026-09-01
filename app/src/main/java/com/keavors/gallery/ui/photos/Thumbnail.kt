@@ -37,14 +37,14 @@ import com.keavors.gallery.data.previewRequest
 import com.keavors.gallery.data.thumbnailBucketPx
 
 /** Below this a tile is too small for a badge to be anything but a smudge. */
-private val BADGE_MIN_TILE = 56.dp
+internal val BADGE_MIN_TILE = 56.dp
 
 /**
  * Below this the corner radius is invisible and the clip is not worth its cost:
  * at twenty-five columns a tile is about sixteen density-independent pixels, and
  * six hundred rounded clips per frame buy nothing anyone can see.
  */
-private val CLIP_MIN_TILE = 28.dp
+internal val CLIP_MIN_TILE = 28.dp
 
 @Composable
 fun Thumbnail(
@@ -100,44 +100,7 @@ fun Thumbnail(
             modifier = Modifier.fillMaxSize(),
         )
 
-        // A word rather than an icon: "RAW" and "GIF" are what they are called,
-        // and a picture of them would have to be learned.
-        if (showBadges) {
-            item.badgeKind()?.let { kind ->
-                Text(
-                    text = if (kind == BadgeKind.GIF) "GIF" else "RAW",
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(5.dp),
-                )
-            }
-        }
-
-        if (showBadges && item.isVideo) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(5.dp),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_play),
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(11.dp),
-                )
-                Text(
-                    text = formatDuration(item.durationMs),
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(start = 3.dp),
-                )
-            }
-        }
+        if (showBadges) TileBadges(item, Modifier.fillMaxSize())
 
         // Chosen tiles are tinted and the rest are dulled, so a selection reads
         // at a glance from across the grid rather than by hunting for ticks.
@@ -166,17 +129,6 @@ fun Thumbnail(
             )
         }
 
-        if (showBadges && item.isFavorite) {
-            Icon(
-                painter = painterResource(R.drawable.ic_heart),
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(5.dp)
-                    .size(13.dp),
-            )
-        }
     }
 }
 
@@ -198,4 +150,67 @@ private fun Long.pad(): String = if (this < 10) "0$this" else toString()
 /** Somewhere to put a position that changes constantly and is read once. */
 private class TileBounds {
     var at: LayoutCoordinates? = null
+}
+
+/**
+ * The marks over a photograph: how long a video runs, whether it is a favourite,
+ * and what kind of file it is when that is worth saying.
+ *
+ * Composed rather than drawn, unlike the picture underneath it, and that is
+ * affordable because it only ever appears on tiles big enough to read — four of
+ * them across a screen at most. At seven columns and beyond there are no marks,
+ * because at that size they would be smudges.
+ */
+@Composable
+internal fun TileBadges(item: MediaItem, modifier: Modifier = Modifier) {
+    Box(modifier = modifier) {
+        if (item.isVideo) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(5.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_play),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(11.dp),
+                )
+                Text(
+                    text = formatDuration(item.durationMs),
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(start = 3.dp),
+                )
+            }
+        } else {
+            // A word rather than an icon: "RAW" and "GIF" are what they are
+            // called, and a picture of them would have to be learned.
+            item.badgeKind()?.let { kind ->
+                Text(
+                    text = if (kind == BadgeKind.GIF) "GIF" else "RAW",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(5.dp),
+                )
+            }
+        }
+
+        if (item.isFavorite) {
+            Icon(
+                painter = painterResource(R.drawable.ic_heart),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(5.dp)
+                    .size(13.dp),
+            )
+        }
+    }
 }

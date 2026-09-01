@@ -17,11 +17,18 @@ android {
 
     buildTypes {
         release {
+            // Left off until there is time to check every screen against it:
+            // R8 without keep rules is exactly the sort of thing that works
+            // everywhere except the video trimmer.
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Signed with the debug key on purpose: the app is not published,
+            // and a release build that cannot be installed cannot be measured —
+            // and measuring a debug build of Compose measures the debugger.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

@@ -44,6 +44,17 @@ private val THUMB_BUCKETS = intArrayOf(96, 192, 384, 768)
  */
 const val DEFAULT_THUMB_BUCKET = 384
 
+/**
+ * The sizes that may stand in for a tile of [bucketPx], best first.
+ *
+ * The size asked for, and then every larger one. A thumbnail already in memory
+ * for a four-column grid is a perfectly good picture for a tile a quarter of the
+ * size — the screen scales it down for nothing — and using it is the difference
+ * between zooming out instantly and asking the media store for five thousand
+ * smaller copies of pictures it has already given us.
+ */
+fun standInBuckets(bucketPx: Int): List<Int> = THUMB_BUCKETS.filter { it >= bucketPx }
+
 /** The bucket a tile of [tilePx] should load at. */
 fun thumbnailBucketPx(tilePx: Int): Int =
     THUMB_BUCKETS.firstOrNull { it >= tilePx } ?: THUMB_BUCKETS.last()
@@ -153,6 +164,11 @@ private fun Bitmap.fitShortestEdgeTo(target: Int): Bitmap {
 fun previewRequest(context: Context, item: MediaItem, bucketPx: Int): ImageRequest {
     val key = previewCacheKey(item, bucketPx)
     return ImageRequest.Builder(context)
+        // The whole of the loading, off the thread that draws. By default Coil
+        // starts and finishes a request on the main thread, which is nothing at
+        // all for one picture and six hundred interruptions for a screenful of
+        // grid at the smallest zoom.
+        .interceptorCoroutineContext(Dispatchers.Default)
         .data(
             if (item.isPrivate || item.id == UNKNOWN_ID) {
                 item.contentUri()
