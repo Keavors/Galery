@@ -7,7 +7,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,12 +19,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -70,12 +75,14 @@ import com.keavors.gallery.data.shareMedia
 import com.keavors.gallery.data.thumbnailBucketPx
 import com.keavors.gallery.data.zoomSteps
 import com.keavors.gallery.ui.common.ConfirmDialog
-import com.keavors.gallery.ui.common.TextPromptDialog
 import com.keavors.gallery.ui.common.pinchZoom
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
+
+/** A fifth shorter than a text field would ordinarily be. */
+private val SEARCH_HEIGHT = 44.dp
 
 /** Bounds on the live scale during a pinch, so the grid cannot be dragged to nothing. */
 private const val MIN_LIVE_SCALE = 0.55f
@@ -135,9 +142,7 @@ fun TimelineScreen(
 
     var selected by remember { mutableStateOf(emptySet<Long>()) }
     var confirmDelete by remember { mutableStateOf(false) }
-    var choosingAlbum by remember { mutableStateOf(false) }
     var confirmHide by remember { mutableStateOf(false) }
-    var namingAlbum by remember { mutableStateOf(false) }
     // Which of the two folder errands is being run, or null while nobody is
     // choosing a folder. One piece of state rather than two booleans that could
     // both be true.
@@ -342,7 +347,6 @@ fun TimelineScreen(
                     selected = emptySet()
                 },
                 onShare = { context.shareMedia(chosen, shareTitle) },
-                onAddToAlbum = { choosingAlbum = true },
                 // Both absent for anything not in the library: a file in the
                 // vault is in no folder, and a folder is what these choose.
                 onMoveToFolder = if (chosen.all { canBeHidden(it) }) {
@@ -365,12 +369,6 @@ fun TimelineScreen(
                     })
                 } else {
                     null
-                },
-                onRemoveFromAlbum = albumActions.onRemoveFrom?.let { remove ->
-                    {
-                        remove(selected)
-                        selected = emptySet()
-                    }
                 },
                 onDelete = {
                     when {
@@ -395,22 +393,6 @@ fun TimelineScreen(
         }
     }
 
-    if (choosingAlbum) {
-        ChooseAlbumDialog(
-            albums = albumActions.userAlbums,
-            onChoose = { albumId ->
-                choosingAlbum = false
-                albumActions.onAddTo(albumId, selected)
-                selected = emptySet()
-            },
-            onCreateNew = {
-                choosingAlbum = false
-                namingAlbum = true
-            },
-            onDismiss = { choosingAlbum = false },
-        )
-    }
-
     folderErrand?.let { errand ->
         ChooseFolderDialog(
             title = stringResource(
@@ -426,20 +408,6 @@ fun TimelineScreen(
                 selected = emptySet()
             },
             onDismiss = { folderErrand = null },
-        )
-    }
-
-    if (namingAlbum) {
-        TextPromptDialog(
-            title = stringResource(R.string.albums_create),
-            initial = "",
-            confirm = stringResource(R.string.albums_create_confirm),
-            onConfirm = { name ->
-                namingAlbum = false
-                albumActions.onCreateWith(name, selected)
-                selected = emptySet()
-            },
-            onDismiss = { namingAlbum = false },
         )
     }
 
@@ -595,8 +563,11 @@ private enum class FolderErrand { MOVE, COPY }
 /**
  * The box at the top of the list.
  *
- * One line, no button to press: the library narrows as the letters arrive, so
- * there is no moment where something has been typed and nothing has happened.
+ * A pill rather than a framed box, and shorter than a text field would ordinarily
+ * be: it sits above the photographs and must not look like the beginning of a
+ * form. One line, no button to press — the library narrows as the letters
+ * arrive, so there is no moment where something has been typed and nothing has
+ * happened.
  */
 @Composable
 private fun SearchField(
@@ -604,29 +575,60 @@ private fun SearchField(
     onQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        singleLine = true,
-        placeholder = { Text(stringResource(R.string.search_hint)) },
-        leadingIcon = {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(percent = 50),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(SEARCH_HEIGHT),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 14.dp, end = 4.dp),
+        ) {
             Icon(
                 painter = painterResource(R.drawable.ic_search),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
             )
-        },
-        trailingIcon = {
+            Box(
+                contentAlignment = Alignment.CenterStart,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 10.dp),
+            ) {
+                if (query.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.search_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                BasicTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
+                IconButton(
+                    onClick = { onQueryChange("") },
+                    modifier = Modifier.size(SEARCH_HEIGHT),
+                ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_close),
                         contentDescription = stringResource(R.string.action_cancel),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
-        },
-        modifier = modifier.fillMaxWidth(),
-    )
+        }
+    }
 }

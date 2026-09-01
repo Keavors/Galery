@@ -117,7 +117,6 @@
 
     <string name="albums_show_hidden">Показать скрытые</string>
     <string name="albums_hide_hidden">Скрыть скрытые</string>
-    <string name="albums_create">Новый альбом</string>
     <string name="albums_create_confirm">Создать</string>
     <string name="albums_rename">Переименовать</string>
     <string name="albums_rename_confirm">Готово</string>
@@ -126,10 +125,7 @@
     <string name="album_hide">Скрыть</string>
     <string name="album_unhide">Показывать</string>
     <string name="album_delete">Удалить альбом</string>
-    <string name="album_add_to">Добавить в альбом</string>
-    <string name="album_remove_from">Убрать из альбома</string>
     <string name="album_set_cover">Сделать обложкой</string>
-    <string name="albums_none_yet">Своих альбомов пока нет.</string>
 
     <!-- Настройки -->
     <string name="settings_search">Поиск по настройкам</string>
@@ -293,20 +289,20 @@
     <string name="adjust_vignette">Виньетка</string>
 
     <string name="set_jpeg_quality">Качество JPEG при сохранении</string>
-    <string name="folder_move_to">Переместить в папку</string>
-    <string name="folder_copy_to">Копировать в папку</string>
-    <string name="folder_new">Новая папка</string>
+    <string name="folder_move_to">Переместить в альбом</string>
+    <string name="folder_copy_to">Копировать в альбом</string>
+    <string name="folder_new">Новый альбом</string>
     <string name="folder_moved">Перемещено: %1$d</string>
     <string name="folder_move_failed">Перемещено %1$d из %2$d — %3$s</string>
     <string name="folder_copied">Скопировано: %1$d</string>
     <string name="folder_copy_failed">Скопировано %1$d из %2$d — %3$s</string>
-    <string name="folder_renamed">Папка переименована</string>
+    <string name="folder_renamed">Альбом переименован</string>
     <string name="folder_rename_failed">Перенесено %1$d файлов из %2$d — %3$s</string>
     <string name="folder_refused">Система не разрешила изменить эти файлы</string>
-    <string name="folder_bad_name">Так папку назвать нельзя</string>
+    <string name="folder_bad_name">Так альбом назвать нельзя</string>
     <string name="folder_delete_title">Удалить альбом?</string>
     <string name="folder_delete_body">Файлов в нём: %1$d. Они отправятся в корзину, откуда их можно вернуть в течение 30 дней.</string>
-    <string name="search_hint">Имя, папка, дата, тип</string>
+    <string name="search_hint">Имя, альбом, дата, тип</string>
     <string name="search_nothing">Ничего не нашлось</string>
     <string name="delete_done">Удалено: %1$d</string>
     <string name="action_undo">Отменить</string>
@@ -359,4 +355,5 @@
     <string name="vault_export_failed">Экспортировано %1$d из %2$d — %3$s</string>
     <string name="slideshow">Слайдшоу</string>
     <string name="slideshow_stop">Остановить слайдшоу</string>
+    <string name="album_root">Внутренняя память</string>
 </resources>

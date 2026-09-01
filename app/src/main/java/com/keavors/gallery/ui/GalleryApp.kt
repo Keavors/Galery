@@ -326,7 +326,7 @@ fun GalleryApp(
     val folderItems = when (folder?.source) {
         null -> emptyList()
         AlbumSource.Vault -> vaultItems
-        else -> libraryItems.inAlbum(folder!!.source, albumPrefs.userAlbums)
+        else -> libraryItems.inAlbum(folder!!.source)
     }
 
     val viewerItems = route?.let { shown ->
@@ -335,7 +335,7 @@ fun GalleryApp(
             // found ahead of it only until then.
             shown.source == AlbumSource.Vault -> vaultItems
             shown.source != null ->
-                libraryItems.inAlbum(shown.source, albumPrefs.userAlbums)
+                libraryItems.inAlbum(shown.source)
                     .ifEmpty { shown.items.orEmpty() }
             shown.items != null -> shown.items
             else -> libraryItems
@@ -430,19 +430,13 @@ fun GalleryApp(
         }
     }
 
-    // Album actions for the timeline. The remove action is filled in only when
-    // the grid on screen is an album someone made — a photo cannot be removed
-    // from a folder, only moved out of it, which is a different thing entirely.
-    fun albumActions(removableFrom: AlbumSource?) = AlbumActions(
-        userAlbums = albumPrefs.userAlbums,
+    // What a selection can be done to, album-wise. The same two everywhere,
+    // because an album is a folder and a folder is the same kind of place
+    // whichever grid is looking at it.
+    val albumActions = AlbumActions(
         folders = folders,
         onMoveTo = { path, items -> startMove(items, path) },
         onCopyTo = { path, items -> startCopy(items, path) },
-        onAddTo = { albumId, ids -> scope.launch { albumStore.addToUserAlbum(albumId, ids) } },
-        onCreateWith = { name, ids -> scope.launch { albumStore.createUserAlbum(name, ids) } },
-        onRemoveFrom = (removableFrom as? AlbumSource.User)?.let { album ->
-            { ids: Set<Long> -> scope.launch { albumStore.removeFromUserAlbum(album.albumId, ids) } }
-        },
     )
 
     // Copies waiting on the system to confirm that the originals may go. If it
@@ -638,7 +632,7 @@ fun GalleryApp(
                             loading = library !is LibraryState.Ready,
                             settings = settings,
                             writer = writer,
-                            albumActions = albumActions(removableFrom = null),
+                            albumActions = albumActions,
                             onHide = hideItems,
                             onOpen = openItem,
                         )
@@ -716,49 +710,25 @@ fun GalleryApp(
                             onSetHidden = { source, hidden ->
                                 scope.launch { albumStore.setHidden(source, hidden) }
                             },
-                            onCreateAlbum = { name ->
-                                scope.launch { albumStore.createUserAlbum(name) }
-                            },
+                            // Renaming an album is moving every file in it:
+                            // there is no other way to say it to MediaStore, and
+                            // it is the truth anyway — an album is where its
+                            // files are.
                             onRenameAlbum = { source, name ->
-                                when (source) {
-                                    is AlbumSource.User ->
-                                        scope.launch { albumStore.renameUserAlbum(source.albumId, name) }
-
-                                    // Renaming a folder is moving every file in
-                                    // it: there is no other way to say it to
-                                    // MediaStore, and it is the truth anyway —
-                                    // the folder is where the files are.
-                                    is AlbumSource.Folder -> {
-                                        val inside = libraryItems.inAlbum(source)
-                                        val path = inside.firstOrNull()
-                                            ?.let { renamedFolderPath(it.relativePath, name) }
-                                        if (path == null) {
-                                            Toast.makeText(
-                                                context,
-                                                badNameNote,
-                                                Toast.LENGTH_LONG,
-                                            ).show()
-                                        } else {
-                                            startMove(inside, path, renaming = source)
-                                        }
-                                    }
-
-                                    else -> Unit
+                                val inside = libraryItems.inAlbum(source)
+                                val path = inside.firstOrNull()
+                                    ?.let { renamedFolderPath(it.relativePath, name) }
+                                if (path == null) {
+                                    Toast.makeText(context, badNameNote, Toast.LENGTH_LONG).show()
+                                } else {
+                                    startMove(inside, path, renaming = source as? AlbumSource.Folder)
                                 }
                             },
+                            // Into the system trash, where they can be had back
+                            // for thirty days. The album goes when the last file
+                            // in it does.
                             onDeleteAlbum = { source ->
-                                when (source) {
-                                    is AlbumSource.User ->
-                                        scope.launch { albumStore.deleteUserAlbum(source.albumId) }
-
-                                    // Into the system trash, where they can be
-                                    // had back for thirty days. The folder goes
-                                    // when the last file in it does.
-                                    else -> writer.setTrashed(
-                                        libraryItems.inAlbum(source, albumPrefs.userAlbums),
-                                        trashed = true,
-                                    )
-                                }
+                                writer.setTrashed(libraryItems.inAlbum(source), trashed = true)
                             },
                         )
                     }
@@ -784,7 +754,7 @@ fun GalleryApp(
                 items = folderItems,
                 settings = settings,
                 writer = writer,
-                albumActions = albumActions(removableFrom = route.source),
+                albumActions = albumActions,
                 onHide = hideItems,
                 onExportOut = ::exportOutside,
                 onBack = ::leaveFolder,

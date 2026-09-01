@@ -20,7 +20,7 @@ class AlbumKeyTest {
             AlbumSource.Folder(1),
             AlbumSource.Favourites,
             AlbumSource.Videos,
-            AlbumSource.User(1),
+            AlbumSource.Vault,
         ).map { it.key }
 
         assertEquals(keys.size, keys.toSet().size)
@@ -33,10 +33,6 @@ class AlbumPreferencesJsonTest {
         pinned = setOf("folder:1", "favourites"),
         hidden = setOf("folder:2"),
         covers = mapOf("folder:1" to 555L),
-        userAlbums = listOf(
-            UserAlbum(id = 100, name = "Отпуск", memberIds = setOf(1, 2, 3)),
-            UserAlbum(id = 200, name = "", memberIds = emptySet()),
-        ),
     )
 
     @Test
@@ -66,19 +62,12 @@ class AlbumPreferencesJsonTest {
     }
 
     @Test
-    fun `an album entry missing its fields does not take the others with it`() {
-        val json = """{"albums":[{"id":1},{"nonsense":true},{"id":2,"name":"Ok"}]}"""
-        val albums = decodeAlbumPreferences(json).userAlbums
-
-        assertEquals(3, albums.size)
-        assertEquals(setOf<Long>(), albums[0].memberIds)
-        assertEquals("Ok", albums[2].name)
-    }
-
-    @Test
-    fun `unicode names survive`() {
-        val prefs = AlbumPreferences(userAlbums = listOf(UserAlbum(1, "Лето 2026 ☀", setOf(7))))
-        assertEquals(prefs, decodeAlbumPreferences(encodeAlbumPreferences(prefs)))
+    fun `an older file that still holds albums this app no longer keeps is read anyway`() {
+        // Albums used to be lists of ids inside this app. They are folders now,
+        // and a preferences file written before that must still open — with what
+        // it says about pinning and covers intact and the rest ignored.
+        val json = """{"pinned":["folder:9"],"albums":[{"id":1,"name":"Old"}]}"""
+        assertEquals(setOf("folder:9"), decodeAlbumPreferences(json).pinned)
     }
 
     @Test
@@ -91,28 +80,28 @@ class AlbumPreferencesJsonTest {
     }
 }
 
-class UserAlbumContentsTest {
+class AlbumContentsTest {
 
-    private val library = listOf(testItem(1), testItem(2), testItem(3))
-    private val albums = listOf(UserAlbum(id = 7, name = "Trip", memberIds = setOf(1, 3)))
+    private val library = listOf(
+        testItem(1, bucket = 1),
+        testItem(2, bucket = 2).copy(isFavorite = true),
+        testItem(3, bucket = 1, isVideo = true),
+    )
 
     @Test
-    fun `a user album holds exactly what was put in it`() {
-        val contents = library.inAlbum(AlbumSource.User(7), albums)
-        assertEquals(listOf(1L, 3L), contents.map { it.id })
+    fun `an album holds what its folder holds`() {
+        assertEquals(listOf(1L, 3L), library.inAlbum(AlbumSource.Folder(1)).map { it.id })
     }
 
     @Test
-    fun `an album nobody made is empty rather than everything`() {
-        assertTrue(library.inAlbum(AlbumSource.User(999), albums).isEmpty())
+    fun `the questions asked of the whole library answer for themselves`() {
+        assertEquals(listOf(2L), library.inAlbum(AlbumSource.Favourites).map { it.id })
+        assertEquals(listOf(3L), library.inAlbum(AlbumSource.Videos).map { it.id })
     }
 
     @Test
-    fun `a member that no longer exists simply does not appear`() {
-        // Photos get deleted from under an album; membership is not a promise
-        // that the file is still there.
-        val withGhost = listOf(UserAlbum(id = 7, name = "Trip", memberIds = setOf(1, 404)))
-        assertEquals(listOf(1L), library.inAlbum(AlbumSource.User(7), withGhost).map { it.id })
+    fun `the library cannot answer for the vault`() {
+        assertTrue(library.inAlbum(AlbumSource.Vault).isEmpty())
     }
 }
 

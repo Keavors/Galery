@@ -47,7 +47,6 @@ import com.keavors.gallery.data.AlbumSource
 import com.keavors.gallery.data.FolderAlbum
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaThumb
-import com.keavors.gallery.data.inAlbum
 import com.keavors.gallery.data.key
 import com.keavors.gallery.data.pinnedFirst
 import com.keavors.gallery.data.isRenamableFolder
@@ -96,13 +95,11 @@ fun AlbumsScreen(
     onOpenVault: () -> Unit,
     onTogglePin: (AlbumSource) -> Unit,
     onSetHidden: (AlbumSource, Boolean) -> Unit,
-    onCreateAlbum: (String) -> Unit,
     onRenameAlbum: (AlbumSource, String) -> Unit,
     onDeleteAlbum: (AlbumSource) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showHidden by remember { mutableStateOf(false) }
-    var creating by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<AlbumCardModel?>(null) }
     var deleting by remember { mutableStateOf<AlbumCardModel?>(null) }
 
@@ -129,20 +126,6 @@ fun AlbumsScreen(
         ),
     )
 
-    val userCards = prefs.userAlbums.map { album ->
-        val source = AlbumSource.User(album.id)
-        val contents = items.inAlbum(source, prefs.userAlbums)
-        AlbumCardModel(
-            source = source,
-            title = album.name,
-            count = contents.size,
-            cover = coverFor(source, contents.firstOrNull()),
-            fallbackIcon = R.drawable.ic_tab_albums,
-            renamable = true,
-            deletable = true,
-        )
-    }
-
     val folderCards = folders
         .withoutHidden(prefs, showHidden)
         .pinnedFirst(prefs)
@@ -150,7 +133,9 @@ fun AlbumsScreen(
             val source = AlbumSource.Folder(folder.bucketId)
             AlbumCardModel(
                 source = source,
-                title = folder.name,
+                // Files in the root of the storage belong to no folder at all,
+                // and a card with no name under it looks like a bug.
+                title = folder.name.ifBlank { stringResource(R.string.album_root) },
                 count = folder.count,
                 cover = coverFor(source, folder.cover),
                 fallbackIcon = R.drawable.ic_tab_albums,
@@ -163,7 +148,7 @@ fun AlbumsScreen(
             )
         }
 
-    val cards = (virtual + userCards).filter { showHidden || !prefs.isHidden(it.source) } + folderCards
+    val cards = virtual.filter { showHidden || !prefs.isHidden(it.source) } + folderCards
     val anythingHidden = prefs.hidden.isNotEmpty()
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -188,13 +173,6 @@ fun AlbumsScreen(
                     )
                 }
             }
-            IconButton(onClick = { creating = true }) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_add),
-                    contentDescription = stringResource(R.string.albums_create),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
         }
 
         LazyVerticalGrid(
@@ -213,16 +191,9 @@ fun AlbumsScreen(
                     onTogglePin = { onTogglePin(card.source) },
                     onToggleHidden = { onSetHidden(card.source, !prefs.isHidden(card.source)) },
                     onRename = { renaming = card },
-                    // An album someone made is a list of ids: deleting one loses
-                    // nothing that cannot be made again in a minute. A folder is
-                    // files, so that one is asked about.
-                    onDelete = {
-                        if (card.source is AlbumSource.User) {
-                            onDeleteAlbum(card.source)
-                        } else {
-                            deleting = card
-                        }
-                    },
+                    // An album is files on the disk, so deleting one is asked
+                    // about before anything moves.
+                    onDelete = { deleting = card },
                 )
             }
 
@@ -269,19 +240,6 @@ fun AlbumsScreen(
                 )
             }
         }
-    }
-
-    if (creating) {
-        TextPromptDialog(
-            title = stringResource(R.string.albums_create),
-            initial = "",
-            confirm = stringResource(R.string.albums_create_confirm),
-            onConfirm = {
-                creating = false
-                onCreateAlbum(it)
-            },
-            onDismiss = { creating = false },
-        )
     }
 
     renaming?.let { card ->

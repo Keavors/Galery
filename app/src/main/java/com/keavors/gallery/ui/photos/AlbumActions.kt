@@ -22,83 +22,31 @@ import com.keavors.gallery.R
 import com.keavors.gallery.ui.common.TextPromptDialog
 import com.keavors.gallery.data.FolderAlbum
 import com.keavors.gallery.data.MediaItem
-import com.keavors.gallery.data.UserAlbum
 import com.keavors.gallery.data.newFolderPath
 
 /**
- * What a selection of photos can be done to, album-wise.
+ * What a selection of photographs can be done to, album-wise.
  *
- * Bundled rather than passed as six separate callbacks: the timeline is used
- * from three places, and each would otherwise have to spell out the same list
- * with only [onRemoveFrom] differing.
+ * An album is a folder on the disk, so both of these really move files and every
+ * other app on the phone sees that they have moved. That is the whole reason
+ * there is no third thing here: an album this app kept to itself would be
+ * invisible to everything else and would go when the app did.
  *
- * The two halves of this are not the same kind of thing, and the wording in the
- * app keeps them apart. An album someone made is a list of ids and nothing else,
- * so adding to one and removing from one costs nothing and changes no file. A
- * folder is a place on the disk, so moving a photograph into one really moves
- * it, and every other app on the phone will see that it has moved.
- *
- * @param onRemoveFrom present only inside an album someone made. Nothing can be
- *   removed from a folder, because being in one is a fact about the disk.
+ * Bundled rather than passed as separate callbacks because the timeline is used
+ * from three places and each would otherwise spell out the same list.
  */
 data class AlbumActions(
-    val userAlbums: List<UserAlbum>,
     /** Every folder on the device, as somewhere photographs can be sent. */
     val folders: List<FolderAlbum> = emptyList(),
-    val onAddTo: (albumId: Long, itemIds: Set<Long>) -> Unit,
-    val onCreateWith: (name: String, itemIds: Set<Long>) -> Unit,
-    val onRemoveFrom: ((itemIds: Set<Long>) -> Unit)? = null,
-    /** Sends the chosen files to a folder, by its relative path. */
+    /** Sends the chosen files to an album, by its relative path. */
     val onMoveTo: (relativePath: String, items: List<MediaItem>) -> Unit = { _, _ -> },
     val onCopyTo: (relativePath: String, items: List<MediaItem>) -> Unit = { _, _ -> },
 )
 
-/** Picks which album a selection is going into, or starts a new one for it. */
-@Composable
-fun ChooseAlbumDialog(
-    albums: List<UserAlbum>,
-    onChoose: (Long) -> Unit,
-    onCreateNew: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.album_add_to)) },
-        text = {
-            Column {
-                albums.forEach { album ->
-                    Text(
-                        text = album.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onChoose(album.id) }
-                            .padding(vertical = 12.dp),
-                    )
-                }
-                if (albums.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.albums_none_yet),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onCreateNew) { Text(stringResource(R.string.albums_create)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
-    )
-}
-
 /**
- * Picks the folder a selection is being moved or copied into.
+ * Picks the album a selection is being moved or copied into.
  *
- * Existing folders and nothing else, plus the one way of making a new one. A
+ * Albums that exist and nothing else, plus the one way of making a new one. A
  * free-hand path would let anybody put photographs somewhere Android does not
  * index, where no gallery on the phone — including this one — would ever show
  * them again.

@@ -3,39 +3,26 @@ package com.keavors.gallery.data
 /**
  * Where an album's photos come from.
  *
- * A folder is a real place on the disk; the others are questions asked of the
- * whole library. Keeping them in one type means the album screen, the viewer and
- * the back stack do not each need to know which kind they are looking at.
+ * An album is a folder on the disk — the same thing under two names, because
+ * anything else would be an album this app can see and nothing else can. The
+ * others here are not albums but questions asked of the whole library, and they
+ * are in the same type so that the album screen, the viewer and the back stack
+ * do not each need to know which kind they are looking at.
  */
 sealed interface AlbumSource {
     data class Folder(val bucketId: Long) : AlbumSource
     data object Favourites : AlbumSource
     data object Videos : AlbumSource
 
-    /** One somebody made. Its contents live in [AlbumPreferences], not on disk. */
-    data class User(val albumId: Long) : AlbumSource
-
     /** Files taken out of the library entirely. Nothing here comes from it. */
     data object Vault : AlbumSource
 }
 
-/**
- * Everything in one album, in the order the library already has it.
- *
- * User albums need [userAlbums] because their membership is the one thing in
- * this app that cannot be asked of MediaStore.
- */
-fun List<MediaItem>.inAlbum(
-    source: AlbumSource,
-    userAlbums: List<UserAlbum> = emptyList(),
-): List<MediaItem> = when (source) {
+/** Everything in one album, in the order the library already has it. */
+fun List<MediaItem>.inAlbum(source: AlbumSource): List<MediaItem> = when (source) {
     is AlbumSource.Folder -> inFolder(source.bucketId)
     AlbumSource.Favourites -> filter { it.isFavorite }
     AlbumSource.Videos -> filter { it.isVideo }
-    is AlbumSource.User -> {
-        val members = userAlbums.firstOrNull { it.id == source.albumId }?.memberIds.orEmpty()
-        filter { it.id in members }
-    }
     // The library cannot answer for the vault: that is the whole point of it.
     AlbumSource.Vault -> emptyList()
 }
@@ -82,7 +69,11 @@ fun List<MediaItem>.folderAlbums(): List<FolderAlbum> {
     return covers.map { (bucketId, cover) ->
         FolderAlbum(
             bucketId = bucketId,
-            name = cover.bucketName.ifBlank { cover.relativePath.trimEnd('/').substringAfterLast('/') },
+            // Blank when the files sit in the root of the storage: there is no
+            // folder there to take a name from, and the screen supplies one.
+            name = cover.bucketName.ifBlank {
+                cover.relativePath.trim('/').substringAfterLast('/')
+            },
             count = counts[bucketId] ?: 0,
             cover = cover,
             newestAt = cover.takenAt,

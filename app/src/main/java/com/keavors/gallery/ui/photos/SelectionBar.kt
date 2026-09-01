@@ -43,8 +43,6 @@ fun SelectionBar(
     onToggleFavorite: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
-    onAddToAlbum: () -> Unit,
-    onRemoveFromAlbum: (() -> Unit)?,
     onHide: (() -> Unit)?,
     onExportOut: (() -> Unit)?,
     onMoveToFolder: (() -> Unit)?,
@@ -112,20 +110,6 @@ fun SelectionBar(
                     )
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.album_add_to)) },
-                        onClick = { menuOpen = false; onAddToAlbum() },
-                    )
-                    // Only inside an album someone made: nothing can be removed
-                    // from a folder, because being in one is a fact about the
-                    // disk. Moving it out is the folder's own answer to that,
-                    // and it is the next line down.
-                    onRemoveFromAlbum?.let { remove ->
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.album_remove_from)) },
-                            onClick = { menuOpen = false; remove() },
-                        )
-                    }
                     // Absent for files in the vault, which are not in the
                     // library and so are in no folder to be moved between.
                     onMoveToFolder?.let { move ->
