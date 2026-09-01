@@ -604,7 +604,7 @@ fun ViewerScreen(
                 .graphicsLayer { alpha = 1f - dismissProgress },
         ) {
             Column {
-                player?.let { if (current.isVideo) VideoControls(player = it) }
+                player?.let { if (current.isVideo) VideoControls(player = it, item = current) }
                 ViewerBottomBar(
                     item = current,
                     onToggleFavorite = { writer.setFavorite(listOf(current), !current.isFavorite) },

@@ -2,11 +2,14 @@
 
 package com.keavors.gallery.ui.viewer
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -24,18 +27,35 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.keavors.gallery.R
+import com.keavors.gallery.data.MediaItem
+import com.keavors.gallery.data.frameAt
+import com.keavors.gallery.data.frameReader
 import com.keavors.gallery.ui.common.ChromeIconButton
 import com.keavors.gallery.ui.photos.formatDuration
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /** How often the position readout catches up while something is playing. */
 private const val TICK_MS = 200L
+
+/** How still a dragging finger has to be before a frame is worth fetching. */
+private const val PREVIEW_SETTLE_MS = 90L
+
+/** How tall the frame over the bar is. */
+private val PREVIEW_HEIGHT = 88.dp
+private const val PREVIEW_HEIGHT_PX = 240
 
 /** The speeds the button walks through, as percentages of ordinary. */
 private val SPEEDS = intArrayOf(50, 75, 100, 150, 200)
@@ -52,7 +72,7 @@ private const val FALLBACK_FPS = 30f
  * video takes the controls away along with the clock and the navigation buttons.
  */
 @Composable
-fun VideoControls(player: ExoPlayer, modifier: Modifier = Modifier) {
+fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modifier) {
     var speed by remember { mutableIntStateOf((player.playbackParameters.speed * 100).toInt()) }
     var playing by remember { mutableStateOf(player.isPlaying) }
     var muted by remember { mutableStateOf(player.volume == 0f) }
@@ -63,6 +83,37 @@ fun VideoControls(player: ExoPlayer, modifier: Modifier = Modifier) {
     // player: otherwise the thumb fights the person dragging it.
     var scrubbing by remember { mutableStateOf(false) }
     var scrubFraction by remember { mutableFloatStateOf(0f) }
+
+    // The frame under the finger.
+    //
+    // Read only while a finger is down, and only after it has stopped moving for
+    // a moment: pulling a frame out of a video costs tens of milliseconds, and
+    // doing it for every pixel of a drag would fetch fifty frames to show one.
+    // The reader is opened once for the drag and closed after it, because
+    // opening one is the expensive half.
+    val context = LocalContext.current
+    var preview by remember(item.id) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(scrubbing, item.id) {
+        if (!scrubbing) {
+            preview = null
+            return@LaunchedEffect
+        }
+        val reader = context.frameReader(item) ?: return@LaunchedEffect
+        try {
+            var shownAt = -1L
+            while (true) {
+                delay(PREVIEW_SETTLE_MS)
+                val wanted = (scrubFraction * durationMs).toLong()
+                if (durationMs > 0 && wanted != shownAt) {
+                    shownAt = wanted
+                    preview = reader.frameAt(wanted, PREVIEW_HEIGHT_PX)?.asImageBitmap()
+                }
+            }
+        } finally {
+            withContext(NonCancellable) { runCatching { reader.release() } }
+        }
+    }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -101,6 +152,20 @@ fun VideoControls(player: ExoPlayer, modifier: Modifier = Modifier) {
     val shownMs = if (scrubbing) (scrubFraction * durationMs).toLong() else positionMs
 
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        // Over the bar rather than beside it, and only while a finger is down.
+        preview?.let { frame ->
+            Image(
+                bitmap = frame,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(bottom = 6.dp)
+                    .height(PREVIEW_HEIGHT)
+                    .clip(RoundedCornerShape(4.dp)),
+            )
+        }
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
