@@ -25,6 +25,14 @@ data class FolderRoute(
     val title: String,
     /** The tab back returns to, or null to leave the gallery altogether. */
     val leavesTo: Tab?,
+    /**
+     * The folder as it was found ahead of the library, or null to read it from
+     * the library like every other folder. Only a folder arrived at from another
+     * app's photograph has this, and only until the library has been read: on a
+     * cold start that reading is deliberately held back until the photograph has
+     * been looked at, and a folder is a poor thing to show empty in the meantime.
+     */
+    val items: List<MediaItem>? = null,
 )
 
 /**
@@ -54,4 +62,11 @@ data class ViewerRoute(
     val thumbBucketPx: Int,
     val items: List<MediaItem>? = null,
     val resolved: Boolean = true,
+    /**
+     * True for a photograph another app asked to open, from the first frame
+     * until the viewer is closed. What it decides is what the app is allowed to
+     * do while it is up: reading five thousand rows off the same disk the
+     * photograph is being read from is work nobody is waiting for, and it waits.
+     */
+    val fromOutside: Boolean = false,
 )

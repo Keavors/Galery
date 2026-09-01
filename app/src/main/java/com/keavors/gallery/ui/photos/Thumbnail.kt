@@ -25,13 +25,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
 import com.keavors.gallery.R
 import com.keavors.gallery.data.MediaItem
-import com.keavors.gallery.data.MediaThumb
-import com.keavors.gallery.data.contentUri
+import com.keavors.gallery.data.previewRequest
 import com.keavors.gallery.data.thumbnailBucketPx
-import com.keavors.gallery.data.thumbnailCacheKey
 
 /** Below this a tile is too small for a badge to be anything but a smudge. */
 private val BADGE_MIN_TILE = 56.dp
@@ -62,19 +59,8 @@ fun Thumbnail(
 
     // Rebuilt only when the photo or the zoom bucket changes. Building a request
     // per recomposition would hand Coil a new object on every scroll frame.
-    val request = remember(item.id, item.isVideo, item.isPrivate, bucket) {
-        val key = thumbnailCacheKey(item.id, bucket)
-        ImageRequest.Builder(context)
-            // A vaulted file has no MediaStore row and so no system thumbnail;
-            // it is decoded from the file, downsampled to the tile.
-            .data(if (item.isPrivate) item.contentUri() else MediaThumb(item.id, item.isVideo))
-            .size(bucket)
-            .memoryCacheKey(key)
-            // Draws the cached bitmap immediately on the way back into view.
-            // Without it a tile that is already in memory still blinks grey for
-            // a frame while the request goes round the loader again.
-            .placeholderMemoryCacheKey(key)
-            .build()
+    val request = remember(item.id, item.uri, item.isVideo, item.isPrivate, bucket) {
+        previewRequest(context, item, bucket)
     }
 
     Box(

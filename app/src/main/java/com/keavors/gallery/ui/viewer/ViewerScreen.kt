@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -43,13 +44,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import android.view.WindowManager
 import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.contentUri
-import com.keavors.gallery.data.thumbnailCacheKey
+import com.keavors.gallery.data.previewCacheKey
+import com.keavors.gallery.data.previewRequest
 import com.keavors.gallery.ui.common.ConfirmDialog
 import com.keavors.gallery.R
 import androidx.compose.ui.res.stringResource
@@ -174,7 +177,12 @@ fun ViewerScreen(
     // app has no business being locked to what one photograph needed.
     var screenLock by remember { mutableStateOf(ScreenLock.SYSTEM) }
     LaunchedEffect(screenLock) {
-        (view.context as Activity).requestedOrientation = screenLock.request
+        // Only when it differs. Setting it is a call into the window manager, and
+        // the viewer opens on the system's own setting every single time.
+        val activity = view.context as Activity
+        if (activity.requestedOrientation != screenLock.request) {
+            activity.requestedOrientation = screenLock.request
+        }
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -201,23 +209,30 @@ fun ViewerScreen(
     // One player for the whole viewer, moved from page to page. Each ExoPlayer
     // holds a hardware decoder, and keeping three alive so the pages either side
     // are "ready" would tie up a scarce resource for something nobody is watching.
-    val player = remember { ExoPlayer.Builder(context).build() }
-    DisposableEffect(player) { onDispose { player.release() } }
+    //
+    // Built when the first video is looked at rather than when the viewer opens.
+    // Building one is tens of milliseconds of work on the main thread — it asks
+    // the system about codecs and starts a thread of its own — and those are the
+    // milliseconds a photograph opened from another app spends waiting to be
+    // drawn. Most viewings never show a video at all.
+    var player by remember { mutableStateOf<ExoPlayer?>(null) }
+    DisposableEffect(Unit) { onDispose { player?.release() } }
 
     LaunchedEffect(current.id, current.isVideo) {
-        if (current.isVideo) {
-            player.setMediaItem(Media3Item.fromUri(current.contentUri()))
-            player.repeatMode =
-                if (settings.videoRepeat) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-            // Both off unless asked for: opening a video should not start making
-            // noise in a quiet room.
-            player.volume = if (settings.videoSound) 1f else 0f
-            player.playWhenReady = settings.videoAutoplay
-            player.prepare()
-        } else {
-            player.pause()
-            player.clearMediaItems()
+        if (!current.isVideo) {
+            player?.pause()
+            player?.clearMediaItems()
+            return@LaunchedEffect
         }
+        val playing = player ?: ExoPlayer.Builder(context).build().also { player = it }
+        playing.setMediaItem(Media3Item.fromUri(current.contentUri()))
+        playing.repeatMode =
+            if (settings.videoRepeat) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+        // Both off unless asked for: opening a video should not start making
+        // noise in a quiet room.
+        playing.volume = if (settings.videoSound) 1f else 0f
+        playing.playWhenReady = settings.videoAutoplay
+        playing.prepare()
     }
 
     // A video left running while the phone is locked or the app is switched away
@@ -225,7 +240,7 @@ fun ViewerScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) player.pause()
+            if (event == Lifecycle.Event.ON_STOP) player?.pause()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -369,30 +384,52 @@ fun ViewerScreen(
             val request = remember(item.id, item.uri, thumbBucketPx) {
                 ImageRequest.Builder(context)
                     .data(item.contentUri())
-                    // The grid tile is already in memory, so the full photo can
-                    // fade in over it instead of over a black rectangle. This is
-                    // also what a photograph opened from another app is shown as
-                    // for its first tenth of a second, which is why the id is
-                    // read straight out of the incoming uri.
-                    .placeholderMemoryCacheKey(thumbnailCacheKey(item.id, thumbBucketPx))
+                    // Whatever is already in memory goes up while the file is
+                    // read: the tile the grid drew, or the preview started the
+                    // moment another app's intent arrived.
+                    .placeholderMemoryCacheKey(previewCacheKey(item, thumbBucketPx))
                     .build()
             }
 
-            ZoomableAsyncImage(
-                model = request,
-                contentDescription = item.name,
-                state = imageState,
-                onClick = { chromeVisible = !chromeVisible },
-                // Told where to stop rather than left to the limit above: a
-                // double tap is meant to land on a face, not to throw the
-                // picture eight times across the screen.
-                onDoubleClick = if (settings.doubleTapZoom) {
-                    DOUBLE_TAP_TO_ZOOM
-                } else {
-                    DOUBLE_TAP_IGNORED
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Under the photograph, the same preview as a picture in its own
+                // right.
+                //
+                // The placeholder above is read out of memory once, at the
+                // instant the request starts, so it comes up empty whenever the
+                // preview is a fraction of a second behind — which is exactly
+                // the case this whole arrangement exists for: a photograph from
+                // another app, out of a folder no grid has ever drawn. This one
+                // waits for the preview instead of asking once for it, and goes
+                // when the photograph itself is up.
+                if (!imageState.isImageDisplayed) {
+                    val preview = remember(item.id, item.uri, thumbBucketPx) {
+                        previewRequest(context, item, thumbBucketPx)
+                    }
+                    AsyncImage(
+                        model = preview,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
+                ZoomableAsyncImage(
+                    model = request,
+                    contentDescription = item.name,
+                    state = imageState,
+                    onClick = { chromeVisible = !chromeVisible },
+                    // Told where to stop rather than left to the limit above: a
+                    // double tap is meant to land on a face, not to throw the
+                    // picture eight times across the screen.
+                    onDoubleClick = if (settings.doubleTapZoom) {
+                        DOUBLE_TAP_TO_ZOOM
+                    } else {
+                        DOUBLE_TAP_IGNORED
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
 
             // A page left zoomed in would come back zoomed when swiped past and
             // returned to, which is never what someone means by going back.
@@ -431,9 +468,7 @@ fun ViewerScreen(
                 .graphicsLayer { alpha = 1f - dismissProgress },
         ) {
             Column {
-                if (current.isVideo) {
-                    VideoControls(player = player)
-                }
+                player?.let { if (current.isVideo) VideoControls(player = it) }
                 ViewerBottomBar(
                     item = current,
                     onToggleFavorite = { writer.setFavorite(listOf(current), !current.isFavorite) },

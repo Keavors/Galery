@@ -16,18 +16,17 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
 import com.keavors.gallery.data.MediaItem
-import com.keavors.gallery.data.MediaThumb
-import com.keavors.gallery.data.thumbnailCacheKey
+import com.keavors.gallery.data.previewRequest
 
 /**
  * One video in the pager.
  *
  * Only the page being looked at gets the player; the ones on either side show
- * their thumbnail. One player moved between pages rather than one per page: an
- * ExoPlayer holds a decoder, and three of them idling to the left and right of
- * the screen is hardware nobody is using.
+ * their thumbnail, and so does this one until there is a player to give it. One
+ * player moved between pages rather than one per page: an ExoPlayer holds a
+ * decoder, and three of them idling to the left and right of the screen is
+ * hardware nobody is using.
  *
  * The player view carries no controls of its own — they are drawn in Compose so
  * they can hide and reappear along with the rest of the chrome instead of
@@ -36,7 +35,7 @@ import com.keavors.gallery.data.thumbnailCacheKey
 @Composable
 fun VideoPage(
     item: MediaItem,
-    player: ExoPlayer,
+    player: ExoPlayer?,
     isCurrent: Boolean,
     thumbBucketPx: Int,
     onClick: () -> Unit,
@@ -54,7 +53,7 @@ fun VideoPage(
                 onClick = onClick,
             ),
     ) {
-        if (isCurrent) {
+        if (isCurrent && player != null) {
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
@@ -68,11 +67,8 @@ fun VideoPage(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            val request = remember(item.id, thumbBucketPx) {
-                ImageRequest.Builder(context)
-                    .data(MediaThumb(item.id, isVideo = true))
-                    .memoryCacheKey(thumbnailCacheKey(item.id, thumbBucketPx))
-                    .build()
+            val request = remember(item.id, item.uri, thumbBucketPx) {
+                previewRequest(context, item, thumbBucketPx)
             }
             AsyncImage(
                 model = request,

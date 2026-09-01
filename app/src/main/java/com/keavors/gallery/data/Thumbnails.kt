@@ -136,45 +136,72 @@ private fun Bitmap.fitShortestEdgeTo(target: Int): Bitmap {
 }
 
 /**
- * Puts a photograph's thumbnail in memory, where the viewer looks for something
- * to show while the full-size file is still being read.
+ * What a photograph looks like before it has been read.
  *
- * The viewer asks the memory cache for its placeholder exactly once, when its
- * own request runs, so a thumbnail that arrives a moment after that arrives too
- * late to be seen at all. These two exist to make sure it is there by then:
- * [startPreview] from the instant an intent arrives, before there is any screen
- * to show it on, and [awaitPreview] before the viewer is rebuilt on the folder
- * the photograph turned out to live in.
+ * Everywhere a picture is wanted quickly asks for this one request: the grid for
+ * its tiles, the viewer for the thing it shows while the full-size file is being
+ * decoded, and the warmers below before there is a screen at all. One request
+ * means one name in the cache, so a thumbnail drawn in a grid is the very
+ * bitmap the viewer puts up a moment later, and neither of them decodes twice.
  *
- * Neither costs anything when the grid has already drawn the photograph, which
- * is the usual case: it is the same request under the same name, so it is
- * answered out of memory and no file is touched.
+ * MediaStore keeps a thumbnail for everything it knows about, and asking it is
+ * far cheaper than decoding the original. A file it does not know — one in the
+ * app's own storage, or one another app handed over under a uri that names no
+ * row — has to be decoded, but only down to [bucketPx], which is a fraction of
+ * the work of decoding it whole.
  */
-fun Context.startPreview(item: MediaItem, bucketPx: Int) {
-    val request = previewRequest(item, bucketPx) ?: return
-    SingletonImageLoader.get(this).enqueue(request)
-}
-
-/** As [startPreview], but waits for the thumbnail to be in memory. */
-suspend fun Context.awaitPreview(item: MediaItem, bucketPx: Int) {
-    val request = previewRequest(item, bucketPx) ?: return
-    SingletonImageLoader.get(this).execute(request)
+fun previewRequest(context: Context, item: MediaItem, bucketPx: Int): ImageRequest {
+    val key = previewCacheKey(item, bucketPx)
+    return ImageRequest.Builder(context)
+        .data(
+            if (item.isPrivate || item.id == UNKNOWN_ID) {
+                item.contentUri()
+            } else {
+                MediaThumb(item.id, item.isVideo)
+            }
+        )
+        .size(bucketPx)
+        .memoryCacheKey(key)
+        // Draws what is already in memory immediately. Without it a picture that
+        // has been decoded once still blinks empty for a frame while the request
+        // goes round the loader again.
+        .placeholderMemoryCacheKey(key)
+        .build()
 }
 
 /**
- * The request both of those make, or null when there is no thumbnail to be had.
+ * What that request is called in memory.
  *
- * Only MediaStore keeps thumbnails, so a file in the app's own storage or one
- * whose uri named no row has none to warm: for those the file itself is the
- * only picture there is, and the viewer decodes it.
+ * The row number wherever there is one, so the grid and the viewer agree without
+ * having to be told. A photograph from another app that names no row is keyed by
+ * where it came from instead — it is the only name it has.
  */
-private fun Context.previewRequest(item: MediaItem, bucketPx: Int): ImageRequest? {
-    if (item.isPrivate || item.id == UNKNOWN_ID) return null
-    return ImageRequest.Builder(applicationContext)
-        .data(MediaThumb(item.id, item.isVideo))
-        .size(bucketPx)
-        // The grid's own name for it, so warming it here and drawing it there
-        // are one cached bitmap rather than two.
-        .memoryCacheKey(thumbnailCacheKey(item.id, bucketPx))
-        .build()
+fun previewCacheKey(item: MediaItem, bucketPx: Int): String =
+    if (item.id == UNKNOWN_ID) "preview-$bucketPx-${item.uri}" else thumbnailCacheKey(item.id, bucketPx)
+
+/**
+ * Starts a photograph's preview before there is any screen to show it on.
+ *
+ * Called the instant an intent from another app is read, which is earlier than
+ * the screen that will show the photograph can be composed, laid out or drawn.
+ * A video nobody can name is the one thing skipped: there is no decoder here for
+ * a video file, only for the thumbnail MediaStore keeps of one.
+ */
+fun Context.startPreview(item: MediaItem, bucketPx: Int) {
+    if (item.isVideo && item.id == UNKNOWN_ID) return
+    SingletonImageLoader.get(this).enqueue(previewRequest(applicationContext, item, bucketPx))
+}
+
+/**
+ * As [startPreview], but does not return until the preview is in memory.
+ *
+ * For the one moment where the difference matters: the viewer is about to be
+ * rebuilt on the folder the photograph turned out to live in, and a rebuilt page
+ * asks for its picture once. If the answer is not there by then the photograph
+ * goes black at exactly the moment the neighbours arrive. Free when the picture
+ * is already up, which is the usual case.
+ */
+suspend fun Context.awaitPreview(item: MediaItem, bucketPx: Int) {
+    if (item.isVideo && item.id == UNKNOWN_ID) return
+    SingletonImageLoader.get(this).execute(previewRequest(applicationContext, item, bucketPx))
 }

@@ -156,16 +156,19 @@ fun GalleryApp(
     // opened system settings to widen or revoke it — so it is re-read on every
     // resume rather than only at startup.
     //
-    // Re-reading the library is held back while a photograph from another app is
-    // on its way. Five thousand rows and one photograph want the same disk at
-    // the same moment, and the photograph is the one somebody is waiting for.
-    // The key is what starts it afterwards: it flips the instant the photo has
-    // been placed, and the effect runs again.
-    val opening = pendingOpen != null
-    LifecycleResumeEffect(opening) {
+    // Re-reading the library waits for as long as a photograph from another app
+    // is on the screen — not merely until it has been placed. Five thousand rows
+    // and one photograph want the same disk at the same moment, and only one of
+    // them is being looked at; the rows also arrive as a new list that every
+    // screen behind the photograph then re-sorts and re-groups, which is a great
+    // deal of work to do underneath somebody who asked to see one picture. The
+    // key is what starts it afterwards: it flips when the viewer closes, and the
+    // effect runs again then.
+    val showingExternal = pendingOpen != null || viewer?.fromOutside == true
+    LifecycleResumeEffect(showingExternal) {
         access = context.mediaAccess()
         manageMedia = context.canManageMedia()
-        if (!opening) repository.refresh()
+        if (!showingExternal) repository.refresh()
         onPauseOrDispose { }
     }
 
@@ -229,6 +232,7 @@ fun GalleryApp(
                 thumbBucketPx = DEFAULT_THUMB_BUCKET,
                 items = listOf(item),
                 resolved = false,
+                fromOutside = true,
             )
         }
     }
@@ -258,6 +262,7 @@ fun GalleryApp(
                 // The stack an intent builds is two steps and no more: the
                 // photograph, the folder it lives in, and then out.
                 leavesTo = null,
+                items = resolved.items,
             )
         }
         viewer = ViewerRoute(
@@ -265,6 +270,7 @@ fun GalleryApp(
             source = source,
             thumbBucketPx = DEFAULT_THUMB_BUCKET,
             items = resolved.items,
+            fromOutside = true,
         )
 
         onExternalHandled()
@@ -277,7 +283,10 @@ fun GalleryApp(
     val folderItems = when (folder?.source) {
         null -> emptyList()
         AlbumSource.Vault -> vaultItems
+        // The library's own answer once it has one, and the answer found ahead
+        // of it only until then — the same arrangement the viewer makes.
         else -> libraryItems.inAlbum(folder!!.source, albumPrefs.userAlbums)
+            .ifEmpty { folder!!.items.orEmpty() }
     }
 
     val viewerItems = route?.let { shown ->

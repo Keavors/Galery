@@ -58,3 +58,51 @@ class ThumbnailBucketTest {
         assertNotEquals(thumbnailCacheKey(1, 96), thumbnailCacheKey(2, 96))
     }
 }
+
+/**
+ * The name a picture is kept under while it is being read.
+ *
+ * One rule serving the grid, the viewer and the moment an intent arrives, which
+ * is the whole point of it: if the three disagreed about the name, each would
+ * decode the same photograph for itself and the viewer would show black while
+ * it did.
+ */
+class PreviewCacheKeyTest {
+
+    @Test
+    fun `a photograph in the library is named by its row, whoever asks`() {
+        val item = testItem(42)
+        assertEquals(thumbnailCacheKey(42, 384), previewCacheKey(item, 384))
+    }
+
+    @Test
+    fun `a photograph with no row is named by where it came from`() {
+        val fromOutside = ExternalRef(
+            name = "photo.jpg",
+            uri = "content://com.example.files/document/photo.jpg",
+        ).asStandaloneItem()
+
+        assertTrue(previewCacheKey(fromOutside, 384).contains(fromOutside.uri))
+    }
+
+    @Test
+    fun `two photographs from outside do not share one`() {
+        val first = ExternalRef(uri = "content://x/a.jpg").asStandaloneItem()
+        val second = ExternalRef(uri = "content://x/b.jpg").asStandaloneItem()
+        assertNotEquals(previewCacheKey(first, 384), previewCacheKey(second, 384))
+    }
+
+    @Test
+    fun `a file in the vault keeps the name its tile already uses`() {
+        // Vaulted files have no MediaStore row either, but they do have an id of
+        // their own, and the grid has already cached them under it.
+        val hidden = testItem(-90_000, isPrivate = true)
+        assertEquals(thumbnailCacheKey(-90_000, 384), previewCacheKey(hidden, 384))
+    }
+
+    @Test
+    fun `the same photograph at two sizes is two entries`() {
+        val item = testItem(42)
+        assertNotEquals(previewCacheKey(item, 192), previewCacheKey(item, 384))
+    }
+}
