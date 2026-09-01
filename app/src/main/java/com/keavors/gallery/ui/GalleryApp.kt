@@ -172,7 +172,6 @@ fun GalleryApp(
         onPauseOrDispose { }
     }
 
-    val unknownFolder = stringResource(R.string.album_unknown)
     val vaultTitle = stringResource(R.string.vault_title)
     var cacheSummary by remember { mutableStateOf("") }
 
@@ -255,15 +254,21 @@ fun GalleryApp(
         found?.let { context.awaitPreview(it, DEFAULT_THUMB_BUCKET) }
 
         val source = resolved.bucketId?.let { AlbumSource.Folder(it) }
-        folder = source?.let {
-            FolderRoute(
-                source = it,
-                title = resolved.folderName.ifBlank { unknownFolder },
-                // The stack an intent builds is two steps and no more: the
-                // photograph, the folder it lives in, and then out.
-                leavesTo = null,
-                items = resolved.items,
-            )
+
+        // Where back goes once the photograph is closed.
+        //
+        // An intent from another app replaces what the app was doing rather than
+        // adding a step to it, so the only thing that survives underneath the
+        // photograph is what was already on the screen. If that happens to be
+        // the very folder the photograph lives in, it stays where it is and back
+        // steps out of it to the timeline. Anything else — another folder,
+        // another tab, an app that was not running at all — is not a place
+        // anybody was, so back from the photograph lands on the timeline itself.
+        if (source != null && folder?.source == source) {
+            folder = folder?.copy(leavesTo = Tab.PHOTOS)
+        } else {
+            folder = null
+            selected = Tab.PHOTOS.ordinal
         }
         viewer = ViewerRoute(
             itemId = found?.id ?: UNKNOWN_ID,
@@ -283,10 +288,7 @@ fun GalleryApp(
     val folderItems = when (folder?.source) {
         null -> emptyList()
         AlbumSource.Vault -> vaultItems
-        // The library's own answer once it has one, and the answer found ahead
-        // of it only until then — the same arrangement the viewer makes.
         else -> libraryItems.inAlbum(folder!!.source, albumPrefs.userAlbums)
-            .ifEmpty { folder!!.items.orEmpty() }
     }
 
     val viewerItems = route?.let { shown ->
@@ -347,13 +349,11 @@ fun GalleryApp(
     // Back undoes exactly one thing, whatever that thing was: the photograph,
     // then the folder, then the tab, then the app. So leaving a folder returns
     // to the tab it was opened from — the albums tab, for every folder anybody
-    // navigated to — and lands on the timeline only for a folder that was
-    // reached from the timeline. A folder with no way in at all was built by an
-    // intent from another app, and there back leaves the gallery.
+    // navigated to, and the timeline for one left over from another app's
+    // photograph, which is the only way into a folder that is nobody's doing.
     fun leaveFolder() {
-        val leavesTo = folder?.leavesTo
+        folder?.let { selected = it.leavesTo.ordinal }
         folder = null
-        if (leavesTo == null) onFinish() else selected = leavesTo.ordinal
     }
 
     // The one way out of either editor, for every kind of save on every kind

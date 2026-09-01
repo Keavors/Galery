@@ -77,7 +77,6 @@
     <string name="video_pause">Pause</string>
     <string name="video_sound_on">Turn sound on</string>
     <string name="video_sound_off">Turn sound off</string>
-    <string name="album_unknown">Folder</string>
 
     <string name="action_favorite">Add to favourites</string>
     <string name="action_unfavorite">Remove from favourites</string>
