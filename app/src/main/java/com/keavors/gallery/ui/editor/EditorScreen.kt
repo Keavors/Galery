@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
 import com.keavors.gallery.data.Adjustments
@@ -275,8 +276,15 @@ fun EditorScreen(
             )
             Text(
                 text = stringResource(R.string.editor_title),
-                style = MaterialTheme.typography.titleMedium,
+                // Smaller than a title would ordinarily be, and forbidden to
+                // wrap: "Редактирование" is a long word, the bar beside it is
+                // four buttons wide, and a title that breaks across two lines in
+                // a one-line bar drops its last letters below the bar.
+                style = MaterialTheme.typography.titleSmall,
                 color = Color.White,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
             ChromeIconButton(

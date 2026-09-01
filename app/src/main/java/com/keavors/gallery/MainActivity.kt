@@ -4,7 +4,7 @@ import android.app.LocaleManager
 import android.content.Intent
 import android.os.LocaleList
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
+import androidx.core.graphics.drawable.toDrawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
         // the way to a photo from another app that shows through to whatever
         // sent it — a flash of the wrong screen either way.
         if (pendingOpen != null) {
-            window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
+            window.setBackgroundDrawable(Color.BLACK.toDrawable())
         }
 
         val app = application as GalleryApplication

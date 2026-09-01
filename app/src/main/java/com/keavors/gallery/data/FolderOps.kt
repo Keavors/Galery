@@ -88,7 +88,6 @@ fun isAlreadyIn(item: MediaItem, relativePath: String): Boolean =
  */
 data class BatchOutcome(val done: Int, val failed: Int, val reason: String = "") {
     val whole: Boolean get() = failed == 0
-    val nothing: Boolean get() = done == 0
 }
 
 /**

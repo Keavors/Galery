@@ -1,7 +1,6 @@
 package com.keavors.gallery.data
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MediaTimeTest {
@@ -24,60 +23,6 @@ class MediaTimeTest {
     @Test
     fun `reports zero when the file carries no date at all`() {
         assertEquals(0, MediaTime.bestTimestamp(0, 0, 0))
-    }
-}
-
-class LibrarySummaryTest {
-
-
-    @Test
-    fun `empty library summarises to zeroes`() {
-        assertEquals(LibrarySummary.Empty, emptyList<MediaItem>().summarize())
-    }
-
-    @Test
-    fun `counts photos videos albums and bytes`() {
-        val summary = listOf(
-            testItem(1, size = 100, bucket = 1),
-            testItem(2, size = 200, bucket = 1),
-            testItem(3, isVideo = true, size = 300, bucket = 2),
-        ).summarize()
-
-        assertEquals(2, summary.photos)
-        assertEquals(1, summary.videos)
-        assertEquals(3, summary.total)
-        assertEquals(2, summary.albums)
-        assertEquals(600, summary.totalBytes)
-    }
-
-    @Test
-    fun `date range spans oldest and newest`() {
-        val summary = listOf(
-            testItem(1, taken = 1_000_000_000_000),
-            testItem(2, taken = 1_700_000_000_000),
-            testItem(3, taken = 1_400_000_000_000),
-        ).summarize()
-
-        assertEquals(1_000_000_000_000, summary.oldest)
-        assertEquals(1_700_000_000_000, summary.newest)
-    }
-
-    @Test
-    fun `files without a date stay out of the range instead of dragging it to 1970`() {
-        val summary = listOf(
-            testItem(1, taken = 0),
-            testItem(2, taken = 1_700_000_000_000),
-        ).summarize()
-
-        assertEquals(1_700_000_000_000, summary.oldest)
-        assertEquals(1_700_000_000_000, summary.newest)
-    }
-
-    @Test
-    fun `a library where nothing has a date reports no range`() {
-        val summary = listOf(testItem(1, taken = 0)).summarize()
-        assertNull(summary.oldest)
-        assertNull(summary.newest)
     }
 }
 
@@ -113,11 +58,6 @@ class FormatTest {
         assertEquals("1023 B", formatBytes(1023, locale, binary = true))
     }
 
-    @Test
-    fun `counts get thin separators between groups`() {
-        assertEquals("4 812", formatCount(4812, locale))
-        assertEquals("512", formatCount(512, locale))
-    }
 }
 
 /** What a tile says about a file, from what the library already knows. */

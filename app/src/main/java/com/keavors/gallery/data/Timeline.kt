@@ -20,12 +20,6 @@ enum class ZoomLevel(val columns: Int, val grouping: Grouping) {
     SMALL(12, Grouping.MONTH),
     TINY(25, Grouping.YEAR);
 
-    /** One step towards bigger tiles, or the same level if already there. */
-    fun zoomIn(): ZoomLevel = entries.getOrElse(ordinal - 1) { this }
-
-    /** One step towards smaller tiles. */
-    fun zoomOut(): ZoomLevel = entries.getOrElse(ordinal + 1) { this }
-
     /** Moves [steps] levels; positive means bigger tiles. Stops at either end. */
     fun stepBy(steps: Int): ZoomLevel =
         entries[(ordinal - steps).coerceIn(0, entries.lastIndex)]

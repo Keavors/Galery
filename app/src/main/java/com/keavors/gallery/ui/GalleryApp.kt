@@ -44,7 +44,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -53,7 +52,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.keavors.gallery.R
 import com.keavors.gallery.data.LibraryState
-import com.keavors.gallery.data.MediaAccess
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaRepository
 import com.keavors.gallery.BuildConfig
@@ -90,7 +88,6 @@ import com.keavors.gallery.data.DEFAULT_THUMB_BUCKET
 import com.keavors.gallery.data.UNKNOWN_ID
 import com.keavors.gallery.ui.album.AlbumScreen
 import com.keavors.gallery.ui.albums.AlbumsScreen
-import com.keavors.gallery.ui.common.PlaceholderScreen
 import com.keavors.gallery.ui.editor.EditorScreen
 import com.keavors.gallery.ui.editor.VideoTrimScreen
 import com.keavors.gallery.ui.lock.LockScreen
@@ -209,6 +206,7 @@ fun GalleryApp(
     val trimFailed = stringResource(R.string.trim_failed)
     val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
+    val cacheClearedNote = stringResource(R.string.settings_cache_cleared)
     val exportedNote = stringResource(R.string.vault_exported)
     val exportFailedNote = stringResource(R.string.vault_export_failed)
     val deletedNote = stringResource(R.string.delete_done)
@@ -669,6 +667,10 @@ fun GalleryApp(
                             SingletonImageLoader.get(context).memoryCache?.clear()
                             SingletonImageLoader.get(context).diskCache?.clear()
                             cacheSummary = ""
+                            // It empties instantly and looks like nothing
+                            // happened, which is how a button gets pressed four
+                            // times.
+                            Toast.makeText(context, cacheClearedNote, Toast.LENGTH_SHORT).show()
                         },
                         onExport = { exportLauncher.launch("gallery-settings.json") },
                         onExportVault = { exportOutside(vaultItems) },
@@ -732,8 +734,6 @@ fun GalleryApp(
                             },
                         )
                     }
-
-                    else -> PlaceholderScreen(current)
                 }
             }
         }

@@ -2,6 +2,7 @@ package com.keavors.gallery.data
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.core.graphics.scale
 import android.util.Size
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
@@ -134,11 +135,9 @@ private fun Bitmap.fitShortestEdgeTo(target: Int): Bitmap {
     if (shortest <= target) return this
 
     val ratio = target.toFloat() / shortest
-    val scaled = Bitmap.createScaledBitmap(
-        this,
+    val scaled = scale(
         (width * ratio).roundToInt().coerceAtLeast(1),
         (height * ratio).roundToInt().coerceAtLeast(1),
-        true,
     )
     // The source came from loadThumbnail and belongs to us, so it can go back
     // rather than waiting on the collector with the rest of the grid in flight.

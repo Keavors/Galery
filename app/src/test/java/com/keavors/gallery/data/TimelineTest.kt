@@ -155,14 +155,6 @@ class TimelineTest {
     }
 
     @Test
-    fun `zoom steps stop at the ends instead of wrapping`() {
-        assertEquals(ZoomLevel.HUGE, ZoomLevel.HUGE.zoomIn())
-        assertEquals(ZoomLevel.TINY, ZoomLevel.TINY.zoomOut())
-        assertEquals(ZoomLevel.MEDIUM, ZoomLevel.LARGE.zoomOut())
-        assertEquals(ZoomLevel.HUGE, ZoomLevel.LARGE.zoomIn())
-    }
-
-    @Test
     fun `midnight shots land on the day the clock showed, not UTC`() {
         // 00:30 Moscow on the 30th is still the 29th in UTC. Grouping by UTC
         // would quietly move every late-evening photo to the next day.

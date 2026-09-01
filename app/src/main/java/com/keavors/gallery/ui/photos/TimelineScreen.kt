@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -53,7 +51,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
 import com.keavors.gallery.data.DateStyle
@@ -61,8 +58,6 @@ import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.TimelineRow
-import com.keavors.gallery.data.TileShape
-import com.keavors.gallery.data.tileAspect
 import com.keavors.gallery.data.ZoomLevel
 import com.keavors.gallery.data.buildTimeline
 import com.keavors.gallery.data.matching

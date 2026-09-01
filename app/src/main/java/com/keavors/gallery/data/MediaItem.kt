@@ -76,51 +76,6 @@ object MediaTime {
     }
 }
 
-/** Counts and totals for the whole library. */
-data class LibrarySummary(
-    val photos: Int,
-    val videos: Int,
-    val albums: Int,
-    val totalBytes: Long,
-    val oldest: Long?,
-    val newest: Long?,
-) {
-    val total: Int get() = photos + videos
-
-    companion object {
-        val Empty = LibrarySummary(0, 0, 0, 0, null, null)
-    }
-}
-
-/** Folds the library into the numbers the summary screen shows. */
-fun List<MediaItem>.summarize(): LibrarySummary {
-    if (isEmpty()) return LibrarySummary.Empty
-    var photos = 0
-    var videos = 0
-    var bytes = 0L
-    var oldest = Long.MAX_VALUE
-    var newest = Long.MIN_VALUE
-    val buckets = HashSet<Long>()
-    for (item in this) {
-        if (item.isVideo) videos++ else photos++
-        bytes += item.sizeBytes
-        buckets += item.bucketId
-        // Items with no usable date at all must not drag the range to 1970.
-        if (item.takenAt > 0) {
-            if (item.takenAt < oldest) oldest = item.takenAt
-            if (item.takenAt > newest) newest = item.takenAt
-        }
-    }
-    return LibrarySummary(
-        photos = photos,
-        videos = videos,
-        albums = buckets.size,
-        totalBytes = bytes,
-        oldest = oldest.takeIf { it != Long.MAX_VALUE },
-        newest = newest.takeIf { it != Long.MIN_VALUE },
-    )
-}
-
 /**
  * The kinds of file a tile puts a word on.
  *

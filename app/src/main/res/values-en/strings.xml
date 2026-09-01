@@ -7,12 +7,7 @@
     <string name="tab_trash">Trash</string>
     <string name="tab_settings">Settings</string>
 
-    <string name="photos_placeholder">Your photos by date. Pinch to go from single shots to whole years.</string>
-    <string name="albums_placeholder">Folders on the device, favourites, videos and your own albums.</string>
-    <string name="trash_placeholder">Deleted items stay for 30 days in case you change your mind.</string>
-    <string name="settings_placeholder">Everything that can be configured, is.</string>
 
-    <string name="stage_notice">Stage 1 of 10 — media access. Next up: the photo timeline.</string>
 
     <string name="access_title">Access to your photos</string>
     <string name="access_body">The gallery shows photos and videos from this phone. Nothing is sent anywhere — the app works entirely offline.</string>
@@ -23,12 +18,6 @@
 
     <string name="library_loading">Reading the library…</string>
     <string name="library_empty">No photos or videos were found on this phone.</string>
-    <string name="library_total">Found</string>
-    <string name="library_photos">Photos</string>
-    <string name="library_videos">Videos</string>
-    <string name="library_albums">Folders</string>
-    <string name="library_size">Taking up</string>
-    <string name="library_range">Shots from %1$s to %2$s</string>
 
     <string name="manage_title">Media management</string>
     <string name="manage_granted">Granted. Deleting and favouriting work without extra confirmations.</string>
@@ -99,7 +88,7 @@
     <string name="trash_restore_all">Restore everything</string>
     <string name="trash_days_left">%1$d d</string>
     <string name="trash_expires_today">Today</string>
-    <string name="trash_selected">%1$d selected</string>
+    <string name="trash_selected">Selected: %1$d</string>
     <string name="section_select">Select everything from this date</string>
     <string name="section_deselect">Deselect this date</string>
     <string name="album_favourites">Favourites</string>
@@ -202,7 +191,6 @@
     <string name="vault_hide_body">The files move into the app and disappear from the gallery, from file managers and from backups. This becomes the only copy: uninstalling the app takes them with it. They can be put back at any time.</string>
     <string name="vault_hide_confirm">Hide</string>
     <string name="vault_restore">Put back in the gallery</string>
-    <string name="vault_empty">Nothing hidden.</string>
     <string name="vault_restored">Back in the gallery</string>
     <string name="vault_restore_failed">Could not put the file back</string>
 

@@ -34,7 +34,3 @@ fun formatBytes(
 
 private val UNITS = arrayOf("B", "KB", "MB", "GB", "TB")
 private val BINARY_UNITS = arrayOf("B", "KiB", "MiB", "GiB", "TiB")
-
-/** Groups digits so a five-figure photo count stays readable. */
-fun formatCount(value: Int, locale: Locale = Locale.getDefault()): String =
-    String.format(locale, "%,d", value).replace(',', ' ').replace(' ', ' ')

@@ -36,7 +36,7 @@ sealed interface LibraryState {
     /** A load is in flight and nothing has arrived yet. */
     data object Loading : LibraryState
 
-    data class Ready(val items: List<MediaItem>, val summary: LibrarySummary) : LibraryState
+    data class Ready(val items: List<MediaItem>) : LibraryState
 }
 
 /**
@@ -120,7 +120,7 @@ class MediaRepository(
         }
         if (_state.value !is LibraryState.Ready) _state.value = LibraryState.Loading
         val items = source.query()
-        _state.value = LibraryState.Ready(items, items.summarize())
+        _state.value = LibraryState.Ready(items)
         _trash.value = source.query(MediaFilter.Trashed)
     }
 

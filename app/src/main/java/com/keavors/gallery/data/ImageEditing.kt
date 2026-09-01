@@ -3,6 +3,7 @@ package com.keavors.gallery.data
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.core.graphics.createBitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorMatrixColorFilter
@@ -12,7 +13,6 @@ import android.graphics.Paint
 import android.media.MediaScannerConnection
 import android.graphics.RadialGradient
 import android.graphics.Shader
-import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import java.io.File
@@ -96,7 +96,7 @@ fun applyOps(source: Bitmap, ops: EditOps): Bitmap {
         val scale = straightenScale(current.width, current.height, ops.straighten)
         val outWidth = (current.width * scale).toInt().coerceAtLeast(1)
         val outHeight = (current.height * scale).toInt().coerceAtLeast(1)
-        val tilted = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
+        val tilted = createBitmap(outWidth, outHeight)
         Canvas(tilted).apply {
             translate(outWidth / 2f, outHeight / 2f)
             rotate(-ops.straighten)
@@ -132,7 +132,7 @@ fun applyOps(source: Bitmap, ops: EditOps): Bitmap {
         // One pass for both: the matrix the sliders were drawn through, applied
         // by the graphics chip rather than by a hundred megapixels of Kotlin
         // arithmetic, and the vignette laid over the result.
-        val corrected = Bitmap.createBitmap(current.width, current.height, Bitmap.Config.ARGB_8888)
+        val corrected = createBitmap(current.width, current.height)
         val canvas = Canvas(corrected)
         canvas.drawBitmap(
             current,
