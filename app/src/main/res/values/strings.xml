@@ -352,4 +352,11 @@
     <string name="set_binary_sizes">Размеры в КиБ</string>
     <string name="set_binary_sizes_summary">Считать по 1024, а не по 1000</string>
     <string name="set_cache_limit">Кэш миниатюр, МБ</string>
+    <string name="details_no_map">Нет приложения, которое открыло бы карту</string>
+    <string name="vault_export">Экспортировать наружу</string>
+    <string name="vault_export_summary">Скопировать скрытое в выбранную папку</string>
+    <string name="vault_exported">Экспортировано: %1$d</string>
+    <string name="vault_export_failed">Экспортировано %1$d из %2$d — %3$s</string>
+    <string name="slideshow">Слайдшоу</string>
+    <string name="slideshow_stop">Остановить слайдшоу</string>
 </resources>

@@ -94,6 +94,8 @@ enum class ScreenLock(val icon: Int, val label: Int, val request: Int) {
 fun ViewerTopBar(
     item: MediaItem,
     settings: GallerySettings,
+    slideshow: Boolean,
+    onToggleSlideshow: () -> Unit,
     onBack: () -> Unit,
     onDetails: () -> Unit,
     onSetCover: (() -> Unit)?,
@@ -173,6 +175,19 @@ fun ViewerTopBar(
                 onClick = { menuOpen = true },
             )
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(
+                                if (slideshow) R.string.slideshow_stop else R.string.slideshow
+                            )
+                        )
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onToggleSlideshow()
+                    },
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.viewer_details)) },
                     onClick = {

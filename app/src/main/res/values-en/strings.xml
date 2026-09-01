@@ -334,4 +334,11 @@
     <string name="set_binary_sizes">Sizes in KiB</string>
     <string name="set_binary_sizes_summary">Counted in 1024s rather than 1000s</string>
     <string name="set_cache_limit">Thumbnail cache, MB</string>
+    <string name="details_no_map">No app here opens a map</string>
+    <string name="vault_export">Export out</string>
+    <string name="vault_export_summary">Copy what is hidden into a folder you choose</string>
+    <string name="vault_exported">Exported: %1$d</string>
+    <string name="vault_export_failed">Exported %1$d of %2$d — %3$s</string>
+    <string name="slideshow">Slideshow</string>
+    <string name="slideshow_stop">Stop the slideshow</string>
 </resources>

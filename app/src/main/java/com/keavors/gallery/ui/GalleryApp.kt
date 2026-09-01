@@ -67,6 +67,7 @@ import android.app.Activity
 import com.keavors.gallery.data.VaultStore
 import com.keavors.gallery.data.canAuthenticate
 import com.keavors.gallery.data.deleteRequestFor
+import com.keavors.gallery.data.exportOut
 import com.keavors.gallery.data.canManageMedia
 import com.keavors.gallery.data.folderAlbums
 import com.keavors.gallery.data.isAlreadyIn
@@ -201,6 +202,8 @@ fun GalleryApp(
     val trimFailed = stringResource(R.string.trim_failed)
     val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
+    val exportedNote = stringResource(R.string.vault_exported)
+    val exportFailedNote = stringResource(R.string.vault_export_failed)
     val deletedNote = stringResource(R.string.delete_done)
     val undoLabel = stringResource(R.string.action_undo)
     val movedNote = stringResource(R.string.folder_moved)
@@ -468,6 +471,40 @@ fun GalleryApp(
         }
     }
 
+    // Copying hidden files out to a folder somebody picks. What is waiting is
+    // held here because the folder is chosen in another app entirely, and the
+    // answer comes back long after the tap that asked for it.
+    var pendingExport by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+    val exportLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { tree ->
+        val chosen = pendingExport
+        pendingExport = emptyList()
+        if (tree == null || chosen.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            val outcome = context.exportOut(chosen, tree)
+            Toast.makeText(
+                context,
+                if (outcome.whole) {
+                    exportedNote.format(outcome.done)
+                } else {
+                    exportFailedNote.format(
+                        outcome.done,
+                        outcome.done + outcome.failed,
+                        outcome.reason,
+                    )
+                },
+                if (outcome.whole) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
+    fun exportOutside(chosen: List<MediaItem>) {
+        if (chosen.isEmpty()) return
+        pendingExport = chosen
+        exportLocationLauncher.launch(null)
+    }
+
     val hideItems: (List<MediaItem>) -> Unit = { chosen ->
         scope.launch {
             // Copy first, record second, delete last. Any other order risks the
@@ -632,6 +669,8 @@ fun GalleryApp(
                             cacheSummary = ""
                         },
                         onExport = { exportLauncher.launch("gallery-settings.json") },
+                        onExportVault = { exportOutside(vaultItems) },
+                        vaultCount = vaultItems.size,
                         onImport = { importLauncher.launch(arrayOf("application/json", "text/*")) },
                         onReset = { scope.launch { settingsStore.reset() } },
                     )
@@ -739,6 +778,7 @@ fun GalleryApp(
                 writer = writer,
                 albumActions = albumActions(removableFrom = route.source),
                 onHide = hideItems,
+                onExportOut = ::exportOutside,
                 onBack = ::leaveFolder,
                 onOpen = openItem,
                 modifier = Modifier

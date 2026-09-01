@@ -88,6 +88,7 @@ fun TimelineScreen(
     writer: MediaWriter,
     albumActions: AlbumActions,
     onHide: (List<MediaItem>) -> Unit,
+    onExportOut: (List<MediaItem>) -> Unit,
     onUndoableDelete: (List<MediaItem>) -> Unit,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -354,6 +355,16 @@ fun TimelineScreen(
                     null
                 },
                 onHide = if (chosen.all { canBeHidden(it) }) ({ confirmHide = true }) else null,
+                // The other way round from hiding: only files that are already
+                // hidden have anywhere to be exported to.
+                onExportOut = if (chosen.isNotEmpty() && chosen.none { canBeHidden(it) }) {
+                    ({
+                        onExportOut(chosen)
+                        selected = emptySet()
+                    })
+                } else {
+                    null
+                },
                 onRemoveFromAlbum = albumActions.onRemoveFrom?.let { remove ->
                     {
                         remove(selected)

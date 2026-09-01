@@ -4,6 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.core.net.toUri
+import java.util.Locale
 import android.net.Uri
 import androidx.core.content.getSystemService
 
@@ -54,4 +56,21 @@ fun Context.shareMedia(items: List<MediaItem>, chooserTitle: String) {
 fun Context.copyMediaToClipboard(item: MediaItem, label: String) {
     val clip = ClipData.newUri(contentResolver, label, item.contentUri())
     getSystemService<ClipboardManager>()?.setPrimaryClip(clip)
+}
+
+/**
+ * Opens where a photograph was taken in whatever map the phone has.
+ *
+ * A geo: uri with the coordinates repeated as a query, which is the shape every
+ * map app understands: the first pair moves the map, the second drops the pin.
+ * Returns false when there is no map at all, and then the caller has to say so
+ * rather than let a tap do nothing.
+ */
+fun Context.openOnMap(latitude: Double, longitude: Double, label: String): Boolean {
+    val point = "%f,%f".format(Locale.US, latitude, longitude)
+    val uri = "geo:$point?q=$point(${Uri.encode(label)})".toUri()
+    return runCatching {
+        startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+    }.getOrElse { false }
 }

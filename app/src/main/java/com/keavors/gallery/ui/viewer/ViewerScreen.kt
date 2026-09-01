@@ -70,6 +70,9 @@ import kotlin.math.abs
 /** How far the photo has to travel before letting go closes the viewer. */
 private val DISMISS_DISTANCE = 130.dp
 
+/** How long each photograph is left up during a slideshow. */
+private const val SLIDE_MS = 4_000L
+
 /** Where a double tap goes and comes back from. Twice, as it has always been. */
 private const val DOUBLE_TAP_ZOOM = 2f
 
@@ -186,6 +189,7 @@ fun ViewerScreen(
     }
 
     var chromeVisible by remember { mutableStateOf(settings.chromeOnOpen) }
+    var slideshow by remember { mutableStateOf(false) }
     var detailsVisible by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -302,7 +306,25 @@ fun ViewerScreen(
         }
     }
 
-    BackHandler { onClose() }
+    // A slideshow is the pager turning its own pages, and nothing else: the same
+    // photographs, the same zoom, the same everything. It stops itself at the
+    // last picture unless paging loops, because a slideshow that silently
+    // restarts has no end and nobody watching knows whether they have seen it.
+    LaunchedEffect(slideshow, pagerState.currentPage) {
+        if (!slideshow) return@LaunchedEffect
+        delay(SLIDE_MS)
+        val page = pagerState.currentPage
+        when {
+            loop -> pagerState.animateScrollToPage(page + 1)
+            page < pagerState.pageCount - 1 -> pagerState.animateScrollToPage(page + 1)
+            else -> slideshow = false
+        }
+    }
+
+    BackHandler {
+        // The first thing back undoes is the slideshow, not the viewer.
+        if (slideshow) slideshow = false else onClose()
+    }
 
     // Zero while the photo sits still, one when it has been dragged far enough
     // to let go. Everything about the dismiss animation is driven from it.
@@ -414,7 +436,10 @@ fun ViewerScreen(
                     model = request,
                     contentDescription = item.name,
                     state = imageState,
-                    onClick = { chromeVisible = !chromeVisible },
+                    onClick = {
+                        slideshow = false
+                        chromeVisible = !chromeVisible
+                    },
                     // Told where to stop rather than left to the limit above: a
                     // double tap is meant to land on a face, not to throw the
                     // picture eight times across the screen.
@@ -448,6 +473,13 @@ fun ViewerScreen(
             ViewerTopBar(
                 item = current,
                 settings = settings,
+                slideshow = slideshow,
+                onToggleSlideshow = {
+                    slideshow = !slideshow
+                    // The pictures are the point of a slideshow; the buttons
+                    // over them are not.
+                    if (slideshow) chromeVisible = false
+                },
                 onBack = onClose,
                 onDetails = { detailsVisible = true },
                 onSetCover = onSetCover?.let { set -> { set(current.id) } },

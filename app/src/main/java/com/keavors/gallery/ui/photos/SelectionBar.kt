@@ -46,6 +46,7 @@ fun SelectionBar(
     onAddToAlbum: () -> Unit,
     onRemoveFromAlbum: (() -> Unit)?,
     onHide: (() -> Unit)?,
+    onExportOut: (() -> Unit)?,
     onMoveToFolder: (() -> Unit)?,
     onCopyToFolder: (() -> Unit)?,
     modifier: Modifier = Modifier,
@@ -146,6 +147,12 @@ fun SelectionBar(
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.vault_hide)) },
                             onClick = { menuOpen = false; hide() },
+                        )
+                    }
+                    onExportOut?.let { export ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.vault_export)) },
+                            onClick = { menuOpen = false; export() },
                         )
                     }
                 }

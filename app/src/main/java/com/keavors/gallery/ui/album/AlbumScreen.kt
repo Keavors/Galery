@@ -40,6 +40,7 @@ fun AlbumScreen(
     writer: MediaWriter,
     albumActions: AlbumActions,
     onHide: (List<MediaItem>) -> Unit,
+    onExportOut: (List<MediaItem>) -> Unit,
     onUndoableDelete: (List<MediaItem>) -> Unit,
     onBack: () -> Unit,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
@@ -84,6 +85,7 @@ fun AlbumScreen(
             writer = writer,
             albumActions = albumActions,
             onHide = onHide,
+            onExportOut = onExportOut,
             onUndoableDelete = onUndoableDelete,
             onOpen = onOpen,
         )

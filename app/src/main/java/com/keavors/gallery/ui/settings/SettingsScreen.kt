@@ -66,6 +66,8 @@ fun SettingsScreen(
     onRequestManageMedia: () -> Unit,
     onClearCache: () -> Unit,
     onExport: () -> Unit,
+    onExportVault: () -> Unit,
+    vaultCount: Int,
     onImport: () -> Unit,
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
@@ -416,6 +418,17 @@ fun SettingsScreen(
                             onAction = {},
                         )
                     }
+                },
+                // The way out of the bargain the vault strikes: files that no
+                // other app can see are also files that go when this one is
+                // uninstalled, and this is the button that makes that payable.
+                SettingRow(stringResource(R.string.vault_export)) {
+                    ActionRow(
+                        title = stringResource(R.string.vault_export),
+                        summary = stringResource(R.string.vault_export_summary),
+                        action = if (vaultCount > 0) vaultCount.toString() else null,
+                        onAction = onExportVault,
+                    )
                 },
                 switchRow(
                     title = stringResource(R.string.set_hide_recents),

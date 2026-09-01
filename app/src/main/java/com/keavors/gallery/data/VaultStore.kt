@@ -3,6 +3,7 @@ package com.keavors.gallery.data
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Log
 import androidx.datastore.core.DataStore
@@ -208,4 +209,51 @@ class VaultStore(private val context: Context) {
 
         private const val TAG = "VaultStore"
     }
+}
+
+/**
+ * Copies hidden files out to a folder somebody picked, and leaves them hidden.
+ *
+ * The vault's whole bargain is that its files live in the app's own storage,
+ * where nothing else can see them — and the price of that bargain is that
+ * uninstalling the app takes them with it. This is the way out that makes the
+ * price payable: the files are written where the person points, under their own
+ * names, and the vault keeps its copies.
+ *
+ * Not through MediaStore on purpose. Exporting is for getting the files off the
+ * phone, or onto a card, or into a folder no gallery indexes — putting them back
+ * in the library is a different act, and it is called restoring.
+ */
+suspend fun Context.exportOut(
+    items: List<MediaItem>,
+    tree: Uri,
+): BatchOutcome = withContext(Dispatchers.IO) {
+    var done = 0
+    var failed = 0
+    var reason = ""
+
+    val parent = runCatching {
+        DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+    }.getOrNull() ?: return@withContext BatchOutcome(0, items.size, "the folder could not be opened")
+
+    for (item in items) {
+        val outcome = runCatching {
+            val target = DocumentsContract.createDocument(
+                contentResolver,
+                parent,
+                item.mimeType.ifBlank { "application/octet-stream" },
+                item.name,
+            ) ?: return@runCatching "the folder would not take a new file"
+
+            val source = contentResolver.openInputStream(item.contentUri())
+                ?: return@runCatching "the hidden file would not open"
+            val sink = contentResolver.openOutputStream(target)
+                ?: return@runCatching "the new file would not open for writing"
+            source.use { input -> sink.use { output -> input.copyTo(output) } }
+            null
+        }.onFailure { Log.w("VaultExport", "could not export ${item.name}", it) }.getOrElse { it.describe() }
+
+        if (outcome == null) done++ else { failed++; reason = outcome }
+    }
+    BatchOutcome(done, failed, reason)
 }

@@ -24,7 +24,10 @@ import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
 import com.keavors.gallery.data.MediaDetails
+import android.widget.Toast
+import androidx.compose.foundation.clickable
 import com.keavors.gallery.data.GallerySettings
+import com.keavors.gallery.data.openOnMap
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.formatBytes
 import com.keavors.gallery.data.formatMegapixels
@@ -88,10 +91,21 @@ fun DetailsSheet(item: MediaItem, settings: GallerySettings, onDismiss: () -> Un
                     stringResource(if (it) R.string.flash_fired else R.string.flash_off),
                 )
             }
-            if (details.latitude != null && details.longitude != null) {
+            val latitude = details.latitude
+            val longitude = details.longitude
+            if (latitude != null && longitude != null) {
+                val noMap = stringResource(R.string.details_no_map)
                 DetailRow(
-                    stringResource(R.string.details_location),
-                    String.format(Locale.US, "%.5f, %.5f", details.latitude, details.longitude),
+                    label = stringResource(R.string.details_location),
+                    value = String.format(Locale.US, "%.5f, %.5f", latitude, longitude),
+                    // Coordinates are five decimal places of nothing to most
+                    // people; the map is what they are for.
+                    onClick = {
+                        val opened = context.openOnMap(latitude, longitude, item.name)
+                        if (!opened) {
+                            Toast.makeText(context, noMap, Toast.LENGTH_SHORT).show()
+                        }
+                    },
                 )
             }
 
@@ -101,10 +115,11 @@ fun DetailsSheet(item: MediaItem, settings: GallerySettings, onDismiss: () -> Un
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+private fun DetailRow(label: String, value: String, onClick: (() -> Unit)? = null) {
     if (value.isBlank()) return
     Row(modifier = Modifier
         .fillMaxWidth()
+        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
         .padding(vertical = 6.dp)) {
         Text(
             text = label,

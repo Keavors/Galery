@@ -58,6 +58,9 @@ fun PhotosScreen(
             writer = writer,
             albumActions = albumActions,
             onHide = onHide,
+            // Nothing in the library is hidden, so there is nothing here to
+            // export out of hiding.
+            onExportOut = {},
             onUndoableDelete = onUndoableDelete,
             onOpen = onOpen,
             modifier = modifier,
