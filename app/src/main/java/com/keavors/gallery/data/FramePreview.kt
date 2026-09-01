@@ -12,11 +12,11 @@ private const val TAG = "FramePreview"
 /**
  * How wide a frame is fetched at, in pixels.
  *
- * It is shown in a thumbnail over a scrub bar, so the picture is the size of a
- * postage stamp. Asking for the frame at full resolution and shrinking it
- * afterwards would decode a few million pixels for a few thousand.
+ * Enough for the box the scrub bar puts it in and no more: asking for a frame at
+ * the video's own resolution would decode eight million pixels to show half a
+ * million, once for every position a dragging finger settles on.
  */
-private const val PREVIEW_WIDTH = 320
+private const val PREVIEW_WIDTH = 960
 
 /**
  * Reads one frame out of a video, for showing above the scrub bar.

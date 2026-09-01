@@ -53,9 +53,18 @@ private const val TICK_MS = 200L
 /** How still a dragging finger has to be before a frame is worth fetching. */
 private const val PREVIEW_SETTLE_MS = 90L
 
-/** How tall the frame over the bar is. */
-private val PREVIEW_HEIGHT = 88.dp
-private const val PREVIEW_HEIGHT_PX = 240
+/**
+ * How big the frame over the bar is.
+ *
+ * Three times what it was, which on anything wider than it is tall means the
+ * width runs out first — so it is bounded both ways and fitted inside, and a
+ * portrait video gets the full height while a landscape one gets the full width.
+ */
+private val PREVIEW_HEIGHT = 264.dp
+private const val PREVIEW_WIDTH_FRACTION = 0.92f
+
+/** What the frame is fetched at. Enough pixels for the box above, and no more. */
+private const val PREVIEW_HEIGHT_PX = 720
 
 /** The speeds the button walks through, as percentages of ordinary. */
 private val SPEEDS = intArrayOf(50, 75, 100, 150, 200)
@@ -161,8 +170,9 @@ fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modif
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .padding(bottom = 6.dp)
+                    .fillMaxWidth(PREVIEW_WIDTH_FRACTION)
                     .height(PREVIEW_HEIGHT)
-                    .clip(RoundedCornerShape(4.dp)),
+                    .clip(RoundedCornerShape(8.dp)),
             )
         }
 
