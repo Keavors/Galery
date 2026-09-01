@@ -517,8 +517,12 @@ private fun PhotoRow(
     // A mosaic row is as tall as its pictures need to be once they have been
     // laid side by side and made to fill the width: the widths are in proportion
     // to the pictures, and what is left over after the gaps decides the height.
-    val aspects = row.items.map { it.tileAspect() }
-    val height = if (shape == TileShape.MOSAIC) {
+    //
+    // Worked out only for a mosaic. A square grid has no use for it, and this
+    // runs for every row that scrolls into view, which at speed is a hundred
+    // times a second.
+    val aspects = if (shape == TileShape.MOSAIC) row.items.map { it.tileAspect() } else null
+    val height = if (aspects != null) {
         (rowWidth - gap * (row.items.size - 1)) / aspects.sum()
     } else {
         tileSize
@@ -537,7 +541,7 @@ private fun PhotoRow(
                 dimmed = selecting && item.id !in selectedIds,
                 badges = badges,
                 onClick = { from -> onOpen(item, from) },
-                modifier = if (shape == TileShape.MOSAIC) {
+                modifier = if (aspects != null) {
                     Modifier
                         .weight(aspects[index])
                         .height(height)

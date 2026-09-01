@@ -18,7 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -72,9 +73,15 @@ fun Thumbnail(
         previewRequest(context, item, bucket)
     }
 
-    // Where this tile is, kept in a plain holder rather than in state: it is
-    // written on every layout pass of every visible tile, and a state write there
-    // would recompose the grid for a number nothing draws.
+    // Where this tile is — kept as the coordinates rather than as a rectangle,
+    // and in a plain holder rather than in state.
+    //
+    // Both halves of that matter on a fast scroll. Every visible tile is placed
+    // again on every frame, so this runs six hundred times a frame at the
+    // smallest zoom: writing state there would recompose the grid for a number
+    // nothing draws, and working out the rectangle there would walk the layout
+    // tree to the window and allocate, for an answer that is wanted only if this
+    // particular tile is tapped. The walk happens on the tap instead.
     val bounds = remember { TileBounds() }
 
     Box(
@@ -83,8 +90,8 @@ fun Thumbnail(
             // A placeholder tone under every tile: scrolling fast through a
             // thousand photos should look like a grid filling in, not like holes.
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .onGloballyPositioned { bounds.rect = it.boundsInWindow() }
-            .clickable { onClick(bounds.rect) },
+            .onPlaced { bounds.at = it }
+            .clickable { onClick(bounds.at?.boundsInWindow() ?: Rect.Zero) },
     ) {
         AsyncImage(
             model = request,
@@ -188,7 +195,7 @@ internal fun formatDuration(millis: Long): String {
 
 private fun Long.pad(): String = if (this < 10) "0$this" else toString()
 
-/** Somewhere to put a rectangle that changes constantly and is read once. */
+/** Somewhere to put a position that changes constantly and is read once. */
 private class TileBounds {
-    var rect: Rect = Rect.Zero
+    var at: LayoutCoordinates? = null
 }

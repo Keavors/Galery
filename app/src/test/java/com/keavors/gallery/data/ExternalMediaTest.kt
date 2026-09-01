@@ -181,3 +181,27 @@ class StandaloneItemTest {
         assertEquals(ref.asStandaloneItem().id, library.matchExternal(ref)?.id)
     }
 }
+
+/**
+ * What a photograph is called before anybody has looked it up.
+ *
+ * The name shows in the viewer's title from the first frame, so a wrong one is
+ * seen. The last part of a MediaStore uri is a row number, which is not a name
+ * anybody would recognise.
+ */
+class ProvisionalNameTest {
+
+    @Test
+    fun `a row number is not a name`() {
+        val item = ExternalRef(mediaStoreId = 19619, uri = "content://media/external/images/media/19619")
+            .asStandaloneItem()
+        // The id is carried, and it is the id that finds the thumbnail.
+        assertEquals(19619L, item.id)
+    }
+
+    @Test
+    fun `a file name is a name`() {
+        val item = ExternalRef(name = "IMG_0042.jpg").asStandaloneItem()
+        assertEquals("IMG_0042.jpg", item.name)
+    }
+}

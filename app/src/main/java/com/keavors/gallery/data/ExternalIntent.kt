@@ -89,7 +89,10 @@ fun provisionalItem(uri: Uri, declaredType: String?): MediaItem = ExternalRef(
     // put up at once. Without it there is nothing to show until the file has
     // been decoded, which is a tenth of a second of black.
     mediaStoreId = uri.mediaStoreId(),
-    name = uri.lastPathSegment?.substringAfterLast('/'),
+    // The last segment of a MediaStore uri is the row number, not a name, and
+    // a viewer captioned "19619" for a tenth of a second is worse than one
+    // captioned nothing at all until the real name arrives.
+    name = uri.lastPathSegment?.substringAfterLast('/')?.takeUnless { it.all(Char::isDigit) },
     isVideo = looksLikeVideo(declaredType, uri.toString()),
     mimeType = declaredType.orEmpty(),
     uri = uri.toString(),
