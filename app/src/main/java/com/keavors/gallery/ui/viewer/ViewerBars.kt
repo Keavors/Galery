@@ -40,6 +40,10 @@ import com.keavors.gallery.ui.common.BarAction
 import com.keavors.gallery.ui.common.ChromeIconButton
 import java.time.Instant
 import java.time.ZoneId
+import com.keavors.gallery.data.DateStyle
+import com.keavors.gallery.data.GallerySettings
+import com.keavors.gallery.data.ViewerTitle
+import com.keavors.gallery.data.datePattern
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -89,6 +93,7 @@ enum class ScreenLock(val icon: Int, val label: Int, val request: Int) {
 @Composable
 fun ViewerTopBar(
     item: MediaItem,
+    settings: GallerySettings,
     onBack: () -> Unit,
     onDetails: () -> Unit,
     onSetCover: (() -> Unit)?,
@@ -125,14 +130,26 @@ fun ViewerTopBar(
                 .padding(horizontal = 4.dp)
         ) {
             Text(
-                text = formatShotDate(item.takenAt, locale),
+                text = if (settings.viewerTitle == ViewerTitle.DATE_AND_NAME ||
+                    settings.viewerTitle == ViewerTitle.DATE
+                ) {
+                    formatShotDate(item.takenAt, locale, settings.dateStyle)
+                } else {
+                    ""
+                },
                 style = MaterialTheme.typography.titleSmall,
                 color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = item.name,
+                text = if (settings.viewerTitle == ViewerTitle.DATE_AND_NAME ||
+                    settings.viewerTitle == ViewerTitle.NAME
+                ) {
+                    item.name
+                } else {
+                    ""
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.White.copy(alpha = 0.72f),
                 maxLines = 1,
@@ -268,8 +285,13 @@ fun ViewerBottomBar(
 }
 
 /** "30 августа 2026, 14:05" — the date first, because that is what is looked for. */
-internal fun formatShotDate(epochMillis: Long, locale: Locale): String {
+internal fun formatShotDate(
+    epochMillis: Long,
+    locale: Locale,
+    style: DateStyle = DateStyle.AUTO,
+): String {
     if (epochMillis <= 0) return ""
     val zoned = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault())
-    return DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", locale).format(zoned)
+    val date = style.datePattern() ?: "d MMMM yyyy,"
+    return DateTimeFormatter.ofPattern("$date HH:mm", locale).format(zoned)
 }

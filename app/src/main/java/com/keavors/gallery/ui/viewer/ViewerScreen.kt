@@ -70,15 +70,6 @@ import kotlin.math.abs
 /** How far the photo has to travel before letting go closes the viewer. */
 private val DISMISS_DISTANCE = 130.dp
 
-/**
- * How far a photograph can be pinched, as a multiple of the size it is shown at.
- *
- * Eight is past the point where there is any more detail in the file, and that
- * is deliberate: at some point what is wanted is a closer look at something
- * small, not a sharper picture, and stopping at twice is stopping too early.
- */
-private const val MAX_ZOOM = 8f
-
 /** Where a double tap goes and comes back from. Twice, as it has always been. */
 private const val DOUBLE_TAP_ZOOM = 2f
 
@@ -117,11 +108,12 @@ private val DOUBLE_TAP_IGNORED = DoubleClickToZoomListener { _, _ -> }
  * asks how large the picture is being shown and multiplies from there, so that
  * "eight times" always means eight times what is on the screen.
  */
-private val VIEWER_ZOOM = DynamicZoomSpec { inputs ->
+private fun viewerZoom(maxZoom: Int) = DynamicZoomSpec { inputs ->
+    val limit = maxZoom.toFloat()
     val shownAt = inputs.scaledContentBounds.size.maxDimension /
         inputs.unscaledContentSize.maxDimension
     ZoomSpec(
-        maxZoomFactor = if (shownAt.isFinite() && shownAt > 0f) MAX_ZOOM * shownAt else MAX_ZOOM,
+        maxZoomFactor = if (shownAt.isFinite() && shownAt > 0f) limit * shownAt else limit,
     )
 }
 
@@ -151,6 +143,8 @@ fun ViewerScreen(
     settings: GallerySettings,
     writer: MediaWriter,
     onRestoreFromVault: (MediaItem) -> Unit,
+    /** Deletes without asking and offers the way back. See the setting. */
+    onUndoableDelete: (List<MediaItem>) -> Unit,
     onEdit: (MediaItem) -> Unit,
     onSetCover: ((itemId: Long) -> Unit)?,
     onClose: () -> Unit,
@@ -231,6 +225,7 @@ fun ViewerScreen(
         // Both off unless asked for: opening a video should not start making
         // noise in a quiet room.
         playing.volume = if (settings.videoSound) 1f else 0f
+        playing.setPlaybackSpeed(settings.videoSpeed / 100f)
         playing.playWhenReady = settings.videoAutoplay
         playing.prepare()
     }
@@ -375,7 +370,8 @@ fun ViewerScreen(
                 return@HorizontalPager
             }
 
-            val zoomableState = rememberZoomableState(zoomSpec = VIEWER_ZOOM)
+            val zoomSpec = remember(settings.maxZoom) { viewerZoom(settings.maxZoom) }
+            val zoomableState = rememberZoomableState(zoomSpec = zoomSpec)
             val imageState = rememberZoomableImageState(zoomableState)
 
             // The uri as well as the id: a photograph that arrived from another
@@ -451,6 +447,7 @@ fun ViewerScreen(
         ) {
             ViewerTopBar(
                 item = current,
+                settings = settings,
                 onBack = onClose,
                 onDetails = { detailsVisible = true },
                 onSetCover = onSetCover?.let { set -> { set(current.id) } },
@@ -478,11 +475,18 @@ fun ViewerScreen(
                         if (items.size <= 1) onClose()
                     },
                     onDelete = {
-                        if (writer.needsOwnConfirmation) {
-                            confirmDelete = true
-                        } else {
-                            writer.setTrashed(listOf(current), trashed = true)
-                            if (items.size <= 1) onClose()
+                        when {
+                            settings.undoDelete -> {
+                                onUndoableDelete(listOf(current))
+                                if (items.size <= 1) onClose()
+                            }
+
+                            writer.needsOwnConfirmation -> confirmDelete = true
+
+                            else -> {
+                                writer.setTrashed(listOf(current), trashed = true)
+                                if (items.size <= 1) onClose()
+                            }
                         }
                     },
                 )
@@ -491,7 +495,11 @@ fun ViewerScreen(
     }
 
     if (detailsVisible) {
-        DetailsSheet(item = current, onDismiss = { detailsVisible = false })
+        DetailsSheet(
+            item = current,
+            settings = settings,
+            onDismiss = { detailsVisible = false },
+        )
     }
 
     if (confirmDelete) {

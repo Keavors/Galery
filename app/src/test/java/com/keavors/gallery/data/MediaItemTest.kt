@@ -88,20 +88,29 @@ class FormatTest {
     @Test
     fun `bytes below a kilobyte are shown raw`() {
         assertEquals("0 B", formatBytes(0, locale))
-        assertEquals("1023 B", formatBytes(1023, locale))
+        assertEquals("999 B", formatBytes(999, locale))
     }
 
     @Test
     fun `climbs through the units`() {
-        assertEquals("1.0 KB", formatBytes(1024, locale))
-        assertEquals("1.0 MB", formatBytes(1024L * 1024, locale))
-        assertEquals("1.0 GB", formatBytes(1024L * 1024 * 1024, locale))
+        assertEquals("1.0 KB", formatBytes(1000, locale))
+        assertEquals("1.0 MB", formatBytes(1_000_000, locale))
+        assertEquals("1.0 GB", formatBytes(1_000_000_000, locale))
     }
 
     @Test
     fun `drops the decimal once the number is long enough without it`() {
-        assertEquals("99.9 GB", formatBytes((99.9 * 1024 * 1024 * 1024).toLong(), locale))
-        assertEquals("148 GB", formatBytes(148L * 1024 * 1024 * 1024, locale))
+        assertEquals("99.9 GB", formatBytes(99_900_000_000, locale))
+        assertEquals("148 GB", formatBytes(148_000_000_000, locale))
+    }
+
+    @Test
+    fun `the other convention counts in 1024s and says so`() {
+        // The two are not the same number and must never wear each other's
+        // names: 1024 bytes is a KiB, and a KB is a thousand of them.
+        assertEquals("1.0 KiB", formatBytes(1024, locale, binary = true))
+        assertEquals("1.0 MiB", formatBytes(1024L * 1024, locale, binary = true))
+        assertEquals("1023 B", formatBytes(1023, locale, binary = true))
     }
 
     @Test

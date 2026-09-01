@@ -106,3 +106,16 @@ fun List<FolderAlbum>.pinnedFirst(prefs: AlbumPreferences): List<FolderAlbum> {
 /** Albums the person chose not to see, unless they asked to see them again. */
 fun List<FolderAlbum>.withoutHidden(prefs: AlbumPreferences, showHidden: Boolean): List<FolderAlbum> =
     if (showHidden) this else filterNot { prefs.isHidden(AlbumSource.Folder(it.bucketId)) }
+
+/**
+ * The library without the folders somebody switched off.
+ *
+ * Hiding an album on the albums screen is how a folder is taken out of the
+ * gallery — the specification calls it "любую папку можно выключить" — and a
+ * folder that is out of the gallery has no business filling the timeline.
+ * Switching the setting back on shows them again without unhiding anything.
+ */
+fun List<MediaItem>.visibleIn(prefs: AlbumPreferences, showHidden: Boolean): List<MediaItem> {
+    if (showHidden || prefs.hidden.isEmpty()) return this
+    return filterNot { prefs.isHidden(AlbumSource.Folder(it.bucketId)) }
+}

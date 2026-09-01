@@ -135,6 +135,63 @@ sealed interface TimelineRow {
 }
 
 /**
+ * How a photograph fills its tile.
+ *
+ * Square crops every picture to the same tile, which makes a calm grid and hides
+ * that anything was ever a panorama. Mosaic keeps the proportions and cuts the
+ * rows to fit instead, which shows the library as it is at the price of a
+ * ragged-looking wall.
+ */
+enum class TileShape { SQUARE, MOSAIC }
+
+/**
+ * How wide a photograph is against its own height, for laying out a mosaic.
+ *
+ * Clamped, and deliberately: one panorama in a row of a hundred would otherwise
+ * squash its neighbours to postage stamps, and a photograph of unknown size —
+ * which is every file the library has not measured — counts as a square rather
+ * than as nothing.
+ */
+fun MediaItem.tileAspect(): Float {
+    if (width <= 0 || height <= 0) return 1f
+    return (width.toFloat() / height.toFloat()).coerceIn(MIN_ASPECT, MAX_ASPECT)
+}
+
+private const val MIN_ASPECT = 0.5f
+private const val MAX_ASPECT = 2.5f
+
+/**
+ * Cuts photographs into rows that each fill the width once their proportions are
+ * kept.
+ *
+ * The target is the same amount of picture per row as the square grid puts
+ * there — [columns] squares' worth — so switching between the two shapes does
+ * not change how much of the library a screenful holds. A row is closed as soon
+ * as it is full rather than by looking ahead, because looking ahead means the
+ * rows above a photograph can change when a photograph below it arrives.
+ */
+fun mosaicRows(items: List<MediaItem>, columns: Int): List<List<MediaItem>> {
+    if (items.isEmpty()) return emptyList()
+    val target = columns.toFloat()
+
+    val rows = ArrayList<List<MediaItem>>(items.size / columns + 2)
+    var row = ArrayList<MediaItem>(columns)
+    var width = 0f
+
+    for (item in items) {
+        row += item
+        width += item.tileAspect()
+        if (width >= target) {
+            rows += row
+            row = ArrayList(columns)
+            width = 0f
+        }
+    }
+    if (row.isNotEmpty()) rows += row
+    return rows
+}
+
+/**
  * Turns the library into the rows the grid draws.
  *
  * Expects [items] already sorted newest first, which is how the repository hands
@@ -146,6 +203,7 @@ fun buildTimeline(
     level: ZoomLevel,
     zone: ZoneId,
     withSearch: Boolean = false,
+    shape: TileShape = TileShape.SQUARE,
 ): List<TimelineRow> {
     val rows = ArrayList<TimelineRow>(items.size / level.columns + 16)
     // Before the emptiness check, deliberately: a search that finds nothing must
@@ -159,7 +217,13 @@ fun buildTimeline(
     fun flush(endExclusive: Int) {
         val section = items.subList(sectionStart, endExclusive)
         rows += TimelineRow.Header(current, level.grouping, section.size, section.first().id)
-        section.chunked(level.columns) { row -> rows += TimelineRow.Photos(row.toList()) }
+        when (shape) {
+            TileShape.SQUARE ->
+                section.chunked(level.columns) { row -> rows += TimelineRow.Photos(row.toList()) }
+
+            TileShape.MOSAIC ->
+                mosaicRows(section, level.columns).forEach { rows += TimelineRow.Photos(it) }
+        }
     }
 
     for (index in 1 until items.size) {

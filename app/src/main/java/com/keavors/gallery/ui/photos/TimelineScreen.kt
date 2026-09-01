@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,10 +50,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
+import com.keavors.gallery.data.DateStyle
 import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaWriter
 import com.keavors.gallery.data.TimelineRow
+import com.keavors.gallery.data.TileShape
+import com.keavors.gallery.data.tileAspect
 import com.keavors.gallery.data.ZoomLevel
 import com.keavors.gallery.data.buildTimeline
 import com.keavors.gallery.data.matching
@@ -81,13 +85,14 @@ private const val MAX_LIVE_SCALE = 1.9f
 fun TimelineScreen(
     items: List<MediaItem>,
     settings: GallerySettings,
-    /** Whether the list carries a search box at the top of it. */
-    searchable: Boolean = false,
     writer: MediaWriter,
     albumActions: AlbumActions,
     onHide: (List<MediaItem>) -> Unit,
+    onUndoableDelete: (List<MediaItem>) -> Unit,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
     modifier: Modifier = Modifier,
+    /** Whether the list carries a search box at the top of it. */
+    searchable: Boolean = false,
 ) {
     val zone = remember { ZoneId.systemDefault() }
     val locale = Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())
@@ -110,8 +115,8 @@ fun TimelineScreen(
     var query by remember { mutableStateOf("") }
     val terms = remember(query, locale) { parseSearch(query, locale) }
     val found = remember(items, terms, zone) { items.matching(terms, zone) }
-    val rows = remember(found, level, searchable) {
-        buildTimeline(found, level, zone, withSearch = searchable)
+    val rows = remember(found, level, searchable, settings.tileShape) {
+        buildTimeline(found, level, zone, withSearch = searchable, shape = settings.tileShape)
     }
 
     // The level keys the gesture handler, but the rows can also change under it
@@ -240,6 +245,7 @@ fun TimelineScreen(
                             locale = locale,
                             today = today,
                             relativeDates = settings.relativeDates,
+                            dateStyle = settings.dateStyle,
                             selecting = selected.isNotEmpty(),
                             allSelected = sectionIds.isNotEmpty() && selected.containsAll(sectionIds),
                             onToggleSection = {
@@ -269,6 +275,8 @@ fun TimelineScreen(
                         PhotoRow(
                             row = row,
                             columns = level.columns,
+                            shape = settings.tileShape,
+                            rowWidth = maxWidth,
                             tileSize = tileSize,
                             gap = tileGap,
                             corner = tileCorner,
@@ -353,14 +361,21 @@ fun TimelineScreen(
                     }
                 },
                 onDelete = {
-                    if (chosen.none { canBeHidden(it) }) {
+                    when {
                         // Nothing to trash: these files are not in the library.
-                        selected = emptySet()
-                    } else if (writer.needsOwnConfirmation) {
-                        confirmDelete = true
-                    } else {
-                        writer.setTrashed(chosen, trashed = true)
-                        selected = emptySet()
+                        chosen.none { canBeHidden(it) } -> selected = emptySet()
+
+                        settings.undoDelete -> {
+                            onUndoableDelete(chosen)
+                            selected = emptySet()
+                        }
+
+                        writer.needsOwnConfirmation -> confirmDelete = true
+
+                        else -> {
+                            writer.setTrashed(chosen, trashed = true)
+                            selected = emptySet()
+                        }
                     }
                 },
                 modifier = Modifier.align(Alignment.TopCenter),
@@ -453,6 +468,7 @@ private fun SectionHeader(
     locale: Locale,
     today: LocalDate,
     relativeDates: Boolean,
+    dateStyle: DateStyle,
     selecting: Boolean,
     allSelected: Boolean,
     onToggleSection: () -> Unit,
@@ -469,7 +485,7 @@ private fun SectionHeader(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = sectionTitle(row.bucket, row.grouping, locale, today, relativeDates),
+                text = sectionTitle(row.bucket, row.grouping, locale, today, relativeDates, dateStyle),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -507,6 +523,8 @@ private fun SectionHeader(
 private fun PhotoRow(
     row: TimelineRow.Photos,
     columns: Int,
+    shape: TileShape,
+    rowWidth: Dp,
     tileSize: Dp,
     gap: Dp,
     corner: Dp,
@@ -516,28 +534,45 @@ private fun PhotoRow(
     modifier: Modifier = Modifier,
     onOpen: (MediaItem) -> Unit,
 ) {
+    // A mosaic row is as tall as its pictures need to be once they have been
+    // laid side by side and made to fill the width: the widths are in proportion
+    // to the pictures, and what is left over after the gaps decides the height.
+    val aspects = row.items.map { it.tileAspect() }
+    val height = if (shape == TileShape.MOSAIC) {
+        (rowWidth - gap * (row.items.size - 1)) / aspects.sum()
+    } else {
+        tileSize
+    }
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(gap),
         modifier = modifier.fillMaxWidth(),
     ) {
-        row.items.forEach { item ->
+        row.items.forEachIndexed { index, item ->
             Thumbnail(
                 item = item,
-                tileSize = tileSize,
+                tileSize = height,
                 corner = corner,
                 selected = item.id in selectedIds,
                 dimmed = selecting && item.id !in selectedIds,
                 badges = badges,
                 onClick = { onOpen(item) },
-                modifier = Modifier
-                    .weight(1f)
-                    .aspectRatio(1f),
+                modifier = if (shape == TileShape.MOSAIC) {
+                    Modifier
+                        .weight(aspects[index])
+                        .height(height)
+                } else {
+                    Modifier
+                        .weight(1f)
+                        .aspectRatio(1f)
+                },
             )
         }
         // A short last row must keep its tiles the same size as every other row,
         // so the missing ones are held open rather than letting the rest stretch.
-        repeat(columns - row.items.size) {
-            Spacer(Modifier.weight(1f))
+        // A mosaic has no such thing: its last row is short by being shorter.
+        if (shape == TileShape.SQUARE) {
+            repeat(columns - row.items.size) { Spacer(Modifier.weight(1f)) }
         }
     }
 }

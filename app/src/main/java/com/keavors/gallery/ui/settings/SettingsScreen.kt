@@ -26,6 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
+import com.keavors.gallery.data.Accent
+import com.keavors.gallery.data.DateStyle
+import com.keavors.gallery.data.SaveChoice
+import com.keavors.gallery.data.TileShape
+import com.keavors.gallery.data.ViewerTitle
 import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaAccess
 import com.keavors.gallery.data.Palette
@@ -135,11 +140,32 @@ fun SettingsScreen(
                     range = 0..16,
                     onChange = { onChange(settings.copy(tileCornerDp = it)) },
                 ),
+                choiceRow(
+                    title = stringResource(R.string.set_accent),
+                    current = settings.accent,
+                    options = Accent.entries,
+                    label = { stringResource(accentLabel(it)) },
+                    onPick = { onChange(settings.copy(accent = it)) },
+                ),
                 switchRow(
                     title = stringResource(R.string.set_animations),
                     summary = stringResource(R.string.set_animations_summary),
                     checked = settings.animations,
                     onChange = { onChange(settings.copy(animations = it)) },
+                ),
+                sliderRow(
+                    title = stringResource(R.string.set_animation_speed),
+                    value = settings.animationSpeed,
+                    range = 25..300,
+                    step = 25,
+                    onChange = { onChange(settings.copy(animationSpeed = it)) },
+                ),
+                sliderRow(
+                    title = stringResource(R.string.set_font_scale),
+                    value = settings.fontScale,
+                    range = 80..140,
+                    step = 5,
+                    onChange = { onChange(settings.copy(fontScale = it)) },
                 ),
             ),
         ),
@@ -168,11 +194,36 @@ fun SettingsScreen(
                     label = { stringResource(sortOrderLabel(it)) },
                     onPick = { onChange(settings.copy(sortOrder = it)) },
                 ),
+                choiceRow(
+                    title = stringResource(R.string.set_tile_shape),
+                    current = settings.tileShape,
+                    options = TileShape.entries,
+                    label = { stringResource(tileShapeLabel(it)) },
+                    onPick = { onChange(settings.copy(tileShape = it)) },
+                ),
                 switchRow(
                     title = stringResource(R.string.set_show_videos),
                     summary = null,
                     checked = settings.showVideos,
                     onChange = { onChange(settings.copy(showVideos = it)) },
+                ),
+                switchRow(
+                    title = stringResource(R.string.set_show_screenshots),
+                    summary = null,
+                    checked = settings.showScreenshots,
+                    onChange = { onChange(settings.copy(showScreenshots = it)) },
+                ),
+                switchRow(
+                    title = stringResource(R.string.set_show_downloads),
+                    summary = null,
+                    checked = settings.showDownloads,
+                    onChange = { onChange(settings.copy(showDownloads = it)) },
+                ),
+                switchRow(
+                    title = stringResource(R.string.set_show_hidden_folders),
+                    summary = stringResource(R.string.set_show_hidden_folders_summary),
+                    checked = settings.showHiddenFolders,
+                    onChange = { onChange(settings.copy(showHiddenFolders = it)) },
                 ),
                 switchRow(
                     title = stringResource(R.string.set_tile_badges),
@@ -223,6 +274,20 @@ fun SettingsScreen(
                     checked = settings.doubleTapZoom,
                     onChange = { onChange(settings.copy(doubleTapZoom = it)) },
                 ),
+                sliderRow(
+                    title = stringResource(R.string.set_max_zoom),
+                    value = settings.maxZoom,
+                    range = 2..32,
+                    step = 2,
+                    onChange = { onChange(settings.copy(maxZoom = it)) },
+                ),
+                choiceRow(
+                    title = stringResource(R.string.set_viewer_title),
+                    current = settings.viewerTitle,
+                    options = ViewerTitle.entries,
+                    label = { stringResource(viewerTitleLabel(it)) },
+                    onPick = { onChange(settings.copy(viewerTitle = it)) },
+                ),
                 switchRow(
                     title = stringResource(R.string.set_loop),
                     summary = stringResource(R.string.set_loop_summary),
@@ -265,17 +330,67 @@ fun SettingsScreen(
                     checked = settings.videoRepeat,
                     onChange = { onChange(settings.copy(videoRepeat = it)) },
                 ),
+                sliderRow(
+                    title = stringResource(R.string.set_video_speed),
+                    value = settings.videoSpeed,
+                    range = 25..200,
+                    step = 25,
+                    onChange = { onChange(settings.copy(videoSpeed = it)) },
+                ),
+            ),
+        ),
+
+        SettingSection(
+            stringResource(R.string.tab_trash),
+            listOf(
+                switchRow(
+                    title = stringResource(R.string.set_undo_delete),
+                    summary = stringResource(R.string.set_undo_delete_summary),
+                    checked = settings.undoDelete,
+                    onChange = { onChange(settings.copy(undoDelete = it)) },
+                ),
+                switchRow(
+                    title = stringResource(R.string.set_confirm_forever),
+                    summary = stringResource(R.string.set_confirm_forever_summary),
+                    checked = settings.confirmForever,
+                    onChange = { onChange(settings.copy(confirmForever = it)) },
+                ),
+                switchRow(
+                    title = stringResource(R.string.set_remaining_days),
+                    summary = null,
+                    checked = settings.showRemainingDays,
+                    onChange = { onChange(settings.copy(showRemainingDays = it)) },
+                ),
             ),
         ),
 
         SettingSection(
             stringResource(R.string.editor_title),
             listOf(
+                choiceRow(
+                    title = stringResource(R.string.set_save_choice),
+                    current = settings.saveChoice,
+                    options = SaveChoice.entries,
+                    label = { stringResource(saveChoiceLabel(it)) },
+                    onPick = { onChange(settings.copy(saveChoice = it)) },
+                ),
                 sliderRow(
                     title = stringResource(R.string.set_jpeg_quality),
                     value = settings.jpegQuality,
                     range = 60..100,
                     onChange = { onChange(settings.copy(jpegQuality = it)) },
+                ),
+                switchRow(
+                    title = stringResource(R.string.set_save_beside),
+                    summary = stringResource(R.string.set_save_beside_summary),
+                    checked = settings.saveBeside,
+                    onChange = { onChange(settings.copy(saveBeside = it)) },
+                ),
+                switchRow(
+                    title = stringResource(R.string.set_keep_exif),
+                    summary = stringResource(R.string.set_keep_exif_summary),
+                    checked = settings.keepExif,
+                    onChange = { onChange(settings.copy(keepExif = it)) },
                 ),
             ),
         ),
@@ -314,6 +429,26 @@ fun SettingsScreen(
         SettingSection(
             stringResource(R.string.settings_general),
             listOf(
+                choiceRow(
+                    title = stringResource(R.string.set_date_style),
+                    current = settings.dateStyle,
+                    options = DateStyle.entries,
+                    label = { stringResource(dateStyleLabel(it)) },
+                    onPick = { onChange(settings.copy(dateStyle = it)) },
+                ),
+                switchRow(
+                    title = stringResource(R.string.set_binary_sizes),
+                    summary = stringResource(R.string.set_binary_sizes_summary),
+                    checked = settings.binarySizes,
+                    onChange = { onChange(settings.copy(binarySizes = it)) },
+                ),
+                sliderRow(
+                    title = stringResource(R.string.set_cache_limit),
+                    value = settings.cacheLimitMb,
+                    range = 32..1024,
+                    step = 32,
+                    onChange = { onChange(settings.copy(cacheLimitMb = it)) },
+                ),
                 choiceRow(
                     title = stringResource(R.string.set_language),
                     current = settings.language,
@@ -504,6 +639,8 @@ private fun sliderRow(
     range: IntRange,
     onChange: (Int) -> Unit,
     zeroLabel: String? = null,
+    /** How far apart the notches are: 1 for a count, 25 for a percentage. */
+    step: Int = 1,
 ) = SettingRow(title) {
     Column(
         modifier = Modifier
@@ -517,10 +654,14 @@ private fun sliderRow(
         )
         Slider(
             value = value.toFloat(),
-            onValueChange = { onChange(it.roundToInt()) },
+            // Rounded to the notch rather than to the nearest whole number: a
+            // percentage that can stop at 87 is a percentage nobody chose.
+            onValueChange = { picked ->
+                val notches = ((picked - range.first) / step).roundToInt()
+                onChange((range.first + notches * step).coerceIn(range.first, range.last))
+            },
             valueRange = range.first.toFloat()..range.last.toFloat(),
-            // One notch per whole step, so the value cannot land between two.
-            steps = (range.last - range.first - 1).coerceAtLeast(0),
+            steps = ((range.last - range.first) / step - 1).coerceAtLeast(0),
         )
     }
 }
@@ -593,4 +734,36 @@ private fun languageLabel(tag: String) = when (tag) {
     "ru" -> R.string.lang_ru
     "en" -> R.string.lang_en
     else -> R.string.lang_system
+}
+
+private fun accentLabel(accent: Accent) = when (accent) {
+    Accent.DEFAULT -> R.string.accent_default
+    Accent.AMBER -> R.string.accent_amber
+    Accent.AZURE -> R.string.accent_azure
+    Accent.MOSS -> R.string.accent_moss
+    Accent.PLUM -> R.string.accent_plum
+}
+
+private fun tileShapeLabel(shape: TileShape) = when (shape) {
+    TileShape.SQUARE -> R.string.tiles_square
+    TileShape.MOSAIC -> R.string.tiles_mosaic
+}
+
+private fun viewerTitleLabel(title: ViewerTitle) = when (title) {
+    ViewerTitle.DATE_AND_NAME -> R.string.title_date_and_name
+    ViewerTitle.DATE -> R.string.title_date
+    ViewerTitle.NAME -> R.string.title_name
+    ViewerTitle.NOTHING -> R.string.title_nothing
+}
+
+private fun saveChoiceLabel(choice: SaveChoice) = when (choice) {
+    SaveChoice.ASK -> R.string.save_ask
+    SaveChoice.COPY -> R.string.save_copy
+    SaveChoice.OVERWRITE -> R.string.save_overwrite
+}
+
+private fun dateStyleLabel(style: DateStyle) = when (style) {
+    DateStyle.AUTO -> R.string.date_style_auto
+    DateStyle.DAY_FIRST -> R.string.date_style_day
+    DateStyle.YEAR_FIRST -> R.string.date_style_year
 }

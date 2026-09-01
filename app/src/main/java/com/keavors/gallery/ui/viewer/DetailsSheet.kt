@@ -24,6 +24,7 @@ import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
 import com.keavors.gallery.data.MediaDetails
+import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.formatBytes
 import com.keavors.gallery.data.formatMegapixels
@@ -40,7 +41,7 @@ import java.util.Locale
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailsSheet(item: MediaItem, onDismiss: () -> Unit) {
+fun DetailsSheet(item: MediaItem, settings: GallerySettings, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val locale = Locale.forLanguageTag(ComposeLocale.current.toLanguageTag())
@@ -57,12 +58,12 @@ fun DetailsSheet(item: MediaItem, onDismiss: () -> Unit) {
                 modifier = Modifier.padding(bottom = 14.dp),
             )
 
-            DetailRow(stringResource(R.string.details_taken), formatShotDate(item.takenAt, locale))
+            DetailRow(stringResource(R.string.details_taken), formatShotDate(item.takenAt, locale, settings.dateStyle))
             DetailRow(
                 stringResource(R.string.details_resolution),
                 buildResolution(item.width, item.height),
             )
-            DetailRow(stringResource(R.string.details_size), formatBytes(item.sizeBytes, locale))
+            DetailRow(stringResource(R.string.details_size), formatBytes(item.sizeBytes, locale, settings.binarySizes))
             if (item.isVideo && item.durationMs > 0) {
                 DetailRow(stringResource(R.string.details_duration), formatDuration(item.durationMs))
             }

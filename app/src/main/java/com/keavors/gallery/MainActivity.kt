@@ -84,6 +84,8 @@ class MainActivity : ComponentActivity() {
                 themeMode = settings.themeMode,
                 palette = settings.palette,
                 pureBlack = settings.pureBlack,
+                accent = settings.accent,
+                fontScale = settings.fontScale,
             ) {
                 GalleryApp(
                     settings = settings,

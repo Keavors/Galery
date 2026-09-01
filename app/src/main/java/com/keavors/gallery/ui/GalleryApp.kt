@@ -24,6 +24,10 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.drawWithContent
@@ -70,6 +75,7 @@ import com.keavors.gallery.data.copyItemsTo
 import com.keavors.gallery.data.renamedFolderPath
 import com.keavors.gallery.data.writeRequestFor
 import com.keavors.gallery.data.inAlbum
+import com.keavors.gallery.data.visibleIn
 import com.keavors.gallery.data.indexOfId
 import com.keavors.gallery.data.mediaAccess
 import com.keavors.gallery.data.mediaPermissions
@@ -145,8 +151,10 @@ fun GalleryApp(
     // timeline, albums, viewer — is looking at the same library in the same
     // order, and paging never disagrees with the grid it was opened from.
     val rawItems = (library as? LibraryState.Ready)?.items.orEmpty()
-    val libraryItems = remember(rawItems, settings.sortBy, settings.sortOrder, settings.showVideos) {
-        rawItems.filteredFor(settings).sortedFor(settings.sortBy, settings.sortOrder)
+    val libraryItems = remember(rawItems, settings, albumPrefs.hidden) {
+        rawItems.filteredFor(settings)
+            .visibleIn(albumPrefs, settings.showHiddenFolders)
+            .sortedFor(settings.sortBy, settings.sortOrder)
     }
 
     // Every folder on the device, worked out once: the albums screen draws them
@@ -193,6 +201,8 @@ fun GalleryApp(
     val trimFailed = stringResource(R.string.trim_failed)
     val restoreFailedNote = stringResource(R.string.vault_restore_failed)
     val savedNote = stringResource(R.string.settings_saved)
+    val deletedNote = stringResource(R.string.delete_done)
+    val undoLabel = stringResource(R.string.action_undo)
     val movedNote = stringResource(R.string.folder_moved)
     val moveFailedNote = stringResource(R.string.folder_move_failed)
     val copiedNote = stringResource(R.string.folder_copied)
@@ -227,7 +237,7 @@ fun GalleryApp(
     LaunchedEffect(selected, cacheSummary) {
         if (selected == Tab.SETTINGS.ordinal && cacheSummary.isEmpty()) {
             val bytes = SingletonImageLoader.get(context).diskCache?.size ?: 0L
-            cacheSummary = formatBytes(bytes)
+            cacheSummary = formatBytes(bytes, binary = settings.binarySizes)
         }
     }
 
@@ -439,6 +449,25 @@ fun GalleryApp(
         }
     }
 
+    // Deleting without being asked first, and the way back offered afterwards.
+    // The file goes to the system trash either way — this is only about whether
+    // the question comes before the act or the apology comes after it.
+    val snackbar = remember { SnackbarHostState() }
+    val undoableDelete: (List<MediaItem>) -> Unit = { doomed ->
+        writer.setTrashed(doomed, trashed = true)
+        scope.launch {
+            val answer = snackbar.showSnackbar(
+                message = deletedNote.format(doomed.size),
+                actionLabel = undoLabel,
+                withDismissAction = false,
+                duration = SnackbarDuration.Short,
+            )
+            if (answer == SnackbarResult.ActionPerformed) {
+                writer.setTrashed(doomed, trashed = false)
+            }
+        }
+    }
+
     val hideItems: (List<MediaItem>) -> Unit = { chosen ->
         scope.launch {
             // Copy first, record second, delete last. Any other order risks the
@@ -535,10 +564,14 @@ fun GalleryApp(
                     } else {
                         // A fade with a whisper of scale: tabs are siblings, so
                         // nothing should slide in from a direction implying
-                        // hierarchy.
-                        (fadeIn(tween(TAB_FADE_IN)) +
-                            scaleIn(tween(TAB_FADE_IN), initialScale = 0.985f))
-                            .togetherWith(fadeOut(tween(TAB_FADE_OUT)))
+                        // hierarchy. The durations are stretched or squeezed by
+                        // the speed setting, so one number moves every animation
+                        // in the app rather than each having its own opinion.
+                        val enter = settings.animationSpeed * TAB_FADE_IN / 100
+                        val exit = settings.animationSpeed * TAB_FADE_OUT / 100
+                        (fadeIn(tween(enter)) +
+                            scaleIn(tween(enter), initialScale = 0.985f))
+                            .togetherWith(fadeOut(tween(exit)))
                     }
                 },
                 label = "tab",
@@ -556,6 +589,7 @@ fun GalleryApp(
                     ) {
                         PhotosScreen(
                             items = libraryItems,
+                            onUndoableDelete = undoableDelete,
                             loading = library !is LibraryState.Ready,
                             settings = settings,
                             writer = writer,
@@ -572,7 +606,7 @@ fun GalleryApp(
                             context.startActivity(appSettingsIntent(context.packageName))
                         },
                     ) {
-                        TrashScreen(items = trash, writer = writer)
+                        TrashScreen(settings = settings, items = trash, writer = writer)
                     }
 
                     // Settings never sits behind the gate: it is where a person
@@ -699,6 +733,7 @@ fun GalleryApp(
         } else folder?.let { route ->
             AlbumScreen(
                 title = route.title,
+                onUndoableDelete = undoableDelete,
                 items = folderItems,
                 settings = settings,
                 writer = writer,
@@ -728,6 +763,7 @@ fun GalleryApp(
                     settings = settings,
                     writer = writer,
                     onEdit = { editing = it },
+                    onUndoableDelete = undoableDelete,
                     onRestoreFromVault = { item ->
                         scope.launch {
                             // Saying nothing was the real bug here: an operation
@@ -767,6 +803,7 @@ fun GalleryApp(
             if (subject.isVideo) {
                 VideoTrimScreen(
                     item = subject,
+                    settings = settings,
                     onSaved = {
                         Toast.makeText(context, editorSaved, Toast.LENGTH_SHORT).show()
                         closeEditorOnto(subject)
@@ -787,7 +824,7 @@ fun GalleryApp(
             } else {
                 EditorScreen(
                     item = subject,
-                    jpegQuality = settings.jpegQuality,
+                    settings = settings,
                     onSaved = { keptMetadata ->
                         // A photograph that came back without its date and place
                         // is still saved, but it is not what was asked for
@@ -813,6 +850,13 @@ fun GalleryApp(
                 )
             }
         }
+
+        SnackbarHost(
+            hostState = snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .safeDrawingPadding(),
+        )
 
         // In front of everything else, including a photo another app sent over:
         // arriving from outside must not be a way past the lock. Which is why it

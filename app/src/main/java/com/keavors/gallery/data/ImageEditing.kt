@@ -275,9 +275,11 @@ suspend fun Context.saveEditedCopy(
     bitmap: Bitmap,
     quality: Int,
     exif: Map<String, String>,
+    /** False to put every copy in the pictures folder instead of by the original. */
+    besideOriginal: Boolean = true,
 ): SaveResult = withContext(Dispatchers.IO) {
     val beside = item.relativePath.trim().trim('/')
-        .takeIf { it.isNotEmpty() && !item.relativePath.startsWith("/") }
+        .takeIf { besideOriginal && it.isNotEmpty() && !item.relativePath.startsWith("/") }
 
     // Beside the original if the library will have it there, and in Pictures if
     // it will not. A photograph living in a messenger's own folder cannot be

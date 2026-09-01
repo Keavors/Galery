@@ -4,6 +4,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
+import com.keavors.gallery.data.Accent
 import com.keavors.gallery.data.Palette
 
 // ---------------------------------------------------------------- coffee ----
@@ -133,3 +134,32 @@ internal fun ColorScheme.pureBlack(): ColorScheme = copy(
     surfaceContainerHigh = Color(0xFF161616),
     surfaceContainerHighest = Color(0xFF1E1E1E),
 )
+
+/**
+ * Puts a chosen colour where the palette's own marking colour was.
+ *
+ * Only the marking colours move — the one used for buttons, the selected tab and
+ * the tint over a chosen photograph — because a palette is a whole scheme of
+ * surfaces and text that has to go on agreeing with itself. Two shades each: one
+ * for the colour on light backgrounds, one for the same colour on dark, since a
+ * shade that reads well against paper disappears against night.
+ */
+internal fun ColorScheme.withAccent(accent: Accent, dark: Boolean): ColorScheme {
+    val (main, container) = when (accent) {
+        Accent.DEFAULT -> return this
+        Accent.AMBER -> if (dark) Color(0xFFF2B44A) to Color(0xFF614000)
+        else Color(0xFF8A5A12) to Color(0xFFFFDDA8)
+        Accent.AZURE -> if (dark) Color(0xFF8FCBFF) to Color(0xFF00497D)
+        else Color(0xFF00639B) to Color(0xFFCEE5FF)
+        Accent.MOSS -> if (dark) Color(0xFF9BD49B) to Color(0xFF17521C)
+        else Color(0xFF2E6B33) to Color(0xFFB8F0B7)
+        Accent.PLUM -> if (dark) Color(0xFFE6B4F5) to Color(0xFF5B2C6B)
+        else Color(0xFF7A3E8C) to Color(0xFFF7D8FF)
+    }
+    return copy(
+        primary = main,
+        onPrimary = if (dark) Color(0xFF1A1A1A) else Color(0xFFFFFFFF),
+        primaryContainer = container,
+        onPrimaryContainer = if (dark) Color(0xFFF2F2F2) else Color(0xFF1A1A1A),
+    )
+}

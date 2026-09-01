@@ -51,7 +51,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.keavors.gallery.R
+import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaItem
+import com.keavors.gallery.data.SaveChoice
 import com.keavors.gallery.data.TrimRange
 import com.keavors.gallery.data.TrimResult
 import com.keavors.gallery.data.contentUri
@@ -91,6 +93,7 @@ private const val TICK_MS = 60L
 @Composable
 fun VideoTrimScreen(
     item: MediaItem,
+    settings: GallerySettings,
     onSaved: () -> Unit,
     onFailed: (String) -> Unit,
     onClose: () -> Unit,
@@ -188,7 +191,14 @@ fun VideoTrimScreen(
                 modifier = Modifier.weight(1f),
             )
             TextButton(
-                onClick = { askingHow = true },
+                onClick = {
+                    when (settings.saveChoice) {
+                        SaveChoice.ASK -> askingHow = true
+                        SaveChoice.COPY -> save(overwrite = false)
+                        SaveChoice.OVERWRITE ->
+                            overwriteLauncher.launch(writeRequestFor(context, item))
+                    }
+                },
                 enabled = !working && !range.isWhole(duration),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
                 modifier = Modifier.heightIn(min = TOUCH_TARGET),

@@ -6,6 +6,8 @@ import com.keavors.gallery.R
 import com.keavors.gallery.data.DateBucket
 import com.keavors.gallery.data.Grouping
 import java.time.LocalDate
+import com.keavors.gallery.data.DateStyle
+import com.keavors.gallery.data.datePattern
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -23,6 +25,7 @@ fun sectionTitle(
     locale: Locale,
     today: LocalDate,
     relativeDates: Boolean,
+    dateStyle: DateStyle = DateStyle.AUTO,
 ): String = when (grouping) {
     Grouping.YEAR -> bucket.year.toString()
 
@@ -40,7 +43,14 @@ fun sectionTitle(
             relativeDates && date == today -> stringResource(R.string.date_today)
             relativeDates && date == today.minusDays(1) -> stringResource(R.string.date_yesterday)
             else -> {
-                val pattern = if (bucket.year == today.year) "d MMMM, EEEE" else "d MMMM yyyy, EEEE"
+                val chosen = dateStyle.datePattern()
+                val pattern = when {
+                    // A chosen order is a chosen order: the weekday still comes
+                    // along, because it is the part people navigate by.
+                    chosen != null -> "$chosen, EEEE"
+                    bucket.year == today.year -> "d MMMM, EEEE"
+                    else -> "d MMMM yyyy, EEEE"
+                }
                 DateTimeFormatter.ofPattern(pattern, locale).format(date)
                     .replaceFirstChar { it.titlecase(locale) }
             }

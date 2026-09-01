@@ -27,6 +27,7 @@ fun PhotosScreen(
     writer: MediaWriter,
     albumActions: AlbumActions,
     onHide: (List<MediaItem>) -> Unit,
+    onUndoableDelete: (List<MediaItem>) -> Unit,
     onOpen: (item: MediaItem, thumbBucketPx: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -57,6 +58,7 @@ fun PhotosScreen(
             writer = writer,
             albumActions = albumActions,
             onHide = onHide,
+            onUndoableDelete = onUndoableDelete,
             onOpen = onOpen,
             modifier = modifier,
         )

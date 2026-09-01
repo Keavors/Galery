@@ -68,6 +68,8 @@ import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.SaveOutcome
 import com.keavors.gallery.data.SaveResult
 import com.keavors.gallery.data.applyOps
+import com.keavors.gallery.data.GallerySettings
+import com.keavors.gallery.data.SaveChoice
 import com.keavors.gallery.data.carriedExif
 import com.keavors.gallery.data.times
 import com.keavors.gallery.data.colorMatrixFor
@@ -112,7 +114,7 @@ private enum class EditorTab { GEOMETRY, COLOUR, FILTERS, MARKUP }
 @Composable
 fun EditorScreen(
     item: MediaItem,
-    jpegQuality: Int,
+    settings: GallerySettings,
     onSaved: (keptMetadata: Boolean) -> Unit,
     onFailed: (reason: String) -> Unit,
     onClose: () -> Unit,
@@ -230,7 +232,7 @@ fun EditorScreen(
     fun save(mode: SaveMode) {
         scope.launch {
             working = true
-            val outcome = saveEdit(context, item, ops, mode, jpegQuality)
+            val outcome = saveEdit(context, item, ops, mode, settings)
             working = false
             when (outcome.outcome) {
                 SaveOutcome.SAVED -> onSaved(true)
@@ -303,7 +305,15 @@ fun EditorScreen(
                 },
             )
             TextButton(
-                onClick = { askingHow = true },
+                // The dialog only when nobody has already answered it for good.
+                onClick = {
+                    when (settings.saveChoice) {
+                        SaveChoice.ASK -> askingHow = true
+                        SaveChoice.COPY -> save(SaveMode.COPY)
+                        SaveChoice.OVERWRITE ->
+                            overwriteLauncher.launch(writeRequestFor(context, item))
+                    }
+                },
                 enabled = !ops.isIdentity && !working && preview != null,
                 // The one button here that saves over a photograph, and it was
                 // the smallest thing on the bar.
@@ -1267,15 +1277,23 @@ private suspend fun saveEdit(
     item: MediaItem,
     ops: EditOps,
     mode: SaveMode,
-    quality: Int,
+    settings: GallerySettings,
 ): SaveResult = withContext(Dispatchers.IO) {
+    val quality = settings.jpegQuality
     // Read before anything is written: overwriting destroys the original, and
     // by then there is nothing left to read the camera and the place off.
     //
     // What happens to the date depends on which save this is, and that is the
     // policy rather than an accident: a replacement is the same photograph and
     // keeps its day; a copy is a new file made now, and is dated now.
-    val exif = context.carriedExif(item, keepWhen = mode == SaveMode.OVERWRITE)
+    // Nothing is carried at all when the setting says not to: a photograph
+    // saved without its history is a deliberate choice somebody made once in
+    // settings, not something to be quietly overridden here.
+    val exif = if (settings.keepExif) {
+        context.carriedExif(item, keepWhen = mode == SaveMode.OVERWRITE)
+    } else {
+        emptyMap()
+    }
 
     val ceiling = maxEditablePixels(Runtime.getRuntime().maxMemory())
     val full = context.decodeForEditing(item, ceiling)
@@ -1283,7 +1301,9 @@ private suspend fun saveEdit(
     val edited = applyOps(full, ops)
 
     val outcome = when (mode) {
-        SaveMode.COPY -> context.saveEditedCopy(item, edited, quality, exif)
+        SaveMode.COPY ->
+            context.saveEditedCopy(item, edited, quality, exif, settings.saveBeside)
+
         SaveMode.OVERWRITE -> context.overwriteWith(item, edited, quality, exif)
     }
 

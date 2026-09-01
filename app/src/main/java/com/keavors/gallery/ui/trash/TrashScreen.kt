@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.keavors.gallery.R
 import com.keavors.gallery.data.MediaItem
 import com.keavors.gallery.data.MediaWriter
+import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.daysUntilExpiry
 import com.keavors.gallery.ui.common.ConfirmDialog
 import com.keavors.gallery.ui.photos.Thumbnail
@@ -55,6 +56,7 @@ import com.keavors.gallery.ui.photos.Thumbnail
  */
 @Composable
 fun TrashScreen(
+    settings: GallerySettings,
     items: List<MediaItem>,
     writer: MediaWriter,
     modifier: Modifier = Modifier,
@@ -98,7 +100,14 @@ fun TrashScreen(
             onDeleteForever = {
                 val doomed = chosen.ifEmpty { items }
                 if (writer.needsOwnConfirmation) {
-                    confirmForever = doomed
+                    // Straight through when nobody wants to be asked twice about
+                    // the one action here that cannot be undone.
+                    if (settings.confirmForever) {
+                        confirmForever = doomed
+                    } else {
+                        writer.deleteForever(doomed)
+                        selected = emptySet()
+                    }
                 } else {
                     selected = emptySet()
                     writer.deleteForever(doomed)
@@ -116,6 +125,7 @@ fun TrashScreen(
             items(items, key = { it.id }) { item ->
                 TrashTile(
                     item = item,
+                    showDays = settings.showRemainingDays,
                     selected = item.id in selected,
                     onToggle = {
                         selected = if (item.id in selected) selected - item.id else selected + item.id
@@ -188,9 +198,14 @@ private fun TrashBar(
 private fun TrashTile(
     item: MediaItem,
     selected: Boolean,
+    showDays: Boolean,
     onToggle: () -> Unit,
 ) {
-    val days = daysUntilExpiry(item.expiresAt, System.currentTimeMillis())
+    val days = if (showDays) {
+        daysUntilExpiry(item.expiresAt, System.currentTimeMillis())
+    } else {
+        null
+    }
 
     Box(
         modifier = Modifier
