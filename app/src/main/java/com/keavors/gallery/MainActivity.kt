@@ -1,6 +1,8 @@
 package com.keavors.gallery
 
 import android.app.LocaleManager
+import android.app.PictureInPictureParams
+import android.util.Rational
 import android.content.Intent
 import android.os.LocaleList
 import android.graphics.Color
@@ -23,6 +25,7 @@ import com.keavors.gallery.data.startPreview
 import com.keavors.gallery.ui.ExternalOpen
 import com.keavors.gallery.ui.GalleryApp
 import com.keavors.gallery.ui.LaunchMode
+import com.keavors.gallery.ui.PipHolder
 import com.keavors.gallery.ui.theme.GalleryTheme
 
 /**
@@ -40,6 +43,13 @@ class MainActivity : ComponentActivity() {
 
     /** Whether this run is browsing or handing a photo back to another app. */
     private var launchMode by mutableStateOf(LaunchMode.BROWSE)
+
+    /** What the viewer would keep playing in a corner, and whether it may. */
+    private val pip = PipHolder()
+    private var pipAllowed = false
+
+    /** True while the app is that corner. Everything but the video hides. */
+    private var inPip by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Edge to edge from the very first frame: the viewer relies on the
@@ -76,6 +86,10 @@ class MainActivity : ComponentActivity() {
 
             // Not FLAG_SECURE: that would also stop screenshots being taken
             // of the gallery, which is a different wish entirely.
+            LaunchedEffect(settings.pictureInPicture) {
+                pipAllowed = settings.pictureInPicture
+            }
+
             LaunchedEffect(settings.hideInRecents) {
                 setRecentsScreenshotEnabled(!settings.hideInRecents)
             }
@@ -93,7 +107,10 @@ class MainActivity : ComponentActivity() {
                     repository = app.media,
                     albumStore = app.albums,
                     vaultStore = app.vault,
+                    watchStore = app.watched,
                     launchMode = launchMode,
+                    pip = pip,
+                    inPip = inPip,
                     pendingOpen = pendingOpen,
                     onExternalHandled = { pendingOpen = null },
                     onPicked = { item ->
@@ -111,6 +128,34 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    /**
+     * The one moment Android gives an app to say "carry on in the corner".
+     *
+     * Only for a video, only when it has been asked for in the settings, and
+     * only with a shape the system will accept: too tall or too wide and it
+     * refuses the whole request rather than trimming it.
+     */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val video = pip.video ?: return
+        if (!pipAllowed) return
+
+        val ratio = Rational(
+            video.width.coerceAtLeast(1),
+            video.height.coerceAtLeast(1),
+        ).takeIf { video.width > 0 && video.height > 0 && it.toFloat() in 0.42f..2.39f }
+            ?: Rational(16, 9)
+
+        runCatching {
+            enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(ratio).build())
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        inPip = isInPictureInPictureMode
     }
 
     override fun onNewIntent(intent: Intent) {

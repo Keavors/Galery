@@ -1,6 +1,7 @@
 package com.keavors.gallery.ui.viewer
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -8,11 +9,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,13 +35,23 @@ import kotlinx.coroutines.delay
 /** How often the position readout catches up while something is playing. */
 private const val TICK_MS = 200L
 
+/** The speeds the button walks through, as percentages of ordinary. */
+private val SPEEDS = intArrayOf(50, 75, 100, 150, 200)
+
+/** Assumed when the file does not say, which is most of the time for a step. */
+private const val FALLBACK_FPS = 30f
+
 /**
- * Play, scrub, mute. Nothing else, and nothing on a timer of its own — these
- * appear and disappear with the rest of the chrome, so a tap on the video takes
- * the controls away along with the clock and the navigation buttons.
+ * Two rows: where the video is, and what can be done to it.
+ *
+ * One row would fit on a wide phone and cramp on any other — seven controls and
+ * a scrub bar is too much for a single line. Nothing here runs on a timer of its
+ * own: these appear and disappear with the rest of the chrome, so a tap on the
+ * video takes the controls away along with the clock and the navigation buttons.
  */
 @Composable
 fun VideoControls(player: ExoPlayer, modifier: Modifier = Modifier) {
+    var speed by remember { mutableIntStateOf((player.playbackParameters.speed * 100).toInt()) }
     var playing by remember { mutableStateOf(player.isPlaying) }
     var muted by remember { mutableStateOf(player.volume == 0f) }
     var positionMs by remember { mutableLongStateOf(0L) }
@@ -85,70 +98,124 @@ fun VideoControls(player: ExoPlayer, modifier: Modifier = Modifier) {
     }
     val shownMs = if (scrubbing) (scrubFraction * durationMs).toLong() else positionMs
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-    ) {
-        ChromeIconButton(
-            icon = if (playing) R.drawable.ic_pause else R.drawable.ic_play,
-            contentDescription = stringResource(
-                if (playing) R.string.video_pause else R.string.video_play
-            ),
-            iconSize = 22.dp,
-            onClick = {
-                if (playing) {
-                    player.pause()
-                } else {
-                    // Starting again from the end should replay rather than sit
-                    // on the last frame doing nothing.
-                    if (durationMs > 0 && player.currentPosition >= durationMs - 100) {
-                        player.seekTo(0)
+    Column(modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = formatDuration(shownMs),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+            )
+
+            Slider(
+                value = fraction,
+                onValueChange = {
+                    scrubbing = true
+                    scrubFraction = it
+                },
+                onValueChangeFinished = {
+                    if (durationMs > 0) player.seekTo((scrubFraction * durationMs).toLong())
+                    scrubbing = false
+                },
+                colors = SliderDefaults.colors(
+                    thumbColor = Color.White,
+                    activeTrackColor = Color.White,
+                    inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+                ),
+                modifier = Modifier.weight(1f),
+            )
+
+            Text(
+                text = formatDuration(durationMs),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            // A step is a pause and a seek of one frame. The file says how long
+            // a frame is when it knows; thirty a second is the guess when it
+            // does not, and being a frame or two out on a step is not a thing
+            // anybody can see.
+            ChromeIconButton(
+                icon = R.drawable.ic_step_back,
+                contentDescription = stringResource(R.string.video_step_back),
+                iconSize = 20.dp,
+                onClick = { player.stepFrame(forward = false) },
+            )
+
+            ChromeIconButton(
+                icon = if (playing) R.drawable.ic_pause else R.drawable.ic_play,
+                contentDescription = stringResource(
+                    if (playing) R.string.video_pause else R.string.video_play
+                ),
+                iconSize = 26.dp,
+                onClick = {
+                    if (playing) {
+                        player.pause()
+                    } else {
+                        // Starting again from the end should replay rather than
+                        // sit on the last frame doing nothing.
+                        if (durationMs > 0 && player.currentPosition >= durationMs - 100) {
+                            player.seekTo(0)
+                        }
+                        player.play()
                     }
-                    player.play()
-                }
-            },
-        )
+                },
+            )
 
-        Text(
-            text = formatDuration(shownMs),
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White,
-        )
+            ChromeIconButton(
+                icon = R.drawable.ic_step_forward,
+                contentDescription = stringResource(R.string.video_step_forward),
+                iconSize = 20.dp,
+                onClick = { player.stepFrame(forward = true) },
+            )
 
-        Slider(
-            value = fraction,
-            onValueChange = {
-                scrubbing = true
-                scrubFraction = it
-            },
-            onValueChangeFinished = {
-                if (durationMs > 0) player.seekTo((scrubFraction * durationMs).toLong())
-                scrubbing = false
-            },
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = Color.White,
-                inactiveTrackColor = Color.White.copy(alpha = 0.3f),
-            ),
-            modifier = Modifier.weight(1f),
-        )
+            TextButton(
+                onClick = {
+                    val next = SPEEDS[(SPEEDS.indexOf(speed).coerceAtLeast(0) + 1) % SPEEDS.size]
+                    speed = next
+                    player.setPlaybackSpeed(next / 100f)
+                },
+            ) {
+                Text(
+                    text = stringResource(R.string.video_speed_value, speed / 100f),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White,
+                )
+            }
 
-        Text(
-            text = formatDuration(durationMs),
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White,
-        )
-
-        ChromeIconButton(
-            icon = if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on,
-            contentDescription = stringResource(
-                if (muted) R.string.video_sound_on else R.string.video_sound_off
-            ),
-            iconSize = 20.dp,
-            onClick = { player.volume = if (muted) 1f else 0f },
-        )
+            ChromeIconButton(
+                icon = if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on,
+                contentDescription = stringResource(
+                    if (muted) R.string.video_sound_on else R.string.video_sound_off
+                ),
+                iconSize = 20.dp,
+                onClick = { player.volume = if (muted) 1f else 0f },
+            )
+        }
     }
+}
+
+/**
+ * Moves one frame and stops there.
+ *
+ * Paused first, deliberately: a step while playing is a step the next frame
+ * undoes. The seek is exact rather than to the nearest keyframe, which is the
+ * whole point of stepping — the nearest keyframe can be seconds away.
+ */
+private fun ExoPlayer.stepFrame(forward: Boolean) {
+    pause()
+    val fps = videoFormat?.frameRate?.takeIf { it > 1f } ?: FALLBACK_FPS
+    val frame = (1000f / fps).toLong().coerceAtLeast(1L)
+    val target = (currentPosition + if (forward) frame else -frame)
+        .coerceIn(0L, duration.takeIf { it > 0 } ?: Long.MAX_VALUE)
+    seekTo(target)
 }

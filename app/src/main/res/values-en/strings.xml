@@ -326,4 +326,11 @@
     <string name="slideshow">Slideshow</string>
     <string name="slideshow_stop">Stop the slideshow</string>
     <string name="album_root">Internal storage</string>
+    <string name="video_step_back">A frame back</string>
+    <string name="video_step_forward">A frame on</string>
+    <string name="video_speed_value">%1$.2g×</string>
+    <string name="set_video_resume">Continue where it stopped</string>
+    <string name="set_video_resume_summary">When a video was left in the middle</string>
+    <string name="set_pip">Picture in picture</string>
+    <string name="set_pip_summary">The video stays in a corner when you leave the gallery</string>
 </resources>

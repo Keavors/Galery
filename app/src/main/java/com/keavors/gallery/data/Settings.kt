@@ -102,6 +102,10 @@ data class GallerySettings(
     val videoRepeat: Boolean = false,
     /** Percent of ordinary speed a video starts at. */
     val videoSpeed: Int = 100,
+    /** Take a video back to where it was left off, if it was left in the middle. */
+    val videoResume: Boolean = false,
+    /** Keep a video playing in a corner of the screen when the app is left. */
+    val pictureInPicture: Boolean = false,
 
     // Trash and deleting
     /**
@@ -182,6 +186,8 @@ fun encodeSettings(s: GallerySettings): String = JSONObject().apply {
     put("videoSound", s.videoSound)
     put("videoRepeat", s.videoRepeat)
     put("videoSpeed", s.videoSpeed)
+    put("videoResume", s.videoResume)
+    put("pictureInPicture", s.pictureInPicture)
     put("undoDelete", s.undoDelete)
     put("confirmForever", s.confirmForever)
     put("showRemainingDays", s.showRemainingDays)
@@ -242,6 +248,8 @@ fun decodeSettings(json: String?): GallerySettings {
             videoSound = o.optBoolean("videoSound", d.videoSound),
             videoRepeat = o.optBoolean("videoRepeat", d.videoRepeat),
             videoSpeed = o.optInt("videoSpeed", d.videoSpeed).coerceIn(25, 400),
+            videoResume = o.optBoolean("videoResume", d.videoResume),
+            pictureInPicture = o.optBoolean("pictureInPicture", d.pictureInPicture),
             undoDelete = o.optBoolean("undoDelete", d.undoDelete),
             confirmForever = o.optBoolean("confirmForever", d.confirmForever),
             showRemainingDays = o.optBoolean("showRemainingDays", d.showRemainingDays),

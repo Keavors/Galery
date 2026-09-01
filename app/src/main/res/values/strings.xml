@@ -344,4 +344,11 @@
     <string name="slideshow">Слайдшоу</string>
     <string name="slideshow_stop">Остановить слайдшоу</string>
     <string name="album_root">Внутренняя память</string>
+    <string name="video_step_back">Кадр назад</string>
+    <string name="video_step_forward">Кадр вперёд</string>
+    <string name="video_speed_value">%1$.2g×</string>
+    <string name="set_video_resume">Продолжать с места остановки</string>
+    <string name="set_video_resume_summary">Если видео было брошено в середине</string>
+    <string name="set_pip">Картинка в картинке</string>
+    <string name="set_pip_summary">Видео остаётся в углу экрана, когда выходишь из галереи</string>
 </resources>

@@ -332,6 +332,18 @@ fun SettingsScreen(
                     checked = settings.videoRepeat,
                     onChange = { onChange(settings.copy(videoRepeat = it)) },
                 ),
+                switchRow(
+                    title = stringResource(R.string.set_video_resume),
+                    summary = stringResource(R.string.set_video_resume_summary),
+                    checked = settings.videoResume,
+                    onChange = { onChange(settings.copy(videoResume = it)) },
+                ),
+                switchRow(
+                    title = stringResource(R.string.set_pip),
+                    summary = stringResource(R.string.set_pip_summary),
+                    checked = settings.pictureInPicture,
+                    onChange = { onChange(settings.copy(pictureInPicture = it)) },
+                ),
                 sliderRow(
                     title = stringResource(R.string.set_video_speed),
                     value = settings.videoSpeed,

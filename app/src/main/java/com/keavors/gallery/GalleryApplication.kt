@@ -14,6 +14,7 @@ import com.keavors.gallery.data.GallerySettings
 import com.keavors.gallery.data.MediaRepository
 import com.keavors.gallery.data.SettingsStore
 import com.keavors.gallery.data.VaultStore
+import com.keavors.gallery.data.WatchStore
 import com.keavors.gallery.data.MediaThumbnailFetcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -43,6 +44,10 @@ class GalleryApplication : Application(), SingletonImageLoader.Factory {
     lateinit var vault: VaultStore
         private set
 
+    /** Where each video was left off. */
+    lateinit var watched: WatchStore
+        private set
+
     /**
      * How large the thumbnail cache on disk may grow, in bytes.
      *
@@ -61,6 +66,7 @@ class GalleryApplication : Application(), SingletonImageLoader.Factory {
         albums = AlbumStore(this)
         settings = SettingsStore(this)
         vault = VaultStore(this)
+        watched = WatchStore(this)
 
         appScope.launch {
             settings.settings.collect { cacheLimitBytes = it.cacheLimitMb * BYTES_PER_MB }

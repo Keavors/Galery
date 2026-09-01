@@ -54,6 +54,7 @@ import com.keavors.gallery.data.contentUri
 import com.keavors.gallery.data.motionVideoOf
 import com.keavors.gallery.data.previewCacheKey
 import com.keavors.gallery.data.previewRequest
+import com.keavors.gallery.ui.PipHolder
 import com.keavors.gallery.ui.common.ConfirmDialog
 import com.keavors.gallery.R
 import androidx.compose.ui.res.stringResource
@@ -147,9 +148,15 @@ fun ViewerScreen(
     settings: GallerySettings,
     writer: MediaWriter,
     onRestoreFromVault: (MediaItem) -> Unit,
+    /** Where this video was left off last time, or null to start at the beginning. */
+    resumeAt: (Long) -> Long?,
+    /** Told where a video got to, so the next opening can pick it up there. */
+    onWatched: (id: Long, positionMs: Long, durationMs: Long) -> Unit,
     /** Deletes without asking and offers the way back. See the setting. */
     onUndoableDelete: (List<MediaItem>) -> Unit,
     onEdit: (MediaItem) -> Unit,
+    pip: PipHolder,
+    inPip: Boolean,
     onSetCover: ((itemId: Long) -> Unit)?,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -235,6 +242,32 @@ fun ViewerScreen(
         playing.setPlaybackSpeed(settings.videoSpeed / 100f)
         playing.playWhenReady = settings.videoAutoplay
         playing.prepare()
+
+        // Back to where it was left, if it was left anywhere worth returning to.
+        // After prepare rather than before: a seek on a player that has not been
+        // given a file yet is a seek into nothing.
+        if (settings.videoResume) {
+            resumeAt(current.id)?.let { playing.seekTo(it) }
+        }
+    }
+
+    // Where the video being left behind got to. Written when the page changes,
+    // when the viewer closes and when the app goes away — the three ways a video
+    // stops being watched, and none of them is a moment the player announces.
+    val watching by rememberUpdatedState(current)
+    DisposableEffect(watching.id) {
+        onDispose {
+            val playing = player ?: return@onDispose
+            if (watching.isVideo && playing.duration > 0) {
+                onWatched(watching.id, playing.currentPosition, playing.duration)
+            }
+        }
+    }
+
+    // What the app would keep playing if somebody walked out of it now.
+    DisposableEffect(current.id, current.isVideo) {
+        pip.video = current.takeIf { it.isVideo }
+        onDispose { pip.video = null }
     }
 
     // A video left running while the phone is locked or the app is switched away
@@ -242,7 +275,14 @@ fun ViewerScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) player?.pause()
+            if (event == Lifecycle.Event.ON_STOP) {
+                player?.pause()
+                player?.let { playing ->
+                    if (current.isVideo && playing.duration > 0) {
+                        onWatched(current.id, playing.currentPosition, playing.duration)
+                    }
+                }
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -265,6 +305,9 @@ fun ViewerScreen(
     // Chrome that takes itself away after a while. Off by default, because a
     // photo being looked at is not an idle screen and the controls disappearing
     // mid-thought is its own kind of annoyance.
+    // Nothing but the picture fits in the corner.
+    LaunchedEffect(inPip) { if (inPip) chromeVisible = false }
+
     LaunchedEffect(chromeVisible, settings.autoHideSeconds) {
         if (chromeVisible && settings.autoHideSeconds > 0) {
             delay(settings.autoHideSeconds * 1000L)
@@ -495,7 +538,7 @@ fun ViewerScreen(
         }
 
         AnimatedVisibility(
-            visible = chromeVisible,
+            visible = chromeVisible && !inPip,
             enter = fadeIn(tween(180)) + slideInVertically(tween(180)) { -it / 3 },
             exit = fadeOut(tween(180)) + slideOutVertically(tween(180)) { -it / 3 },
             modifier = Modifier
@@ -521,7 +564,7 @@ fun ViewerScreen(
         }
 
         AnimatedVisibility(
-            visible = chromeVisible,
+            visible = chromeVisible && !inPip,
             enter = fadeIn(tween(180)) + slideInVertically(tween(180)) { it / 3 },
             exit = fadeOut(tween(180)) + slideOutVertically(tween(180)) { it / 3 },
             modifier = Modifier

@@ -67,6 +67,8 @@ import com.keavors.gallery.data.AlbumSource
 import com.keavors.gallery.data.AlbumStore
 import android.app.Activity
 import com.keavors.gallery.data.VaultStore
+import com.keavors.gallery.data.WatchPositions
+import com.keavors.gallery.data.WatchStore
 import com.keavors.gallery.data.canAuthenticate
 import com.keavors.gallery.data.deleteRequestFor
 import com.keavors.gallery.data.exportOut
@@ -114,7 +116,10 @@ fun GalleryApp(
     repository: MediaRepository,
     albumStore: AlbumStore,
     vaultStore: VaultStore,
+    watchStore: WatchStore,
     launchMode: LaunchMode,
+    pip: PipHolder,
+    inPip: Boolean,
     pendingOpen: ExternalOpen?,
     onExternalHandled: () -> Unit,
     onPicked: (MediaItem) -> Unit,
@@ -153,6 +158,7 @@ fun GalleryApp(
     val writer = rememberMediaWriter(managesMedia = manageMedia)
     val albumPrefs by albumStore.preferences.collectAsStateWithLifecycle(AlbumPreferences())
     val vaultEntries by vaultStore.entries.collectAsStateWithLifecycle(emptyList())
+    val watched by watchStore.positions.collectAsStateWithLifecycle(WatchPositions())
     val vaultItems = remember(vaultEntries) { vaultEntries.map { vaultStore.asMediaItem(it) } }
     var vaultUnlocked by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -567,9 +573,10 @@ fun GalleryApp(
         Scaffold(
             // Composition and layout are kept so the grid holds its scroll
             // position, but there is no point drawing a thousand tiles under
-            // something opaque.
+            // something opaque — nor anything at all when the whole app is a
+            // thumbnail in the corner of somebody else's screen.
             modifier = Modifier.drawWithContent {
-                if (folder == null && (viewerIndex < 0 || closing)) drawContent()
+                if (!inPip && folder == null && (viewerIndex < 0 || closing)) drawContent()
             },
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
@@ -816,6 +823,12 @@ fun GalleryApp(
                     settings = settings,
                     writer = writer,
                     onEdit = { editing = it },
+                    pip = pip,
+                    inPip = inPip,
+                    resumeAt = { id -> watched.of(id) },
+                    onWatched = { id, position, duration ->
+                        scope.launch { watchStore.remember(id, position, duration) }
+                    },
                     onUndoableDelete = undoableDelete,
                     onRestoreFromVault = { item ->
                         scope.launch {
