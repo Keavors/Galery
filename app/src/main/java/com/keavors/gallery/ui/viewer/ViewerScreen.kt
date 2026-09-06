@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package com.keavors.gallery.ui.viewer
 
 import android.app.Activity
@@ -47,6 +49,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import com.keavors.gallery.data.mediaPlayer
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import android.view.WindowManager
@@ -236,7 +239,7 @@ fun ViewerScreen(
             player?.clearMediaItems()
             return@LaunchedEffect
         }
-        val playing = player ?: ExoPlayer.Builder(context).build().also { player = it }
+        val playing = player ?: context.mediaPlayer().also { player = it }
         playing.setMediaItem(Media3Item.fromUri(current.contentUri()))
         playing.repeatMode =
             if (settings.videoRepeat) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF

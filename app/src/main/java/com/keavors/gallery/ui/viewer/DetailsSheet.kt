@@ -73,6 +73,16 @@ fun DetailsSheet(item: MediaItem, settings: GallerySettings, onDismiss: () -> Un
             DetailRow(stringResource(R.string.details_type), item.mimeType)
             DetailRow(stringResource(R.string.details_folder), item.relativePath.trimEnd('/'))
 
+            DetailRow(stringResource(R.string.details_video_codec), details.videoCodec.orEmpty())
+            DetailRow(stringResource(R.string.details_audio_codec), details.audioCodec.orEmpty())
+            DetailRow(
+                stringResource(R.string.details_frame_rate),
+                details.frameRate?.let { "$it ${stringResource(R.string.unit_fps)}" }.orEmpty(),
+            )
+            DetailRow(
+                stringResource(R.string.details_bitrate),
+                details.bitrate?.let { "$it ${stringResource(R.string.unit_mbit)}" }.orEmpty(),
+            )
             DetailRow(stringResource(R.string.details_camera), details.camera.orEmpty())
             DetailRow(stringResource(R.string.details_lens), details.lens.orEmpty())
             DetailRow(stringResource(R.string.details_iso), details.iso.orEmpty())

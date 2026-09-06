@@ -351,4 +351,10 @@
     <string name="set_video_resume_summary">Если видео было брошено в середине</string>
     <string name="set_pip">Картинка в картинке</string>
     <string name="set_pip_summary">Видео остаётся в углу экрана, когда выходишь из галереи</string>
+    <string name="details_video_codec">Видео</string>
+    <string name="details_audio_codec">Звук</string>
+    <string name="details_frame_rate">Частота кадров</string>
+    <string name="details_bitrate">Битрейт</string>
+    <string name="unit_fps">кадр/с</string>
+    <string name="unit_mbit">Мбит/с</string>
 </resources>

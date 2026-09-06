@@ -88,10 +88,19 @@ object MediaTime {
 fun MediaItem.badgeKind(): BadgeKind? = when {
     isVideo -> null
     mimeType.endsWith("/gif", ignoreCase = true) -> BadgeKind.GIF
-    RAW_TYPES.any { mimeType.endsWith(it, ignoreCase = true) } -> BadgeKind.RAW
-    RAW_EXTENSIONS.any { name.endsWith(it, ignoreCase = true) } -> BadgeKind.RAW
+    isRawPhoto(mimeType, name) -> BadgeKind.RAW
     else -> null
 }
+
+/**
+ * Whether this is a photograph straight off a sensor.
+ *
+ * Asked in two places that must agree: the tile that marks it as raw, and the
+ * decoder that has to open it a different way because Android cannot read one.
+ */
+fun isRawPhoto(mimeType: String?, name: String?): Boolean =
+    RAW_TYPES.any { mimeType?.endsWith(it, ignoreCase = true) == true } ||
+        RAW_EXTENSIONS.any { name?.endsWith(it, ignoreCase = true) == true }
 
 enum class BadgeKind { GIF, RAW }
 

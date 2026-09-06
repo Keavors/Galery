@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.exoplayer.ExoPlayer
+import com.keavors.gallery.data.mediaPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.keavors.gallery.R
@@ -109,7 +110,7 @@ fun VideoTrimScreen(
     var progress by remember { mutableIntStateOf(0) }
     var askingHow by remember { mutableStateOf(false) }
 
-    val player = remember { ExoPlayer.Builder(context).build() }
+    val player = remember { context.mediaPlayer() }
     DisposableEffect(player) {
         onDispose { player.release() }
     }

@@ -333,4 +333,10 @@
     <string name="set_video_resume_summary">When a video was left in the middle</string>
     <string name="set_pip">Picture in picture</string>
     <string name="set_pip_summary">The video stays in a corner when you leave the gallery</string>
+    <string name="details_video_codec">Video</string>
+    <string name="details_audio_codec">Audio</string>
+    <string name="details_frame_rate">Frame rate</string>
+    <string name="details_bitrate">Bit rate</string>
+    <string name="unit_fps">fps</string>
+    <string name="unit_mbit">Mbit/s</string>
 </resources>

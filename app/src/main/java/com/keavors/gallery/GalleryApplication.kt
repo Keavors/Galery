@@ -15,7 +15,10 @@ import com.keavors.gallery.data.MediaRepository
 import com.keavors.gallery.data.SettingsStore
 import com.keavors.gallery.data.VaultStore
 import com.keavors.gallery.data.WatchStore
+import coil3.gif.AnimatedImageDecoder
+import coil3.video.VideoFrameDecoder
 import com.keavors.gallery.data.MediaThumbnailFetcher
+import com.keavors.gallery.data.RawPreviewDecoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -80,7 +83,21 @@ class GalleryApplication : Application(), SingletonImageLoader.Factory {
      */
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
-            .components { add(MediaThumbnailFetcher.Factory(this@GalleryApplication)) }
+            .components {
+                add(MediaThumbnailFetcher.Factory(this@GalleryApplication))
+                // Raw first, because it is the one Android cannot open at all
+                // and the only one worth taking off the platform.
+                add(RawPreviewDecoder.Factory())
+                // A GIF that does not move is a still of a GIF, and this is also
+                // what brings AVIF and animated WebP in: they go through the
+                // system's own ImageDecoder rather than through BitmapFactory,
+                // which has never heard of either.
+                add(AnimatedImageDecoder.Factory())
+                // A frame out of a video file, for the videos in the vault: those
+                // are files in the app's own storage with no library row behind
+                // them, so there is no thumbnail to ask the system for.
+                add(VideoFrameDecoder.Factory())
+            }
             // Thumbnails are bucketed to a few sizes, so a cached one is nearly
             // always usable for a tile of a slightly different width. Demanding
             // an exact match would re-decode the library on every zoom step.

@@ -1,6 +1,8 @@
 package com.keavors.gallery.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MediaTimeTest {
@@ -86,5 +88,48 @@ class BadgeKindTest {
     fun `a video is left to the badge it already has`() {
         // Videos carry their length, which is a more useful thing to say.
         assertEquals(null, testItem(1, isVideo = true).copy(mimeType = "video/mp4").badgeKind())
+    }
+}
+
+/**
+ * What counts as a photograph off a sensor.
+ *
+ * Two places ask and must agree: the tile that marks it raw, and the decoder
+ * that has to open it a different way because Android cannot read one at all.
+ */
+class RawPhotoTest {
+
+    @Test
+    fun `the library's own word for it is enough`() {
+        assertTrue(isRawPhoto("image/x-adobe-dng", "whatever"))
+        assertTrue(isRawPhoto("image/x-sony-arw", "whatever"))
+    }
+
+    @Test
+    fun `and the name, for when the library says only that it is an image`() {
+        // MediaStore files a raw photograph under a plain image type often
+        // enough that the name is the only thing that knows.
+        assertTrue(isRawPhoto("image/jpeg", "DSC_0001.NEF"))
+        assertTrue(isRawPhoto(null, "photo.dng"))
+    }
+
+    @Test
+    fun `an ordinary photograph is not one`() {
+        assertFalse(isRawPhoto("image/jpeg", "IMG_0001.jpg"))
+        assertFalse(isRawPhoto("image/heif", "IMG_0001.heic"))
+        assertFalse(isRawPhoto(null, null))
+    }
+
+    @Test
+    fun `a name that merely contains the letters is not one either`() {
+        assertFalse(isRawPhoto("image/jpeg", "dng-comparison.jpg"))
+        assertFalse(isRawPhoto("image/jpeg", "raw_food_recipe.png"))
+    }
+
+    @Test
+    fun `the tile and the decoder agree about the same file`() {
+        val item = testItem(1, name = "DSC_0001.dng")
+        assertEquals(BadgeKind.RAW, item.badgeKind())
+        assertTrue(isRawPhoto(item.mimeType, item.name))
     }
 }

@@ -13,8 +13,18 @@ android {
         targetSdk = 36
         // Every stage in the specification is finished and the app has replaced
         // the one it was written to replace. That is what a one means.
-        versionCode = 3
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.1"
+
+        // One architecture, because there is one phone. The decoders that play
+        // everything else are tens of megabytes of native code per architecture,
+        // and three of the four would never be run. Lint asks for the Chrome OS
+        // architecture as well; there is no Chrome OS here, and the app is not
+        // published anywhere that anyone else could install it from.
+        //noinspection ChromeOsAbiSupport
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {
@@ -66,6 +76,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
+    implementation(libs.coil.video)
+    implementation(libs.nextlib.media3ext)
     implementation(libs.telephoto.zoomable.coil)
     implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.media3.exoplayer)

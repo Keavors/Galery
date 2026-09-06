@@ -11,6 +11,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import com.keavors.gallery.data.mediaPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import java.io.File
@@ -33,7 +34,7 @@ fun MotionClip(
 ) {
     val context = LocalContext.current
     val player = remember(file) {
-        ExoPlayer.Builder(context).build().apply {
+        context.mediaPlayer().apply {
             setMediaItem(Media3Item.fromUri(file.toURI().toString()))
             volume = if (muted) 0f else 1f
             repeatMode = Player.REPEAT_MODE_OFF
