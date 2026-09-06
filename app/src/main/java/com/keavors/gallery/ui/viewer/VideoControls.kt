@@ -16,7 +16,6 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -35,10 +34,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import com.keavors.gallery.R
 import com.keavors.gallery.data.MediaItem
+import com.keavors.gallery.data.VideoEngine
 import com.keavors.gallery.data.frameAt
 import com.keavors.gallery.data.frameReader
 import com.keavors.gallery.ui.common.ChromeIconButton
@@ -83,10 +81,10 @@ private const val FALLBACK_FPS = 30f
  * video takes the controls away along with the clock and the navigation buttons.
  */
 @Composable
-fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modifier) {
-    var speed by remember { mutableIntStateOf((player.playbackParameters.speed * 100).toInt()) }
-    var playing by remember { mutableStateOf(player.isPlaying) }
-    var muted by remember { mutableStateOf(player.volume == 0f) }
+fun VideoControls(engine: VideoEngine, item: MediaItem, modifier: Modifier = Modifier) {
+    var speed by remember { mutableIntStateOf(100) }
+    var playing by remember { mutableStateOf(engine.isPlaying) }
+    var muted by remember { mutableStateOf(engine.volume == 0f) }
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
 
@@ -126,31 +124,18 @@ fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modif
         }
     }
 
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                playing = isPlaying
-            }
-
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                durationMs = player.duration.takeIf { it > 0 } ?: 0L
-            }
-
-            override fun onVolumeChanged(volume: Float) {
-                muted = volume == 0f
-            }
-        }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
-    }
-
-    LaunchedEffect(playing, scrubbing) {
+    // Asked rather than told, because the two engines announce themselves in
+    // completely different ways and neither announcement is worth two
+    // implementations. Five times a second, and only while these controls are on
+    // the screen — they disappear with the rest of the chrome, and so does this.
+    LaunchedEffect(engine, scrubbing) {
         while (true) {
+            playing = engine.isPlaying
+            muted = engine.volume == 0f
             if (!scrubbing) {
-                positionMs = player.currentPosition.coerceAtLeast(0)
-                durationMs = player.duration.takeIf { it > 0 } ?: durationMs
+                positionMs = engine.positionMs
+                durationMs = engine.durationMs.takeIf { it > 0 } ?: durationMs
             }
-            if (!playing) break
             delay(TICK_MS)
         }
     }
@@ -196,7 +181,7 @@ fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modif
                     scrubFraction = it
                 },
                 onValueChangeFinished = {
-                    if (durationMs > 0) player.seekTo((scrubFraction * durationMs).toLong())
+                    if (durationMs > 0) engine.seekTo((scrubFraction * durationMs).toLong())
                     scrubbing = false
                 },
                 colors = SliderDefaults.colors(
@@ -227,7 +212,7 @@ fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modif
                 icon = R.drawable.ic_step_back,
                 contentDescription = stringResource(R.string.video_step_back),
                 iconSize = 20.dp,
-                onClick = { player.stepFrame(forward = false) },
+                onClick = { engine.stepFrame(forward = false) },
             )
 
             ChromeIconButton(
@@ -238,15 +223,19 @@ fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modif
                 iconSize = 26.dp,
                 onClick = {
                     if (playing) {
-                        player.pause()
+                        engine.pause()
                     } else {
                         // Starting again from the end should replay rather than
                         // sit on the last frame doing nothing.
-                        if (durationMs > 0 && player.currentPosition >= durationMs - 100) {
-                            player.seekTo(0)
+                        if (durationMs > 0 && engine.positionMs >= durationMs - 100) {
+                            engine.seekTo(0)
                         }
-                        player.play()
+                        engine.play()
                     }
+                    // Asked straight away rather than waited for: the poll below
+                    // is two hundred milliseconds away and the button has to
+                    // change under the finger now.
+                    playing = engine.isPlaying
                 },
             )
 
@@ -254,14 +243,14 @@ fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modif
                 icon = R.drawable.ic_step_forward,
                 contentDescription = stringResource(R.string.video_step_forward),
                 iconSize = 20.dp,
-                onClick = { player.stepFrame(forward = true) },
+                onClick = { engine.stepFrame(forward = true) },
             )
 
             TextButton(
                 onClick = {
                     val next = SPEEDS[(SPEEDS.indexOf(speed).coerceAtLeast(0) + 1) % SPEEDS.size]
                     speed = next
-                    player.setPlaybackSpeed(next / 100f)
+                    engine.setSpeed(next / 100f)
                 },
             ) {
                 Text(
@@ -277,7 +266,10 @@ fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modif
                     if (muted) R.string.video_sound_on else R.string.video_sound_off
                 ),
                 iconSize = 20.dp,
-                onClick = { player.volume = if (muted) 1f else 0f },
+                onClick = {
+                    engine.volume = if (muted) 1f else 0f
+                    muted = engine.volume == 0f
+                },
             )
         }
     }
@@ -290,11 +282,11 @@ fun VideoControls(player: ExoPlayer, item: MediaItem, modifier: Modifier = Modif
  * undoes. The seek is exact rather than to the nearest keyframe, which is the
  * whole point of stepping — the nearest keyframe can be seconds away.
  */
-private fun ExoPlayer.stepFrame(forward: Boolean) {
+private fun VideoEngine.stepFrame(forward: Boolean) {
     pause()
-    val fps = videoFormat?.frameRate?.takeIf { it > 1f } ?: FALLBACK_FPS
+    val fps = frameRate ?: FALLBACK_FPS
     val frame = (1000f / fps).toLong().coerceAtLeast(1L)
-    val target = (currentPosition + if (forward) frame else -frame)
-        .coerceIn(0L, duration.takeIf { it > 0 } ?: Long.MAX_VALUE)
+    val target = (positionMs + if (forward) frame else -frame)
+        .coerceIn(0L, durationMs.takeIf { it > 0 } ?: Long.MAX_VALUE)
     seekTo(target)
 }

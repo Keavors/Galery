@@ -46,10 +46,11 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.media3.common.MediaItem as Media3Item
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import com.keavors.gallery.data.ExoVideoEngine
+import com.keavors.gallery.data.VideoEngine
+import com.keavors.gallery.data.VlcVideoEngine
 import com.keavors.gallery.data.mediaPlayer
+import com.keavors.gallery.data.videoNeedsFullPlayer
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import android.view.WindowManager
@@ -230,32 +231,44 @@ fun ViewerScreen(
     // the system about codecs and starts a thread of its own — and those are the
     // milliseconds a photograph opened from another app spends waiting to be
     // drawn. Most viewings never show a video at all.
-    var player by remember { mutableStateOf<ExoPlayer?>(null) }
+    var player by remember { mutableStateOf<VideoEngine?>(null) }
     DisposableEffect(Unit) { onDispose { player?.release() } }
 
     LaunchedEffect(current.id, current.isVideo) {
         if (!current.isVideo) {
             player?.pause()
-            player?.clearMediaItems()
             return@LaunchedEffect
         }
-        val playing = player ?: context.mediaPlayer().also { player = it }
-        playing.setMediaItem(Media3Item.fromUri(current.contentUri()))
-        playing.repeatMode =
-            if (settings.videoRepeat) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+
+        // Which engine before anything is opened, decided by the first sixteen
+        // bytes of the file rather than by what it is called. The six files that
+        // prompted all this were RealMedia named .mp4, and the name and the
+        // library both said MP4; only the bytes disagreed.
+        val wantsVlc = context.videoNeedsFullPlayer(current)
+        val playing = when {
+            wantsVlc && player is VlcVideoEngine -> player!!
+            !wantsVlc && player is ExoVideoEngine -> player!!
+            else -> {
+                // Swapping engines means letting go of a decoder and taking
+                // another: only when the kind of file actually changes.
+                player?.release()
+                (if (wantsVlc) VlcVideoEngine(context) else ExoVideoEngine(context.mediaPlayer()))
+                    .also { player = it }
+            }
+        }
+
         // Both off unless asked for: opening a video should not start making
         // noise in a quiet room.
         playing.volume = if (settings.videoSound) 1f else 0f
-        playing.setPlaybackSpeed(settings.videoSpeed / 100f)
-        playing.playWhenReady = settings.videoAutoplay
-        playing.prepare()
-
-        // Back to where it was left, if it was left anywhere worth returning to.
-        // After prepare rather than before: a seek on a player that has not been
-        // given a file yet is a seek into nothing.
-        if (settings.videoResume) {
-            resumeAt(current.id)?.let { playing.seekTo(it) }
-        }
+        playing.setSpeed(settings.videoSpeed / 100f)
+        playing.open(
+            uri = current.uri,
+            playWhenReady = settings.videoAutoplay,
+            repeat = settings.videoRepeat,
+            // Back to where it was left, if it was left anywhere worth
+            // returning to.
+            startAtMs = if (settings.videoResume) resumeAt(current.id) ?: 0L else 0L,
+        )
     }
 
     // Where the video being left behind got to. Written when the page changes,
@@ -270,8 +283,8 @@ fun ViewerScreen(
         val leaving = current
         onDispose {
             val playing = player ?: return@onDispose
-            if (leaving.isVideo && playing.duration > 0) {
-                onWatched(leaving.id, playing.currentPosition, playing.duration)
+            if (leaving.isVideo && playing.durationMs > 0) {
+                onWatched(leaving.id, playing.positionMs, playing.durationMs)
             }
         }
     }
@@ -323,8 +336,8 @@ fun ViewerScreen(
             if (event == Lifecycle.Event.ON_STOP) {
                 player?.pause()
                 player?.let { playing ->
-                    if (onScreen.isVideo && playing.duration > 0) {
-                        onWatched(onScreen.id, playing.currentPosition, playing.duration)
+                    if (onScreen.isVideo && playing.durationMs > 0) {
+                        onWatched(onScreen.id, playing.positionMs, playing.durationMs)
                     }
                 }
             }
@@ -478,7 +491,7 @@ fun ViewerScreen(
             if (item.isVideo) {
                 VideoPage(
                     item = item,
-                    player = player,
+                    engine = player,
                     isCurrent = page == pagerState.currentPage,
                     thumbBucketPx = thumbBucketPx,
                     onClick = { chromeVisible = !chromeVisible },
@@ -617,7 +630,7 @@ fun ViewerScreen(
                 .graphicsLayer { alpha = 1f - dismissProgress },
         ) {
             Column {
-                player?.let { if (current.isVideo) VideoControls(player = it, item = current) }
+                player?.let { if (current.isVideo) VideoControls(engine = it, item = current) }
                 ViewerBottomBar(
                     item = current,
                     onToggleFavorite = { writer.setFavorite(listOf(current), !current.isFavorite) },

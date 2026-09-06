@@ -8,6 +8,7 @@ lifecycle = "2.11.0"
 junit = "4.13.2"
 coil = "3.6.0"
 nextlib = "1.11.0-0.14.0"
+libvlc = "3.7.5"
 telephoto = "0.19.0"
 exifinterface = "1.4.2"
 media3 = "1.11.0"
@@ -35,6 +36,7 @@ androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplaye
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 androidx-media3-transformer = { group = "androidx.media3", name = "media3-transformer", version.ref = "media3" }
 nextlib-media3ext = { group = "io.github.anilbeesetti", name = "nextlib-media3ext", version.ref = "nextlib" }
+libvlc-all = { group = "org.videolan.android", name = "libvlc-all", version.ref = "libvlc" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 json = { group = "org.json", name = "json", version.ref = "json" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

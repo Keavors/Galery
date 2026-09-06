@@ -12,17 +12,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
+import com.keavors.gallery.data.ExoVideoEngine
 import com.keavors.gallery.data.MediaItem
+import com.keavors.gallery.data.VideoEngine
+import com.keavors.gallery.data.VlcVideoEngine
 import com.keavors.gallery.data.previewRequest
+import org.videolan.libvlc.util.VLCVideoLayout
 
 /**
  * One video in the pager.
  *
- * Only the page being looked at gets the player; the ones on either side show
+ * Only the page being looked at gets a player; the ones on either side show
  * their thumbnail, and so does this one until there is a player to give it. One
  * player moved between pages rather than one per page: an ExoPlayer holds a
  * decoder, and three of them idling to the left and right of the screen is
@@ -35,7 +38,7 @@ import com.keavors.gallery.data.previewRequest
 @Composable
 fun VideoPage(
     item: MediaItem,
-    player: ExoPlayer?,
+    engine: VideoEngine?,
     isCurrent: Boolean,
     thumbBucketPx: Int,
     onClick: () -> Unit,
@@ -53,7 +56,9 @@ fun VideoPage(
                 onClick = onClick,
             ),
     ) {
-        if (isCurrent && player != null) {
+        // Two engines, two surfaces. ExoPlayer draws into Media3's own view;
+        // VLC brings a layout of its own and will not draw into anything else.
+        if (isCurrent && engine is ExoVideoEngine) {
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
@@ -62,8 +67,15 @@ fun VideoPage(
                         setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                     }
                 },
-                update = { view -> view.player = player },
+                update = { view -> view.player = engine.player },
                 onReset = { view -> view.player = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (isCurrent && engine is VlcVideoEngine) {
+            AndroidView(
+                factory = { ctx -> VLCVideoLayout(ctx) },
+                update = { view -> engine.attach(view) },
+                onReset = { engine.detach() },
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
