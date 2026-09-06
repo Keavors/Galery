@@ -13,8 +13,8 @@ android {
         targetSdk = 36
         // Every stage in the specification is finished and the app has replaced
         // the one it was written to replace. That is what a one means.
-        versionCode = 4
-        versionName = "1.1"
+        versionCode = 5
+        versionName = "1.1.1"
 
         // One architecture, because there is one phone. The decoders that play
         // everything else are tens of megabytes of native code per architecture,
