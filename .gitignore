@@ -19,3 +19,6 @@ local.properties
 
 # Local Claude Code settings (machine-specific)
 .claude/settings.local.json
+
+# IDE settings (machine-specific): deployment target, run configs, device manager
+/.idea/
